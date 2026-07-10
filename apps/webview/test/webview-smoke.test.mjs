@@ -7,14 +7,16 @@ import { fileURLToPath } from "node:url";
 const webviewRoot = fileURLToPath(new URL("..", import.meta.url));
 const webviewOutput = path.resolve(webviewRoot, "..", "extension", "media", "webview");
 
-test("webview build emits only the SVG MVP entry assets", async () => {
+test("webview build emits the SVG base entry and keeps other runtimes lazy", async () => {
   const files = await readdir(webviewOutput);
 
   assert.ok(files.includes("index.html"), "index.html is emitted");
   assert.ok(files.includes("index.js"), "index.js is emitted");
   assert.ok(files.includes("index.css"), "index.css is emitted");
-  const optionalRuntimeChunks = files.filter((fileName) => /rive|live2d|webgl|webgpu|gltf|three/i.test(fileName));
-  assert.deepEqual(optionalRuntimeChunks, [], "optional runtime chunks stay out of the SVG MVP bundle");
+  const deferredRuntimeChunks = files.filter((fileName) =>
+    /rive|live2d|gltf|three|WebGLAvatarRenderer|WebGPUAvatarRenderer/i.test(fileName)
+  );
+  assert.deepEqual(deferredRuntimeChunks, [], "deferred optional runtime chunks stay out of the Webview bundle");
 });
 
 test("webview bundle includes asset manager bridge actions", async () => {

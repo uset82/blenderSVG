@@ -41,6 +41,7 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
           }
         >
           <option value="svg">SVG</option>
+          <option value="pixi">PixiJS</option>
           <option value="rive">Rive</option>
           <option value="webgl">WebGL</option>
           <option value="webgpu">WebGPU</option>

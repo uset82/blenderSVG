@@ -18,11 +18,11 @@ mkdirSync(destination, { recursive: true });
 cpSync(source, destination, { dereference: true, recursive: true });
 
 const forbiddenChunks = collectFiles(destination).filter((filePath) =>
-  /rive|live2d|webgl|webgpu|gltf|three/i.test(path.basename(filePath))
+  /rive|live2d|gltf|three|WebGLAvatarRenderer|WebGPUAvatarRenderer/i.test(path.basename(filePath))
 );
 if (forbiddenChunks.length > 0) {
   const relativeChunks = forbiddenChunks.map((filePath) => path.relative(root, filePath)).join(", ");
-  throw new Error(`Optional runtime chunks must not enter the SVG MVP bundle: ${relativeChunks}`);
+  throw new Error(`Deferred optional runtime chunks must not enter the Webview bundle: ${relativeChunks}`);
 }
 
 console.log(`Copied Webview build to ${path.relative(root, destination)}`);

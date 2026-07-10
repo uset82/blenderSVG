@@ -124,6 +124,26 @@ input[type="text"] {
   pointer-events: none;
 }
 
+.pixi-avatar-shell {
+  padding: 0;
+}
+
+.pixi-canvas-container {
+  position: absolute;
+  inset: 0;
+}
+
+.pixi-canvas-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-runtime-loading {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 .rive-runtime {
   width: min(68vw, 186px);
   aspect-ratio: 1;

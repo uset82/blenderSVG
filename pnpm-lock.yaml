@@ -48,6 +48,9 @@ importers:
       '@codex-avatar-studio/avatar-core':
         specifier: workspace:*
         version: link:../../packages/avatar-core
+      '@codex-avatar-studio/runtime-pixi':
+        specifier: workspace:*
+        version: link:../../packages/runtime-pixi
       '@vitejs/plugin-react':
         specifier: ^5.0.4
         version: 5.2.0(vite@7.3.6(@types/node@22.20.0))

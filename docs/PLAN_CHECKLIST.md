@@ -701,7 +701,7 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 ## Tasks
 
 - [x] Add PixiJS v8 to `runtime-pixi`.
-- [ ] Add or reference the official PixiJS skills for coding agents.
+- [x] Add or reference the official PixiJS skills for coding agents.
 - [x] Create `PixiAvatarRuntime`.
 - [x] Create a single PixiJS `Application` per avatar stage.
 - [x] Initialize WebGL safely.
@@ -709,7 +709,7 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 - [x] Add automatic renderer fallback.
 - [x] Create a resize observer.
 - [x] Cap device pixel ratio.
-- [ ] Create a texture cache.
+- [x] Create a texture cache.
 - [x] Destroy textures and application resources on disposal.
 - [x] Pause ticker when hidden.
 - [x] Resume ticker when visible.
@@ -720,8 +720,13 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 ### Phase 7 progress evidence — 2026-07-10
 
 - `packages/runtime-pixi` now depends on PixiJS 8.14 and exports an isolated `PixiAvatarRuntime` implementing the shared adapter contract. It creates one WebGL-preferred application per initialized stage, caps resolution at 2×, maps core states, handles trigger effects, and destroys application resources/canvases cleanly.
-- The adapter remains optional and is not imported by the SVG MVP Webview bundle. It now exposes non-required WebGPU detection, WebGL preference, resize observation, visibility-driven ticker pause/resume, 30/60 FPS caps, and a debug information surface.
-- Verification: runtime-pixi typecheck, lint, formatting, and Vitest contract test pass.
+- The adapter is lazy-loaded by `apps/webview/src/renderers/PixiAvatarRenderer.tsx` only when the PixiJS setting is selected. It forwards state, trigger, speech-level, reduced-motion, and visibility updates, and switches to the SVG renderer if loading or initialization fails.
+- The runtime exposes non-required WebGPU detection, WebGL-first initialization with WebGPU fallback when available, resize observation, visibility-driven ticker pause/resume, 30/60 FPS caps, and a debug information surface.
+- `packages/runtime-pixi/src/textureCache.ts` adds a local texture cache with trimmed source keys, concurrent-load deduplication, injected loading/destruction hooks, stale-load invalidation, and explicit cleanup. `PixiAvatarRuntime` clears the cache during disposal and disposes an existing application before reinitialization.
+- `skills.md` references the official PixiJS skills repository as coding-agent reference material only; it is not bundled as a runtime dependency.
+- Verification: `pnpm --filter @codex-avatar-studio/runtime-pixi typecheck`, `pnpm --filter @codex-avatar-studio/runtime-pixi lint`, `pnpm --filter @codex-avatar-studio/runtime-pixi test`, `pnpm --filter @codex-avatar-studio/webview test`, and `pnpm run ci` pass. Runtime-Pixi tests: 14 passed; Webview smoke tests: 3 passed. The lifecycle tests cover disposal, reinitialization, visibility events, WebGPU fallback selection, and failed initialization cleanup.
+- Manual browser smoke: served `apps/webview/dist` at `http://127.0.0.1:4173/?runtime=pixi` in the Codex in-app browser. Observed one Pixi canvas, no loading placeholder after initialization, no console errors, and one canvas after a page reload.
+- Manual fallback smoke: served the same build on a fresh origin with the Pixi lazy entry withheld. Observed one SVG avatar, no Pixi canvas, no loading placeholder, and no console errors; the generated chunk was restored and the normal Webview smoke suite passed afterward.
 
 ## Performance rules
 
@@ -733,12 +738,12 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 
 ## Acceptance criteria
 
-- [ ] PixiJS initializes without console errors.
-- [ ] Runtime disposes cleanly.
-- [ ] Reopening the panel does not create duplicate canvases.
-- [ ] Hidden panel stops rendering.
-- [ ] Renderer fallback works.
-- [ ] SVG fallback loads if PixiJS initialization fails.
+- [x] PixiJS initializes without console errors.
+- [x] Runtime disposes cleanly.
+- [x] Reopening the panel does not create duplicate canvases.
+- [x] Hidden panel stops rendering.
+- [x] Renderer fallback works.
+- [x] SVG fallback loads if PixiJS initialization fails.
 
 ---
 

@@ -8,6 +8,8 @@ import type {
 } from "@codex-avatar-studio/avatar-core";
 export * from "./spritesheet.js";
 export * from "./animationController.js";
+export * from "./textureCache.js";
+import { PixiTextureCache } from "./textureCache.js";
 
 export const runtimePixiPackageId = "@codex-avatar-studio/runtime-pixi";
 
@@ -43,20 +45,28 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
   private visibilityHandler: (() => void) | undefined;
   private currentState: AvatarState = "idle";
   private readonly options: PixiRuntimeOptions;
+  private lifecycleToken = 0;
+  public readonly textureCache = new PixiTextureCache();
 
   public constructor(options: PixiRuntimeOptions = {}) {
     this.options = options;
   }
 
   public async initialize(container: HTMLElement, _manifest: AvatarManifest): Promise<void> {
+    if (this.application) await this.dispose();
+    const lifecycleToken = ++this.lifecycleToken;
     this.container = container;
-    const application = new Application();
-    await application.init({
-      preference: "webgl",
-      resizeTo: container,
-      antialias: !optionsReducedMotion(this.options),
-      backgroundAlpha: 0
-    });
+    let application: Application;
+    try {
+      application = await initializePixiApplication(container, this.options);
+    } catch (error) {
+      if (lifecycleToken === this.lifecycleToken) this.container = undefined;
+      throw error;
+    }
+    if (lifecycleToken !== this.lifecycleToken) {
+      destroyApplication(application);
+      return;
+    }
     this.application = application;
     application.ticker.maxFPS = this.options.maxFps ?? 30;
     container.replaceChildren(application.canvas);
@@ -112,11 +122,13 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
   }
 
   public async dispose(): Promise<void> {
+    this.lifecycleToken += 1;
     this.observer?.disconnect();
     this.observer = undefined;
     if (this.visibilityHandler) document.removeEventListener("visibilitychange", this.visibilityHandler);
     this.visibilityHandler = undefined;
-    this.application?.destroy(true, { children: true, texture: true, textureSource: true });
+    if (this.application) destroyApplication(this.application);
+    this.textureCache.clear();
     this.application = undefined;
     this.avatar = undefined;
     this.container?.replaceChildren();
@@ -143,4 +155,38 @@ function optionsReducedMotion(options: PixiRuntimeOptions): boolean {
 
 function getDevicePixelRatio(): number {
   return typeof window === "undefined" ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+}
+
+async function initializePixiApplication(container: HTMLElement, options: PixiRuntimeOptions): Promise<Application> {
+  const rendererOptions = {
+    resizeTo: container,
+    antialias: !optionsReducedMotion(options),
+    backgroundAlpha: 0
+  };
+  const webglApplication = new Application();
+
+  try {
+    await webglApplication.init({ ...rendererOptions, preference: "webgl" });
+    return webglApplication;
+  } catch (webglError) {
+    destroyApplication(webglApplication);
+    if (!supportsWebGpu()) throw webglError;
+
+    const webgpuApplication = new Application();
+    try {
+      await webgpuApplication.init({ ...rendererOptions, preference: "webgpu" });
+      return webgpuApplication;
+    } catch (webgpuError) {
+      destroyApplication(webgpuApplication);
+      throw new Error("PixiJS could not initialize WebGL or WebGPU.", { cause: webgpuError });
+    }
+  }
+}
+
+function destroyApplication(application: Application): void {
+  try {
+    application.destroy(true, { children: true, texture: false, textureSource: false });
+  } catch {
+    // Pixi can expose a partially initialized renderer after a failed init.
+  }
 }
