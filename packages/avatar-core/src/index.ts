@@ -7,4 +7,5 @@ export * from "./protocol.js";
 export * from "./reducedMotion.js";
 export * from "./runtime.js";
 export * from "./states.js";
+export * from "./stateMachine.js";
 export * from "./types.js";

@@ -535,17 +535,17 @@ export interface AvatarRuntimeAdapter {
 
 ## Tasks
 
-- [ ] Implement a deterministic avatar state machine.
-- [ ] Define allowed state transitions.
-- [ ] Define state priorities.
-- [ ] Add temporary state durations.
-- [ ] Add automatic return to idle.
-- [ ] Prevent low-priority events from interrupting critical states.
-- [ ] Allow explicit manual overrides for debugging.
-- [ ] Add a reduced-motion policy.
-- [ ] Add a low-performance policy.
-- [ ] Add unit tests for transitions and interruption rules.
-- [ ] Add a development-only transition log.
+- [x] Implement a deterministic avatar state machine.
+- [x] Define allowed state transitions.
+- [x] Define state priorities.
+- [x] Add temporary state durations.
+- [x] Add automatic return to idle/previous state.
+- [x] Prevent low-priority events from interrupting critical states.
+- [x] Allow explicit manual overrides for debugging.
+- [x] Add a reduced-motion policy.
+- [x] Add a low-performance policy.
+- [x] Add unit tests for transitions and interruption rules.
+- [x] Add a development-only transition log.
 
 ## Required priority example
 
@@ -564,12 +564,18 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 
 ## Acceptance criteria
 
-- [ ] All states are reachable.
-- [ ] Invalid transitions do not crash.
-- [ ] Temporary states return to the correct previous or idle state.
-- [ ] Priority tests pass.
-- [ ] Debounce tests pass.
-- [ ] Reduced-motion mode does not change state semantics.
+- [x] All states are reachable through typed states/events or explicit manual overrides.
+- [x] Invalid transitions do not crash.
+- [x] Temporary states return to the correct previous or idle state.
+- [x] Priority tests pass.
+- [x] Debounce tests pass.
+- [x] Reduced-motion mode does not change state semantics.
+
+### Phase 3 evidence — 2026-07-10
+
+- `packages/avatar-core/src/stateMachine.ts` provides deterministic transitions, priority protection, configurable expirations, timeout return, manual/debug overrides, reduced-motion and low-performance policies, sleeping wake-up, and diagnostic debouncing.
+- Transition logging is injected through a development-only callback and remains absent unless configured.
+- Verification: avatar-core tests pass 17 tests; full typecheck and lint pass. Tests cover priority interruption, building protection, temporary-state return, sleeping wake-up, diagnostic debounce, and reduced-motion expiry behavior.
 
 ---
 
