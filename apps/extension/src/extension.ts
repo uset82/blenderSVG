@@ -17,7 +17,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ideEvents,
     blenderOutputChannel,
     vscode.window.registerWebviewViewProvider(AvatarWebviewProvider.viewType, provider),
-    vscode.workspace.onDidChangeConfiguration(event => {
+    vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("codexAvatar")) {
         provider.refreshSettings();
       }
@@ -166,7 +166,7 @@ export function activate(context: vscode.ExtensionContext): void {
           placeHolder: "SVG, GLB, PNG preview"
         }
       );
-      const modes = selectedModes?.map(item => item.mode) satisfies BlenderExportMode[] | undefined;
+      const modes = selectedModes?.map((item) => item.mode) satisfies BlenderExportMode[] | undefined;
       if (!modes || modes.length === 0) {
         return;
       }

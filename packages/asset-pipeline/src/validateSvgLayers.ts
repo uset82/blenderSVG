@@ -68,7 +68,7 @@ export function validateSvgLayers(svg: string, options: SvgValidationOptions = {
   const maxPaths = options.maxPaths ?? 750;
   const maxTinyPaths = options.maxTinyPaths ?? 250;
   const stats = collectSvgStats(svg, options.tinyPathDataLength ?? 18);
-  const missingLayers = requiredLayers.filter(layer => !stats.layerIds.has(layer));
+  const missingLayers = requiredLayers.filter((layer) => !stats.layerIds.has(layer));
 
   if (byteLength > maxBytes) {
     warnings.push(`SVG is ${(byteLength / 1024).toFixed(1)} KB; consider manual cleanup for IDE use.`);
@@ -173,7 +173,9 @@ function isSvgElementOrElementList(value: unknown): value is Record<string, unkn
   return isRecord(value) || (Array.isArray(value) && value.every(isRecord));
 }
 
-function toElementList(value: Record<string, unknown> | Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+function toElementList(
+  value: Record<string, unknown> | Array<Record<string, unknown>>
+): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value : [value];
 }
 

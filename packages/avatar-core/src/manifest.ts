@@ -148,7 +148,9 @@ function readRive(value: unknown, warnings: string[]): AvatarManifest["rive"] | 
 
   return {
     stateMachine,
-    inputs: isObject(value.inputs) ? Object.fromEntries(Object.entries(value.inputs).filter(([, entry]) => typeof entry === "string")) : {}
+    inputs: isObject(value.inputs)
+      ? Object.fromEntries(Object.entries(value.inputs).filter(([, entry]) => typeof entry === "string"))
+      : {}
   };
 }
 

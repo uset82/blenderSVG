@@ -12,7 +12,7 @@ async function readJson(relativePath) {
 
 test("extension manifest activates every contributed command", async () => {
   const manifest = await readJson("package.json");
-  const contributedCommands = manifest.contributes.commands.map(command => command.command);
+  const contributedCommands = manifest.contributes.commands.map((command) => command.command);
   const activationEvents = new Set(manifest.activationEvents);
   const requiredCommands = [
     "codexAvatar.openAssistant",

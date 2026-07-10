@@ -79,8 +79,14 @@ assert.match(webviewSmoke.webview.html, /placeholder-avatar\.svg/, "webview refe
 assert.ok(webviewSmoke.handlers.length > 0, "webview receive handler is registered");
 
 await webviewSmoke.handlers[0]({ type: "webview:ready" });
-assert.ok(webviewSmoke.messages.some(message => message.type === "settings:update"), "webview ready posts settings");
-assert.ok(webviewSmoke.messages.some(message => message.type === "avatar:setState"), "webview ready posts current state");
+assert.ok(
+  webviewSmoke.messages.some((message) => message.type === "settings:update"),
+  "webview ready posts settings"
+);
+assert.ok(
+  webviewSmoke.messages.some((message) => message.type === "avatar:setState"),
+  "webview ready posts current state"
+);
 
 await webviewSmoke.handlers[0]({ type: "settings:update", config: { runtime: "webgl", showSpeechBubble: false } });
 assert.equal(vscode.__configStore.get("runtime"), "webgl");
@@ -101,11 +107,20 @@ await vscode.commands.executeCommand("codexAvatar.vectorizeImage");
 vscode.__configStore.set("blenderPath", process.execPath);
 await vscode.commands.executeCommand("codexAvatar.exportBlenderScene");
 
-assert.ok(vscode.__executedCommands.has("workbench.view.extension.codexAvatar"), "open assistant focuses view container");
+assert.ok(
+  vscode.__executedCommands.has("workbench.view.extension.codexAvatar"),
+  "open assistant focuses view container"
+);
 assert.ok(vscode.__executedCommands.has("revealFileInOS"), "open assets folder reveals local folder");
 assert.ok(vscode.__createdDirectories.length > 0, "open assets folder creates local asset workspace");
-assert.ok(webviewSmoke.messages.some(message => message.type === "assets:manifestLoaded"), "reload posts manifest");
-assert.ok(webviewSmoke.messages.some(message => message.type === "avatar:trigger"), "manual commands post triggers");
+assert.ok(
+  webviewSmoke.messages.some((message) => message.type === "assets:manifestLoaded"),
+  "reload posts manifest"
+);
+assert.ok(
+  webviewSmoke.messages.some((message) => message.type === "avatar:trigger"),
+  "manual commands post triggers"
+);
 
 extension.deactivate?.();
 
@@ -113,9 +128,9 @@ console.log(`VSIX install, activation, command, and webview smoke passed: ${inst
 
 function findInstalledExtension(directory) {
   const match = readdirSync(directory, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => path.join(directory, entry.name))
-    .find(entryPath => path.basename(entryPath).startsWith("codex-avatar-studio.codex-avatar-studio-extension-"));
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(directory, entry.name))
+    .find((entryPath) => path.basename(entryPath).startsWith("codex-avatar-studio.codex-avatar-studio-extension-"));
 
   if (!match) {
     throw new Error(`Installed extension was not found in ${directory}`);

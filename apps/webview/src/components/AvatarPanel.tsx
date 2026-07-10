@@ -9,7 +9,15 @@ import { useAvatarBehavior } from "../hooks/useAvatarBehavior";
 
 type AvatarPanelProps = BridgeState;
 
-export function AvatarPanel({ avatarState, config, message, poseInput, manifest, triggerEvent, debugEvents }: AvatarPanelProps) {
+export function AvatarPanel({
+  avatarState,
+  config,
+  message,
+  poseInput,
+  manifest,
+  triggerEvent,
+  debugEvents
+}: AvatarPanelProps) {
   const behavior = useAvatarBehavior({
     externalState: avatarState,
     externalMessage: message,

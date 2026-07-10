@@ -60,8 +60,8 @@ function runTsc(project, ...extraArgs) {
 
 function runNodeTests(directory) {
   const testFiles = readdirSync(directory)
-    .filter(fileName => /\.(test|spec)\.(js|mjs)$/.test(fileName))
-    .map(fileName => path.join(directory, fileName));
+    .filter((fileName) => /\.(test|spec)\.(js|mjs)$/.test(fileName))
+    .map((fileName) => path.join(directory, fileName));
 
   if (testFiles.length === 0) {
     throw new Error(`No test files found in ${directory}`);

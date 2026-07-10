@@ -52,20 +52,24 @@ try {
   const port = await listen(server);
   const url = `http://127.0.0.1:${port}/index.html`;
   const debugPort = await findFreePort();
-  browser = spawn(edgeExecutable, [
-    "--headless=new",
-    "--disable-background-networking",
-    "--disable-breakpad",
-    "--disable-crash-reporter",
-    "--disable-crashpad",
-    "--disable-gpu",
-    "--disable-extensions",
-    "--no-first-run",
-    "--no-default-browser-check",
-    `--remote-debugging-port=${debugPort}`,
-    `--user-data-dir=${tempRoot}`,
-    url
-  ], { windowsHide: true });
+  browser = spawn(
+    edgeExecutable,
+    [
+      "--headless=new",
+      "--disable-background-networking",
+      "--disable-breakpad",
+      "--disable-crash-reporter",
+      "--disable-crashpad",
+      "--disable-gpu",
+      "--disable-extensions",
+      "--no-first-run",
+      "--no-default-browser-check",
+      `--remote-debugging-port=${debugPort}`,
+      `--user-data-dir=${tempRoot}`,
+      url
+    ],
+    { windowsHide: true }
+  );
   const stderr = captureStream(browser.stderr);
   const target = await waitForPageTarget(debugPort, url);
   const cdp = await connectCdp(target.webSocketDebuggerUrl);
@@ -132,7 +136,7 @@ async function waitForPageTarget(debugPort, expectedUrl) {
     try {
       const response = await fetch(endpoint);
       const targets = await response.json();
-      const target = targets.find(item => item.type === "page" && item.url === expectedUrl);
+      const target = targets.find((item) => item.type === "page" && item.url === expectedUrl);
       if (target?.webSocketDebuggerUrl) {
         return target;
       }
@@ -174,7 +178,7 @@ function connectCdp(webSocketUrl) {
       });
     });
 
-    socket.addEventListener("message", event => {
+    socket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data.toString());
       const request = pending.get(message.id);
       if (!request) {
@@ -237,7 +241,7 @@ async function evaluateRenderedWebview(cdp) {
 
 function captureStream(stream) {
   const captured = { text: "" };
-  stream?.on("data", chunk => {
+  stream?.on("data", (chunk) => {
     captured.text += chunk.toString();
   });
   return captured;
@@ -252,10 +256,7 @@ async function stopBrowser(child) {
     child.kill();
   }
 
-  await Promise.race([
-    new Promise(resolve => child.once("exit", resolve)),
-    delay(2000)
-  ]);
+  await Promise.race([new Promise((resolve) => child.once("exit", resolve)), delay(2000)]);
 }
 
 async function removeTempRoot(directory) {
@@ -279,13 +280,13 @@ async function cleanupOldSmokeProfiles() {
   const entries = await readdir(os.tmpdir(), { withFileTypes: true });
   await Promise.all(
     entries
-      .filter(entry => entry.isDirectory() && entry.name.startsWith(smokeProfilePrefix))
-      .map(entry => removeTempRoot(path.join(os.tmpdir(), entry.name)))
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(smokeProfilePrefix))
+      .map((entry) => removeTempRoot(path.join(os.tmpdir(), entry.name)))
   );
 }
 
 function delay(milliseconds) {
-  return new Promise(resolve => setTimeout(resolve, milliseconds));
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function findEdgeExecutable() {
@@ -296,7 +297,7 @@ function findEdgeExecutable() {
     path.join(process.env.LOCALAPPDATA ?? "", "Microsoft", "Edge", "Application", "msedge.exe")
   ].filter(Boolean);
 
-  return candidates.find(candidate => {
+  return candidates.find((candidate) => {
     try {
       return statSyncFile(candidate);
     } catch {

@@ -5,20 +5,32 @@
   "description": "VS Code/Codex-compatible animated assistant system with SVG fallback and optional richer avatar runtimes.",
   "license": "UNLICENSED",
   "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22 <23",
+    "pnpm": "11.7.0"
+  },
   "scripts": {
-    "build": "node scripts/workspace-checks.mjs build",
-    "typecheck": "node scripts/workspace-checks.mjs typecheck",
-    "lint": "node scripts/workspace-checks.mjs lint",
-    "test": "node scripts/workspace-checks.mjs test",
-    "ci": "pnpm build && pnpm typecheck && pnpm lint && pnpm test",
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test:unit": "vitest run",
+    "ci": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "clean": "node scripts/clean.mjs",
+    "package": "node scripts/package-extension.mjs",
     "dev:extension": "pnpm --filter ./apps/extension watch",
-    "package:vsix": "node scripts/package-vsix.mjs",
+    "package:vsix": "pnpm run package",
     "smoke:webview": "node scripts/smoke-webview-render.mjs",
     "smoke:vsix": "node scripts/smoke-installed-vsix.mjs"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.3",
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.1",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "4.1.10"
   }
 }

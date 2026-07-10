@@ -15,7 +15,6 @@ export function shouldReduceMotion(
   }
 
   return Boolean(
-    typeof environment.matchMedia === "function" &&
-      environment.matchMedia("(prefers-reduced-motion: reduce)").matches
+    typeof environment.matchMedia === "function" && environment.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
 }

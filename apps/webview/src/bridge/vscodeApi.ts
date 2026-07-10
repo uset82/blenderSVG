@@ -31,29 +31,31 @@ export function postToExtension(message: WebviewToExtensionMessage): void {
 export function getBootstrap(): WebviewBootstrap {
   const previewRuntime = getLocalPreviewRuntime();
 
-  return window.__CODEX_AVATAR_BOOTSTRAP__ ?? {
-    config: {
-      enabled: true,
-      runtime: previewRuntime,
-      position: "activity-bar-view",
-      character: "default",
-      animationIntensity: "medium",
-      focusMode: false,
-      showSpeechBubble: true,
-      respectReducedMotion: true,
-      blenderPath: "",
-      assetWorkspace: ".codex-avatar"
-    },
-    placeholderAvatarUri: "",
-    manifest: {
-      version: "0.1.0",
-      id: "default-coder-orb",
-      name: "Default Coder Orb",
-      runtimePriority: ["svg"],
-      assets: {},
-      states: [...avatarStates]
+  return (
+    window.__CODEX_AVATAR_BOOTSTRAP__ ?? {
+      config: {
+        enabled: true,
+        runtime: previewRuntime,
+        position: "activity-bar-view",
+        character: "default",
+        animationIntensity: "medium",
+        focusMode: false,
+        showSpeechBubble: true,
+        respectReducedMotion: true,
+        blenderPath: "",
+        assetWorkspace: ".codex-avatar"
+      },
+      placeholderAvatarUri: "",
+      manifest: {
+        version: "0.1.0",
+        id: "default-coder-orb",
+        name: "Default Coder Orb",
+        runtimePriority: ["svg"],
+        assets: {},
+        states: [...avatarStates]
+      }
     }
-  };
+  );
 }
 
 function getLocalPreviewRuntime(): WebviewBootstrap["config"]["runtime"] {

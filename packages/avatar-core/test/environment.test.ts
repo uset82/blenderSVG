@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { getPreferredGpuRuntime, shouldReduceMotion, supportsWebGL2, supportsWebGPU } from "../src/index.js";
 
 test("reduced-motion helper supports explicit and system preferences", () => {

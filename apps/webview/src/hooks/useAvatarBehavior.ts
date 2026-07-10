@@ -53,7 +53,7 @@ export function useAvatarBehavior(options: AvatarBehaviorOptions): AvatarBehavio
       displayState === "warning" ||
       displayState === "error";
 
-    setDisplayMessage(previous => {
+    setDisplayMessage((previous) => {
       if (previous === nextDisplayMessage) {
         return previous;
       }
@@ -75,7 +75,7 @@ export function useAvatarBehavior(options: AvatarBehaviorOptions): AvatarBehavio
   useEffect(() => {
     const handleActivity = () => {
       setLastActivityAt(Date.now());
-      setDisplayState(previous => (previous === "sleeping" ? "idle" : previous));
+      setDisplayState((previous) => (previous === "sleeping" ? "idle" : previous));
     };
 
     window.addEventListener("pointerdown", handleActivity);

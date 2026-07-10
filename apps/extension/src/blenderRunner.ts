@@ -3,11 +3,7 @@ import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type * as vscode from "vscode";
 import type { AvatarExtensionConfig } from "./avatarState.js";
-import {
-  createBlenderExportPlans,
-  type BlenderExportMode,
-  type BlenderExportResult
-} from "./blenderPlan.js";
+import { createBlenderExportPlans, type BlenderExportMode, type BlenderExportResult } from "./blenderPlan.js";
 
 export type { BlenderExportMode, BlenderExportResult } from "./blenderPlan.js";
 
@@ -21,7 +17,10 @@ type RunBlenderExportOptions = {
   outputChannel: vscode.OutputChannel;
 };
 
-export async function findBlenderExecutable(config: AvatarExtensionConfig, outputChannel: vscode.OutputChannel): Promise<string | null> {
+export async function findBlenderExecutable(
+  config: AvatarExtensionConfig,
+  outputChannel: vscode.OutputChannel
+): Promise<string | null> {
   const configuredPath = config.blenderPath.trim();
   if (configuredPath) {
     await assertBlenderVersion(configuredPath, outputChannel);
@@ -134,7 +133,7 @@ function spawnProcess(
       outputChannel.append(text);
     });
 
-    child.on("error", error => {
+    child.on("error", (error) => {
       if (settled) {
         return;
       }
@@ -144,7 +143,7 @@ function spawnProcess(
       reject(new Error(`Could not start Blender command "${command}": ${error.message}`));
     });
 
-    child.on("close", code => {
+    child.on("close", (code) => {
       if (settled) {
         return;
       }

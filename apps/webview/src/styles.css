@@ -175,8 +175,7 @@ input[type="text"] {
   border: 1px solid var(--border);
   border-radius: 8px;
   background:
-    linear-gradient(145deg, color-mix(in srgb, var(--surface-alt) 88%, #111827), var(--surface-alt)),
-    var(--surface-alt);
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-alt) 88%, #111827), var(--surface-alt)), var(--surface-alt);
   pointer-events: none;
 }
 
@@ -217,7 +216,9 @@ input[type="text"] {
 .avatar-face,
 .avatar-body,
 .avatar-antenna {
-  transition: filter 160ms ease, opacity 160ms ease;
+  transition:
+    filter 160ms ease,
+    opacity 160ms ease;
 }
 
 .avatar-eye {
@@ -272,7 +273,9 @@ input[type="text"] {
 
 .avatar-shell[data-avatar-state="thinking"] .avatar-svg,
 .avatar-shell[data-avatar-state="building"] .avatar-svg {
-  animation: avatar-breathe 2.5s ease-in-out infinite, avatar-pulse 1.4s ease-in-out infinite;
+  animation:
+    avatar-breathe 2.5s ease-in-out infinite,
+    avatar-pulse 1.4s ease-in-out infinite;
 }
 
 .avatar-shell[data-avatar-state="thinking"] .avatar-thinking-dot,
@@ -310,7 +313,9 @@ input[type="text"] {
 }
 
 .avatar-shell[data-avatar-state="warning"] .avatar-svg {
-  animation: avatar-breathe 4s ease-in-out infinite, avatar-warn 820ms ease-in-out infinite;
+  animation:
+    avatar-breathe 4s ease-in-out infinite,
+    avatar-warn 820ms ease-in-out infinite;
   filter: drop-shadow(0 0 12px var(--warning));
 }
 
@@ -547,7 +552,8 @@ input[type="text"] {
 }
 
 @keyframes avatar-breathe {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0) scale(1);
   }
   50% {
@@ -556,7 +562,8 @@ input[type="text"] {
 }
 
 @keyframes avatar-pulse {
-  0%, 100% {
+  0%,
+  100% {
     filter: drop-shadow(0 0 2px var(--accent));
   }
   50% {
@@ -565,25 +572,34 @@ input[type="text"] {
 }
 
 @keyframes avatar-blink-eye {
-  0%, 88%, 94%, 100% {
+  0%,
+  88%,
+  94%,
+  100% {
     opacity: 1;
   }
-  90%, 92% {
+  90%,
+  92% {
     opacity: 0;
   }
 }
 
 @keyframes avatar-blink-lid {
-  0%, 88%, 94%, 100% {
+  0%,
+  88%,
+  94%,
+  100% {
     opacity: 0;
   }
-  90%, 92% {
+  90%,
+  92% {
     opacity: 1;
   }
 }
 
 @keyframes avatar-mouth-pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scaleY(var(--mouth-open-scale, 0.72));
   }
   50% {
@@ -592,7 +608,8 @@ input[type="text"] {
 }
 
 @keyframes avatar-thinking-dot {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
     opacity: 0.4;
   }
@@ -603,7 +620,8 @@ input[type="text"] {
 }
 
 @keyframes avatar-warn {
-  0%, 100% {
+  0%,
+  100% {
     transform: rotate(0deg);
   }
   50% {
@@ -612,7 +630,8 @@ input[type="text"] {
 }
 
 @keyframes avatar-shake {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateX(0);
   }
   25% {

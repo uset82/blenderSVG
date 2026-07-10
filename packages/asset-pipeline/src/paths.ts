@@ -21,7 +21,10 @@ export function getSvgExportDirectory(workspaceRoot: string, assetWorkspace = ".
   return exportDirectory;
 }
 
-export function createOutputPaths(inputPath: string, exportDirectory: string): {
+export function createOutputPaths(
+  inputPath: string,
+  exportDirectory: string
+): {
   rawSvgPath: string;
   optimizedSvgPath: string;
   manifestPath: string;

@@ -22,30 +22,38 @@ export class IdeEventsController implements vscode.Disposable {
 
   public start(): void {
     this.disposables.push(
-      vscode.window.onDidChangeActiveTextEditor(editor => {
+      vscode.window.onDidChangeActiveTextEditor((editor) => {
         this.emit("active_editor_changed", { languageId: editor?.document.languageId });
       }),
-      vscode.workspace.onDidChangeTextDocument(event => {
+      vscode.workspace.onDidChangeTextDocument((event) => {
         if (!event.document.isClosed && event.contentChanges.length > 0) {
-          this.emit("text_document_changed", { languageId: event.document.languageId }, { returnToIdle: true, idleDelayMs: 1200 });
+          this.emit(
+            "text_document_changed",
+            { languageId: event.document.languageId },
+            { returnToIdle: true, idleDelayMs: 1200 }
+          );
         }
       }),
-      vscode.workspace.onDidSaveTextDocument(document => {
-        this.emit("file_saved", { languageId: document.languageId, fileName: document.fileName }, { returnToIdle: true });
+      vscode.workspace.onDidSaveTextDocument((document) => {
+        this.emit(
+          "file_saved",
+          { languageId: document.languageId, fileName: document.fileName },
+          { returnToIdle: true }
+        );
       }),
-      vscode.languages.onDidChangeDiagnostics(event => {
+      vscode.languages.onDidChangeDiagnostics((event) => {
         this.debounceDiagnostics(event);
       }),
-      vscode.debug.onDidStartDebugSession(session => {
+      vscode.debug.onDidStartDebugSession((session) => {
         this.emit("debug_started", { type: session.type, name: session.name });
       }),
-      vscode.debug.onDidTerminateDebugSession(session => {
+      vscode.debug.onDidTerminateDebugSession((session) => {
         this.emit("debug_stopped", { type: session.type, name: session.name }, { returnToIdle: true });
       }),
-      vscode.tasks.onDidStartTask(event => {
+      vscode.tasks.onDidStartTask((event) => {
         this.emit("task_started", { name: event.execution.task.name });
       }),
-      vscode.tasks.onDidEndTask(event => {
+      vscode.tasks.onDidEndTask((event) => {
         this.emit("task_finished", { name: event.execution.task.name }, { returnToIdle: true });
       })
     );
@@ -78,16 +86,21 @@ export class IdeEventsController implements vscode.Disposable {
     this.clearDiagnosticsTimer();
     this.diagnosticsTimer = setTimeout(() => {
       const state = this.getDiagnosticsState(event.uris);
-      this.applyState(state, "diagnostics_changed", { uriCount: event.uris.length }, { returnToIdle: state !== "reviewing" });
+      this.applyState(
+        state,
+        "diagnostics_changed",
+        { uriCount: event.uris.length },
+        { returnToIdle: state !== "reviewing" }
+      );
     }, 350);
   }
 
   private getDiagnosticsState(uris: readonly vscode.Uri[]): AvatarState {
-    const diagnostics = uris.flatMap(uri => vscode.languages.getDiagnostics(uri));
-    if (diagnostics.some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Error)) {
+    const diagnostics = uris.flatMap((uri) => vscode.languages.getDiagnostics(uri));
+    if (diagnostics.some((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Error)) {
       return "error";
     }
-    if (diagnostics.some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Warning)) {
+    if (diagnostics.some((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Warning)) {
       return "warning";
     }
     return mapEventToAvatarState("diagnostics_changed");

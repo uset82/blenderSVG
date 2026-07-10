@@ -30,7 +30,9 @@ export function getAvatarConfig(): AvatarExtensionConfig {
     runtime: isAvatarRuntime(runtime) ? runtime : defaultAvatarConfig.runtime,
     position: isPosition(position) ? position : defaultAvatarConfig.position,
     character: config.get("character", defaultAvatarConfig.character),
-    animationIntensity: isAnimationIntensity(animationIntensity) ? animationIntensity : defaultAvatarConfig.animationIntensity,
+    animationIntensity: isAnimationIntensity(animationIntensity)
+      ? animationIntensity
+      : defaultAvatarConfig.animationIntensity,
     focusMode: config.get("focusMode", defaultAvatarConfig.focusMode),
     showSpeechBubble: config.get("showSpeechBubble", defaultAvatarConfig.showSpeechBubble),
     respectReducedMotion: config.get("respectReducedMotion", defaultAvatarConfig.respectReducedMotion),
@@ -53,15 +55,13 @@ export async function updateAvatarConfig(nextConfig: Partial<AvatarExtensionConf
     AvatarExtensionConfig[keyof AvatarExtensionConfig]
   ][];
 
-  await Promise.all(
-    entries.map(([key, value]) => config.update(key, value, vscode.ConfigurationTarget.Global))
-  );
+  await Promise.all(entries.map(([key, value]) => config.update(key, value, vscode.ConfigurationTarget.Global)));
 }
 
 export async function resetAvatarConfig(): Promise<void> {
   const config = vscode.workspace.getConfiguration("codexAvatar");
 
-  await Promise.all(avatarConfigKeys.map(key => config.update(key, undefined, vscode.ConfigurationTarget.Global)));
+  await Promise.all(avatarConfigKeys.map((key) => config.update(key, undefined, vscode.ConfigurationTarget.Global)));
 }
 
 function sanitizeAvatarConfigPatch(nextConfig: Partial<AvatarExtensionConfig>): Partial<AvatarExtensionConfig> {

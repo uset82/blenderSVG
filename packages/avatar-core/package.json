@@ -13,10 +13,11 @@
     }
   },
   "scripts": {
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/test/*.test.js"
+    "lint": "pnpm --workspace-root exec biome lint packages/avatar-core",
+    "test": "pnpm --workspace-root exec vitest run packages/avatar-core"
   },
   "devDependencies": {
     "@types/node": "^22.13.14",

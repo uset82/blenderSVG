@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { getLive2DStateBinding, mapLive2DPoseInput, resolveAvatarRuntime, validateAvatarManifest } from "../src/index.js";
+import { test } from "vitest";
+import {
+  getLive2DStateBinding,
+  mapLive2DPoseInput,
+  resolveAvatarRuntime,
+  validateAvatarManifest
+} from "../src/index.js";
 
 const validManifest = {
   version: "0.1.0",

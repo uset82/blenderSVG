@@ -10,7 +10,9 @@ export type NavigatorWithGpu = {
   gpu?: unknown;
 };
 
-export function supportsWebGL2(documentLike: DocumentWithCanvas | undefined = globalThis.document as DocumentWithCanvas): boolean {
+export function supportsWebGL2(
+  documentLike: DocumentWithCanvas | undefined = globalThis.document as DocumentWithCanvas
+): boolean {
   if (!documentLike) {
     return false;
   }
@@ -19,16 +21,16 @@ export function supportsWebGL2(documentLike: DocumentWithCanvas | undefined = gl
   return Boolean(canvas.getContext("webgl2"));
 }
 
-export function supportsWebGPU(navigatorLike: NavigatorWithGpu | undefined = globalThis.navigator as NavigatorWithGpu): boolean {
+export function supportsWebGPU(
+  navigatorLike: NavigatorWithGpu | undefined = globalThis.navigator as NavigatorWithGpu
+): boolean {
   return Boolean(navigatorLike?.gpu);
 }
 
 export function getPreferredGpuRuntime(
-  options: {
-    webgpuEnabled: boolean;
-    documentLike?: DocumentWithCanvas;
-    navigatorLike?: NavigatorWithGpu;
-  } = { webgpuEnabled: false }
+  options: { webgpuEnabled: boolean; documentLike?: DocumentWithCanvas; navigatorLike?: NavigatorWithGpu } = {
+    webgpuEnabled: false
+  }
 ): Extract<AvatarRuntime, "webgl" | "webgpu" | "svg"> {
   if (options.webgpuEnabled && supportsWebGPU(options.navigatorLike)) {
     return "webgpu";

@@ -39,7 +39,7 @@ export function createBlenderExportPlans(options: BlenderExportPlanOptions): {
   }
 
   const baseName = sanitizeBlenderBaseName(path.parse(options.blendPath).name);
-  const exports = options.modes.map(mode => {
+  const exports = options.modes.map((mode) => {
     const descriptor = blenderScripts[mode];
     const outputPath = path.join(outputDirectory, `${baseName}${descriptor.suffix}`);
     const manifestPath = path.join(outputDirectory, `${baseName}.${mode}.manifest.json`);

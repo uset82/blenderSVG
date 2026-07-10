@@ -11,14 +11,15 @@ const stage = path.join(dist, `vsix-stage-${process.pid}`);
 const packageName = "codex-avatar-studio-0.1.0.vsix";
 const output = path.join(dist, packageName);
 const vsceExecutable = path.join(root, "node_modules", ".bin", process.platform === "win32" ? "vsce.CMD" : "vsce");
+const pnpmExecutable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 mkdirSync(dist, { recursive: true });
 cleanupOldStages();
 mkdirSync(stage, { recursive: true });
 
-run(process.execPath, [path.join(root, "scripts", "workspace-checks.mjs"), "build"], root);
+run(pnpmExecutable, ["run", "build"], root);
 
-for (const fileName of ["README.md", "CHANGELOG.md", "LICENSE"]) {
+for (const fileName of ["README.md", "CHANGELOG.md", "LICENSE", "THIRD_PARTY_NOTICES.md"]) {
   copyFileSync(path.join(root, fileName), path.join(stage, fileName));
 }
 
@@ -30,7 +31,7 @@ cpSync(path.join(extensionRoot, "media"), path.join(stage, "media"), {
 });
 cpSync(path.join(root, "scripts", "blender"), path.join(stage, "media", "blender"), {
   dereference: true,
-  filter: source => !source.endsWith("AGENTS.md"),
+  filter: (source) => !source.endsWith("AGENTS.md"),
   recursive: true
 });
 mkdirSync(path.join(stage, "dist"), { recursive: true });

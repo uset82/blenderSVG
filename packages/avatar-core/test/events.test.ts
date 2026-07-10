@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { getAvatarStateNumber, mapEventToAvatarState, mapEventToAvatarTrigger } from "../src/index.js";
 
 test("maps IDE events to avatar states and triggers", () => {

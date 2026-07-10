@@ -389,20 +389,20 @@ Git prerequisite resolved: the user authorized repository initialization. `git i
 
 ## Tasks
 
-- [ ] Initialize or normalize a pnpm workspace.
-- [ ] Create the required app and package directories.
-- [ ] Enable TypeScript strict mode.
-- [ ] Configure path aliases.
-- [ ] Configure a single formatter.
-- [ ] Configure linting.
-- [ ] Configure Vitest.
-- [ ] Add root scripts for `dev`, `build`, `typecheck`, `lint`, `test`, and `package`.
-- [ ] Add a Node engine constraint.
-- [ ] Add lockfile policy.
-- [ ] Add workspace dependency boundaries.
-- [ ] Prevent optional runtimes from entering the base bundle.
-- [ ] Add a script that copies the Webview build into the extension media folder.
-- [ ] Add a clean script that does not delete user-created avatar assets.
+- [x] Initialize or normalize a pnpm workspace.
+- [x] Create the required app and package directories.
+- [x] Enable TypeScript strict mode.
+- [x] Configure path aliases.
+- [x] Configure a single formatter.
+- [x] Configure linting.
+- [x] Configure Vitest.
+- [x] Add root scripts for `dev`, `build`, `typecheck`, `lint`, `test`, and `package`.
+- [x] Add a Node engine constraint.
+- [x] Add lockfile policy.
+- [x] Add workspace dependency boundaries.
+- [x] Prevent optional runtimes from entering the base bundle.
+- [x] Add a script that copies the Webview build into the extension media folder.
+- [x] Add a clean script that does not delete user-created avatar assets.
 
 ## Required root scripts
 
@@ -421,12 +421,23 @@ Git prerequisite resolved: the user authorized repository initialization. `git i
 
 ## Acceptance criteria
 
-- [ ] `pnpm install` succeeds.
-- [ ] `pnpm typecheck` succeeds.
-- [ ] `pnpm lint` succeeds.
-- [ ] `pnpm test` succeeds.
-- [ ] `pnpm build` succeeds.
-- [ ] Optional runtime packages are not included in the MVP bundle.
+- [x] `pnpm install` succeeds.
+- [x] `pnpm typecheck` succeeds.
+- [x] `pnpm lint` succeeds.
+- [x] `pnpm test` succeeds.
+- [x] `pnpm build` succeeds.
+- [x] Optional runtime packages are not included in the MVP bundle.
+
+### Phase 1 evidence — 2026-07-10
+
+- Workspace/toolchain: `package.json` now pins the Node 22/pnpm 11.7.0 policy, defines the required root scripts, and adds Biome 2.5.3 plus Vitest 4.1.10. `.npmrc` records strict engines, exact dependency saves, and one shared workspace lockfile.
+- Structure/boundaries: `packages/runtime-pixi` is a TypeScript-only Phase 1 boundary with no PixiJS dependency yet. `optional/*` contains documentation-only deferred adapter directories and is excluded from the pnpm workspace. Existing optional renderer source remains preserved but excluded from the active Webview TypeScript/build graph.
+- TypeScript and aliases: strict mode remains enabled in `tsconfig.base.json`; the Webview has a tested `@/*` source alias in both TypeScript and Vite. Clean-checkout typechecking was verified with `pnpm clean` followed by `pnpm typecheck`.
+- Formatting/linting: `pnpm format` mechanically applied Biome to the configured source set; `pnpm format:check` and `pnpm lint` pass.
+- Tests: `pnpm test` passes 37 tests: 25 Vitest unit tests (core, asset pipeline, and Pixi package scaffold) plus 12 existing extension/Webview smoke tests.
+- Build/copy: `pnpm build` writes the Webview to `apps/webview/dist` and `scripts/copy-webview-build.mjs` safely replaces only `apps/extension/media/webview`. The SVG MVP build contains `index.js` (212.76 kB), `index.css`, `index.html`, and a Vite manifest; it contains no Rive, Live2D, Three, WebGL, WebGPU, or GLTF chunks. The Webview smoke test asserts this boundary.
+- Clean safety: `pnpm clean` removed only generated directories and returned `CLEAN_PRESERVED_AVATAR_ASSETS` after matching the placeholder avatar SHA-256 before and after cleanup.
+- Final quality gate: from a clean workspace, `pnpm run ci` passed formatting, linting, typechecking, all tests, and build. `pnpm run package` also produced `dist/codex-avatar-studio-0.1.0.vsix` with the Webview restricted to the SVG MVP files and `THIRD_PARTY_NOTICES.md` included.
 
 ---
 

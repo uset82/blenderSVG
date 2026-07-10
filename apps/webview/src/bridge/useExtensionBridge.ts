@@ -53,14 +53,14 @@ export function useExtensionBridge(): BridgeState {
           setConfig(nextMessage.config);
           break;
         case "debug:event":
-          setDebugEvents(previous => [nextMessage.event, ...previous].slice(0, 5));
+          setDebugEvents((previous) => [nextMessage.event, ...previous].slice(0, 5));
           break;
         case "avatar:trigger":
-          setTriggerEvent(previous => ({
+          setTriggerEvent((previous) => ({
             trigger: nextMessage.trigger,
             sequence: (previous?.sequence ?? 0) + 1
           }));
-          setDebugEvents(previous => [`trigger:${nextMessage.trigger}`, ...previous].slice(0, 5));
+          setDebugEvents((previous) => [`trigger:${nextMessage.trigger}`, ...previous].slice(0, 5));
           break;
       }
     };

@@ -28,7 +28,7 @@ test("creates Blender dry-run export plans without starting Blender", () => {
   assert.ok(isInsideDirectory(workspaceRoot, plan.outputDirectory));
   assert.equal(plan.exports.length, 3);
   assert.deepEqual(
-    plan.exports.map(item => item.mode),
+    plan.exports.map((item) => item.mode),
     ["svg", "glb", "png"]
   );
 
@@ -75,10 +75,7 @@ test("prefers packaged Blender scripts when installed", () => {
   mkdirSync(blenderMediaPath, { recursive: true });
   writeFileSync(path.join(blenderMediaPath, "export_svg.py"), "# packaged test script\n", "utf8");
 
-  assert.equal(
-    resolveBlenderScriptPath(extensionRoot, "export_svg.py"),
-    path.join(blenderMediaPath, "export_svg.py")
-  );
+  assert.equal(resolveBlenderScriptPath(extensionRoot, "export_svg.py"), path.join(blenderMediaPath, "export_svg.py"));
 });
 
 test("checks Blender executable version through configured path", async () => {
@@ -86,7 +83,7 @@ test("checks Blender executable version through configured path", async () => {
   const version = await assertBlenderVersion(process.execPath, outputChannel);
 
   assert.match(version, /^v\d+\./);
-  assert.ok(outputChannel.lines.some(line => line.includes(version)));
+  assert.ok(outputChannel.lines.some((line) => line.includes(version)));
 });
 
 test("uses configured Blender path before probing system candidates", async () => {

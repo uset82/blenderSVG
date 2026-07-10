@@ -76,7 +76,8 @@ export function mapLive2DPoseInput({
   const mouthOpen = clamp01(mouthInput ?? (state === "speaking" ? 0.48 + Math.sin(elapsedSeconds * 12) * 0.24 : 0));
   const cursorX = clamp01(poseInput.cursorX ?? 0.5);
   const cursorY = clamp01(poseInput.cursorY ?? 0.5);
-  const breath = state === "sleeping" ? 0.22 + Math.sin(elapsedSeconds * 1.2) * 0.08 : 0.5 + Math.sin(elapsedSeconds * 2) * 0.5;
+  const breath =
+    state === "sleeping" ? 0.22 + Math.sin(elapsedSeconds * 1.2) * 0.08 : 0.5 + Math.sin(elapsedSeconds * 2) * 0.5;
 
   return {
     [parameterIds.mouthOpen]: mouthOpen,

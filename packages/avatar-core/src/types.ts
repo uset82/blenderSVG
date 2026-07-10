@@ -101,14 +101,7 @@ export type AvatarManifest = {
     stateMachine: string;
     inputs: Partial<
       Record<
-        | "state"
-        | "cursorX"
-        | "cursorY"
-        | "mouthOpen"
-        | "scrollProgress"
-        | "isSpeaking"
-        | "isThinking"
-        | AvatarTrigger,
+        "state" | "cursorX" | "cursorY" | "mouthOpen" | "scrollProgress" | "isSpeaking" | "isThinking" | AvatarTrigger,
         string
       >
     >;

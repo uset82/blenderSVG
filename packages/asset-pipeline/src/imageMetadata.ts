@@ -30,7 +30,9 @@ export function assertTraceableImageMetadata(metadata: ImageMetadata): void {
   }
 
   if (metadata.width < 8 || metadata.height < 8) {
-    throw new Error(`Image is too small to trace reliably (${metadata.width}x${metadata.height}). Use at least 8x8 pixels.`);
+    throw new Error(
+      `Image is too small to trace reliably (${metadata.width}x${metadata.height}). Use at least 8x8 pixels.`
+    );
   }
 
   if (metadata.width * metadata.height > 16_000_000) {

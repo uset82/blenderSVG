@@ -13,7 +13,9 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
         <input
           type="checkbox"
           checked={config.enabled}
-          onChange={event => postToExtension({ type: "settings:update", config: { enabled: event.currentTarget.checked } })}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { enabled: event.currentTarget.checked } })
+          }
         />
       </label>
       <label className="setting-row">
@@ -22,15 +24,20 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
           type="text"
           value={config.character}
           spellCheck={false}
-          onChange={event => postToExtension({ type: "settings:update", config: { character: event.currentTarget.value } })}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { character: event.currentTarget.value } })
+          }
         />
       </label>
       <label className="setting-row">
         <span>Runtime</span>
         <select
           value={config.runtime}
-          onChange={event =>
-            postToExtension({ type: "settings:update", config: { runtime: event.currentTarget.value as AvatarConfig["runtime"] } })
+          onChange={(event) =>
+            postToExtension({
+              type: "settings:update",
+              config: { runtime: event.currentTarget.value as AvatarConfig["runtime"] }
+            })
           }
         >
           <option value="svg">SVG</option>
@@ -44,8 +51,11 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
         <span>Position</span>
         <select
           value={config.position}
-          onChange={event =>
-            postToExtension({ type: "settings:update", config: { position: event.currentTarget.value as AvatarConfig["position"] } })
+          onChange={(event) =>
+            postToExtension({
+              type: "settings:update",
+              config: { position: event.currentTarget.value as AvatarConfig["position"] }
+            })
           }
         >
           <option value="activity-bar-view">Activity</option>
@@ -58,7 +68,7 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
         <span>Intensity</span>
         <select
           value={config.animationIntensity}
-          onChange={event =>
+          onChange={(event) =>
             postToExtension({
               type: "settings:update",
               config: { animationIntensity: event.currentTarget.value as AvatarConfig["animationIntensity"] }
@@ -75,7 +85,9 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
         <input
           type="checkbox"
           checked={config.focusMode}
-          onChange={event => postToExtension({ type: "settings:update", config: { focusMode: event.currentTarget.checked } })}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { focusMode: event.currentTarget.checked } })
+          }
         />
       </label>
       <label className="setting-row checkbox-row">
@@ -83,7 +95,7 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
         <input
           type="checkbox"
           checked={config.showSpeechBubble}
-          onChange={event =>
+          onChange={(event) =>
             postToExtension({ type: "settings:update", config: { showSpeechBubble: event.currentTarget.checked } })
           }
         />
@@ -93,7 +105,7 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
         <input
           type="checkbox"
           checked={config.respectReducedMotion}
-          onChange={event =>
+          onChange={(event) =>
             postToExtension({ type: "settings:update", config: { respectReducedMotion: event.currentTarget.checked } })
           }
         />

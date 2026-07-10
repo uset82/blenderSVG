@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { createManifestEntry, optimizeSvg, validateSvgLayers } from "../src/index.js";
 
 const layeredSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">

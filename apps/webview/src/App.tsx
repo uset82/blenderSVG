@@ -1,5 +1,5 @@
-import { AvatarPanel } from "./components/AvatarPanel";
-import { useExtensionBridge } from "./bridge/useExtensionBridge";
+import { useExtensionBridge } from "@/bridge/useExtensionBridge";
+import { AvatarPanel } from "@/components/AvatarPanel";
 
 export function App() {
   const bridgeState = useExtensionBridge();

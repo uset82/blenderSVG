@@ -35,7 +35,8 @@ export function SvgAvatarRenderer({ state, poseInput, reducedMotion, intensity, 
       style={style}
       aria-hidden="true"
     >
-      <svg className="avatar-svg" viewBox="0 0 128 128" role="img">
+      <svg className="avatar-svg" viewBox="0 0 128 128">
+        <title>Codex Avatar status</title>
         <defs>
           <linearGradient id="svg-runtime-body" x1="26" y1="20" x2="102" y2="112" gradientUnits="userSpaceOnUse">
             <stop stopColor="#5eead4" />

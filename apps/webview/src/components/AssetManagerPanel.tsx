@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { getLive2DModel3Path, resolveAvatarRuntime, validateAvatarManifest } from "@codex-avatar-studio/avatar-core";
+import { resolveAvatarRuntime, validateAvatarManifest } from "@codex-avatar-studio/avatar-core";
 import type { AvatarConfig, AvatarManifest, AvatarRuntime } from "../bridge/messages";
 import { postToExtension } from "../bridge/vscodeApi";
 
@@ -13,8 +13,13 @@ export function AssetManagerPanel({ config, manifest }: AssetManagerPanelProps) 
   const validation = useMemo(() => validateAvatarManifest(manifest), [manifest]);
   const runtimeSupport = useMemo(() => getRuntimeSupport(manifest), [manifest]);
   const resolvedRuntime = resolveAvatarRuntime(config.runtime, manifest, runtimeSupport);
-  const assetWarnings = useMemo(() => getAssetWarnings(manifest, config.runtime, validation.warnings), [config.runtime, manifest, validation.warnings]);
-  const validationStatus = validation.valid ? `${assetWarnings.length} warning(s)` : `${validation.errors.length} error(s)`;
+  const assetWarnings = useMemo(
+    () => getAssetWarnings(manifest, config.runtime, validation.warnings),
+    [config.runtime, manifest, validation.warnings]
+  );
+  const validationStatus = validation.valid
+    ? `${assetWarnings.length} warning(s)`
+    : `${validation.errors.length} error(s)`;
 
   return (
     <section className="asset-manager-panel" aria-label="Avatar asset manager">
@@ -37,7 +42,7 @@ export function AssetManagerPanel({ config, manifest }: AssetManagerPanelProps) 
         </div>
       </dl>
       <ul className="asset-list" aria-label="Runtime assets">
-        {manifest.runtimePriority.map(runtime => (
+        {manifest.runtimePriority.map((runtime) => (
           <li key={runtime}>
             <span>{runtime}</span>
             <code>{getRuntimeAssetPath(manifest, runtime) ?? "missing"}</code>
@@ -48,7 +53,7 @@ export function AssetManagerPanel({ config, manifest }: AssetManagerPanelProps) 
         <span>{validatedAt ? `Validated: ${validationStatus}` : validationStatus}</span>
         {validation.errors.length > 0 || assetWarnings.length > 0 ? (
           <ul>
-            {[...validation.errors, ...assetWarnings].map(message => (
+            {[...validation.errors, ...assetWarnings].map((message) => (
               <li key={message}>{message}</li>
             ))}
           </ul>
@@ -79,17 +84,21 @@ function getRuntimeSupport(manifest: AvatarManifest): Partial<Record<AvatarRunti
   return {
     svg: Boolean(manifest.assets.svg),
     rive: Boolean(manifest.assets.rive),
-    live2d: Boolean(getLive2DModel3Path(manifest)),
+    live2d: Boolean(manifest.assets.live2d),
     webgl: Boolean(manifest.assets.webgl),
     webgpu: Boolean(manifest.assets.webgpu)
   };
 }
 
 function getRuntimeAssetPath(manifest: AvatarManifest, runtime: AvatarRuntime): string | undefined {
-  return runtime === "live2d" ? getLive2DModel3Path(manifest) : manifest.assets[runtime];
+  return manifest.assets[runtime];
 }
 
-function getAssetWarnings(manifest: AvatarManifest, selectedRuntime: AvatarRuntime, validationWarnings: string[]): string[] {
+function getAssetWarnings(
+  manifest: AvatarManifest,
+  selectedRuntime: AvatarRuntime,
+  validationWarnings: string[]
+): string[] {
   const warnings = new Set(validationWarnings);
 
   for (const runtime of manifest.runtimePriority) {

@@ -7,15 +7,14 @@ import { fileURLToPath } from "node:url";
 const webviewRoot = fileURLToPath(new URL("..", import.meta.url));
 const webviewOutput = path.resolve(webviewRoot, "..", "extension", "media", "webview");
 
-test("webview build emits the expected entry assets", async () => {
+test("webview build emits only the SVG MVP entry assets", async () => {
   const files = await readdir(webviewOutput);
 
   assert.ok(files.includes("index.html"), "index.html is emitted");
   assert.ok(files.includes("index.js"), "index.js is emitted");
   assert.ok(files.includes("index.css"), "index.css is emitted");
-  assert.ok(files.includes("RiveAvatarRenderer.js"), "Rive renderer remains lazy-loaded");
-  assert.ok(files.includes("Live2DAvatarRenderer.js"), "Live2D renderer remains lazy-loaded");
-  assert.ok(files.includes("WebGLAvatarRenderer.js"), "WebGL renderer remains lazy-loaded");
+  const optionalRuntimeChunks = files.filter((fileName) => /rive|live2d|webgl|webgpu|gltf|three/i.test(fileName));
+  assert.deepEqual(optionalRuntimeChunks, [], "optional runtime chunks stay out of the SVG MVP bundle");
 });
 
 test("webview bundle includes asset manager bridge actions", async () => {
@@ -23,7 +22,7 @@ test("webview bundle includes asset manager bridge actions", async () => {
   const script = await readFile(path.join(webviewOutput, "index.js"), "utf8");
   const styles = await readFile(path.join(webviewOutput, "index.css"), "utf8");
 
-  assert.ok(html.includes("<div id=\"root\"></div>"), "React root is present");
+  assert.ok(html.includes('<div id="root"></div>'), "React root is present");
   assert.ok(styles.includes(".asset-manager-panel"), "asset manager styles are bundled");
   assert.match(styles, /pointer-events:\s*none/, "avatar surfaces do not capture pointer input");
 
