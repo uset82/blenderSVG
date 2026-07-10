@@ -8,7 +8,7 @@
 
 This workspace is an existing pnpm TypeScript monorepo for a VS Code extension, not an empty repository. It already contains a compiled extension, a React/Vite Webview, shared avatar types, a local image-to-SVG pipeline, and optional-runtime prototypes.
 
-The selected working directory (`D:\Proyectos\Blender`) is **not a Git repository**: `git status --short` and `git branch --show-current` both report that no `.git` directory is present. This is a Phase 0 blocker for the required backup branch and phase commits. No structural source migration may begin until the user supplies a repository root or explicitly authorizes Git initialization.
+At the start of the audit, the selected working directory (`D:\Proyectos\Blender`) was not a Git repository. The user subsequently authorized initialization. `git init -b main` created the repository, baseline commit `5bad6a2` captured the pre-migration state, and branch `backup/pre-pixi-migration-20260710` now preserves that commit before Phase 1 structural source work.
 
 ## Toolchain baseline
 
@@ -104,7 +104,7 @@ Phases 13–17 remain unchecked and deferred unless their optional scope is expl
 - Prior checkboxes in `docs/PLAN_CHECKLIST_LEGACY.md` are historical notes, not evidence for this checklist.
 - The old checklist has been preserved before `docs/PLAN_CHECKLIST.md` was replaced by the corrected authoritative plan.
 
-## Open Phase 0 blockers
+## Phase 0 gate status
 
-1. `BLOCKED: No Git repository is available at the selected workspace root.` A backup branch and phase commits cannot be created until a repository root is supplied or Git initialization is explicitly authorized.
-2. The existing Potrace 2.1.8 GPL-2.0 dependency is a recorded migration risk. It may remain untouched in the preserved baseline, but it must not be expanded or shipped in the eventual base VSIX; the corrected pipeline will use the permissively licensed ImageTracerJS alternative.
+1. Git safety gate resolved: repository `main` and backup branch `backup/pre-pixi-migration-20260710` both descend from the captured baseline.
+2. The existing Potrace 2.1.8 GPL-2.0 dependency remains a recorded migration risk. It may remain untouched in the preserved baseline, but it must not be expanded or shipped in the eventual base VSIX; the corrected pipeline will use the permissively licensed ImageTracerJS alternative.

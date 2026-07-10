@@ -344,7 +344,7 @@ codex-avatar-studio/
 - [x] Record the existing architecture in `docs/ARCHITECTURE.md`.
 - [x] Record the current package manager, Node version, TypeScript version, and build commands.
 - [x] Preserve the previous `docs/PLAN_CHECKLIST.md` as `docs/PLAN_CHECKLIST_LEGACY.md` before replacing it with this plan.
-- [ ] Create a backup branch before structural source changes. If no Git repository is available, leave this unchecked and record the exact blocker.
+- [x] Create a backup branch before structural source changes. If no Git repository is available, leave this unchecked and record the exact blocker.
 - [x] Create `docs/PLAN_CHECKLIST.md`.
 - [x] Create `THIRD_PARTY_NOTICES.md`.
 - [x] Create `docs/LICENSING.md`.
@@ -358,7 +358,7 @@ codex-avatar-studio/
 - [x] Add `.gitignore` entries for generated previews, caches, Blender exports, and local avatar packages.
 - [x] Confirm that the current codebase still builds before modifications.
 
-`BLOCKED: No Git repository is available at D:\Proyectos\Blender. A backup branch and phase commits cannot be created until the user confirms the actual repository root or explicitly authorizes Git initialization.`
+Git prerequisite resolved: the user authorized repository initialization. `git init -b main` created the repository, commit `5bad6a2` captured the pre-migration baseline, and branch `backup/pre-pixi-migration-20260710` preserves it before Phase 1 structural work.
 
 ## Acceptance criteria
 
@@ -366,7 +366,7 @@ codex-avatar-studio/
 - [x] Baseline tests succeed or existing failures are documented.
 - [x] License records exist.
 - [x] No unlicensed avatar assets have been added.
-- [ ] Backup branch exists.
+- [x] Backup branch exists.
 - [x] Existing user code has not been deleted.
 
 ### Phase 0 evidence — 2026-07-10
@@ -376,11 +376,12 @@ codex-avatar-studio/
 - Baseline build: `pnpm build` passed. Vite reported non-blocking WebGL chunk warnings (`three.webgpu.js` and `WebGLAvatarRenderer.js` over 500 kB); no build failure.
 - Baseline static checks: `pnpm typecheck` and `pnpm lint` passed. The audit records that lint is currently a TypeScript no-emit alias rather than a real linter.
 - Baseline tests: `pnpm test` passed all 36 tests with 0 failures, skips, cancellations, or todos.
+- Final Phase 0 gate: `pnpm ci` completed a clean frozen-lockfile install, then `pnpm run ci` passed build, typecheck, lint, and all 36 tests. The known optional WebGL chunk-size warnings remained non-blocking and are recorded for later isolation/performance work.
 - Checklist copy: line-by-line `Compare-Object` verification returned `PLAN_CHECKLIST_CONTENT_MATCHES` immediately after the authoritative plan was copied; this live checklist then began recording progress.
 - Preservation/document check: the PowerShell required-path and `.gitignore` assertion returned `PHASE_0_DOCUMENT_AND_PRESERVATION_CHECK_PASSED`. The older checklist remains at `docs/PLAN_CHECKLIST_LEGACY.md`.
 - License verification: installed manifest metadata, registry metadata, GitHub repository metadata, and `git ls-remote <repository> HEAD` were recorded in `docs/LICENSING.md` and `THIRD_PARTY_NOTICES.md`. AITuber OnAir is reference-only. Existing `potrace@2.1.8` is GPL-2.0 and is explicitly scheduled for replacement rather than expansion/distribution.
 - Asset audit: no new avatar art was added. The active source inventory contains only the existing simple orb SVG/icon; their SHA-256 values and pending final clean-room attestation are recorded in `docs/LICENSING.md`. No upstream character asset, `.riv`, `.glb`, `.vrm`, Live2D model, spritesheet, texture set, or voice asset was added.
-- `BLOCKED:` `git status --short` and `git branch --show-current` both fail because this workspace has no Git repository, so the backup-branch acceptance criterion remains unchecked and Phase 0 is not closed.
+- Git safety gate: with user authorization, `git init -b main` succeeded, `git commit -m "chore: capture pre-migration baseline"` created commit `5bad6a2`, and `git branch backup/pre-pixi-migration-20260710` created the required immutable pre-Phase-1 reference.
 
 ---
 
