@@ -1,0 +1,24 @@
+{
+  "name": "codex-avatar-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VS Code/Codex-compatible animated assistant system with SVG fallback and optional richer avatar runtimes.",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "node scripts/workspace-checks.mjs build",
+    "typecheck": "node scripts/workspace-checks.mjs typecheck",
+    "lint": "node scripts/workspace-checks.mjs lint",
+    "test": "node scripts/workspace-checks.mjs test",
+    "ci": "pnpm build && pnpm typecheck && pnpm lint && pnpm test",
+    "dev:extension": "pnpm --filter ./apps/extension watch",
+    "package:vsix": "node scripts/package-vsix.mjs",
+    "smoke:webview": "node scripts/smoke-webview-render.mjs",
+    "smoke:vsix": "node scripts/smoke-installed-vsix.mjs"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.9.2"
+  }
+}
