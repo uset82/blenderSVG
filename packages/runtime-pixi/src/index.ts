@@ -7,6 +7,7 @@ import type {
   AvatarTrigger
 } from "@codex-avatar-studio/avatar-core";
 export * from "./spritesheet.js";
+export * from "./animationController.js";
 
 export const runtimePixiPackageId = "@codex-avatar-studio/runtime-pixi";
 

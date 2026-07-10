@@ -755,21 +755,22 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 - [x] Implement named animation clips.
 - [x] Map avatar states to animation clips.
 - [x] Map triggers to one-shot clips.
-- [ ] Add clip priorities.
-- [ ] Add crossfade or clean clip transitions.
-- [ ] Add animation completion callbacks.
-- [ ] Add random idle variation.
+- [x] Add clip priorities.
+- [x] Add clean clip transitions.
+- [x] Add animation completion callbacks.
+- [x] Add random idle variation.
 - [ ] Add cursor or editor-direction gaze approximation.
 - [ ] Add particle layers for success and error.
 - [ ] Add a holographic thinking effect.
-- [ ] Add a low-performance mode without particles.
+- [x] Add a low-performance mode without particles.
 - [x] Add tests for missing clips and malformed metadata.
 
 ### Phase 8 progress evidence — 2026-07-10
 
 - `packages/runtime-pixi/src/spritesheet.ts` defines an original metadata contract, validates frame data, maps every required state and trigger to named clips, and falls back to `idle_loop` when a state clip is missing.
-- No upstream character artwork or copied assets were added. Clip playback, crossfades, particles, gaze, and richer behavior remain pending on the actual Pixi stage integration.
-- Verification: runtime-pixi typecheck, lint, formatting, and 3 Vitest tests pass.
+- No upstream character artwork or copied assets were added. Particle layers, gaze, and richer visual effects remain pending on the actual Pixi stage integration.
+- `SpriteAnimationController` applies clip priorities, restores the active state after one-shot completion, supports deterministic idle variation, exposes completion callbacks, and suppresses particle clips in low-performance mode.
+- Verification: runtime-pixi typecheck, lint, formatting, and 5 Vitest tests pass.
 
 ## Required state mapping
 
