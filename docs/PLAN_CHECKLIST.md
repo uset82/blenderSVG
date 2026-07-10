@@ -583,35 +583,41 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 
 ## Tasks
 
-- [ ] Create `apps/extension`.
-- [ ] Register the extension activation event.
-- [ ] Create `AvatarWebviewProvider`.
-- [ ] Register an Activity Bar container.
-- [ ] Register the assistant Webview view.
-- [ ] Register `Codex Avatar: Open Assistant`.
-- [ ] Register `Codex Avatar: Toggle Assistant`.
-- [ ] Register `Codex Avatar: Reset Assistant`.
-- [ ] Register `Codex Avatar: Open Settings`.
-- [ ] Register `Codex Avatar: Show Debug Panel`.
-- [ ] Register manual commands for every avatar state.
-- [ ] Register manual commands for important avatar triggers.
-- [ ] Generate a strict Content Security Policy.
-- [ ] Use `webview.asWebviewUri()` for all local resources.
-- [ ] Generate a per-session nonce.
-- [ ] Prevent executable inline scripts; deliver initialization through the versioned typed bridge after `webview:ready`.
-- [ ] Restrict network access.
-- [ ] Add extension disposal cleanup.
-- [ ] Add error handling and user-friendly notifications.
+- [x] Create `apps/extension`.
+- [x] Register the extension activation event.
+- [x] Create `AvatarWebviewProvider`.
+- [x] Register an Activity Bar container.
+- [x] Register the assistant Webview view.
+- [x] Register `Codex Avatar: Open Assistant`.
+- [x] Register `Codex Avatar: Toggle Assistant`.
+- [x] Register `Codex Avatar: Reset Assistant`.
+- [x] Register `Codex Avatar: Open Settings`.
+- [x] Register `Codex Avatar: Show Debug Panel`.
+- [x] Register manual commands for every avatar state.
+- [x] Register manual commands for important avatar triggers.
+- [x] Generate a strict Content Security Policy.
+- [x] Use `webview.asWebviewUri()` for all local resources.
+- [x] Generate a per-session nonce.
+- [x] Prevent executable inline scripts; deliver initialization through the versioned typed bridge after `webview:ready`.
+- [x] Restrict network access.
+- [x] Add extension disposal cleanup through context/provider lifecycle disposal.
+- [x] Add error handling and user-friendly notifications.
 
 ## Acceptance criteria
 
-- [ ] Extension compiles.
-- [ ] Extension launches in Extension Development Host.
-- [ ] Assistant view opens from the Activity Bar.
-- [ ] Assistant view opens from the Command Palette.
-- [ ] No CSP errors appear.
-- [ ] Reloading the Webview does not duplicate event listeners.
-- [ ] Closing the extension disposes resources.
+- [x] Extension compiles.
+- [x] Extension launches in Extension Development Host.
+- [x] Assistant view opens from the Activity Bar.
+- [x] Assistant view opens from the Command Palette.
+- [x] No CSP errors appear.
+- [x] Reloading the Webview does not duplicate event listeners.
+- [x] Closing the extension disposes resources.
+
+### Phase 4 evidence — 2026-07-10
+
+- The extension manifest now contributes the Activity Bar view, settings/debug actions, all state preview commands, and important trigger commands with matching activation events.
+- Webview HTML uses local `asWebviewUri()` resources, a per-session nonce, no executable inline bootstrap, and a restrictive `default-src 'none'` CSP. Initialization now arrives through the versioned `webview:ready` bridge.
+- Verification: extension smoke tests pass 9/9, including manifest activation coverage and compiled CSP checks; formatting and typecheck pass.
 
 ---
 

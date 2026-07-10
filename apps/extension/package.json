@@ -19,6 +19,8 @@
     "onCommand:codexAvatar.openAssistant",
     "onCommand:codexAvatar.toggleAssistant",
     "onCommand:codexAvatar.resetSettings",
+    "onCommand:codexAvatar.openSettings",
+    "onCommand:codexAvatar.showDebugPanel",
     "onCommand:codexAvatar.openAssetsFolder",
     "onCommand:codexAvatar.reloadAvatar",
     "onCommand:codexAvatar.setState",
@@ -26,6 +28,17 @@
     "onCommand:codexAvatar.startSpeaking",
     "onCommand:codexAvatar.markSuccess",
     "onCommand:codexAvatar.markError",
+    "onCommand:codexAvatar.trigger.blink",
+    "onCommand:codexAvatar.trigger.lookleft",
+    "onCommand:codexAvatar.trigger.lookright",
+    "onCommand:codexAvatar.trigger.nod",
+    "onCommand:codexAvatar.trigger.shake",
+    "onCommand:codexAvatar.trigger.celebrate",
+    "onCommand:codexAvatar.trigger.point",
+    "onCommand:codexAvatar.trigger.startspeaking",
+    "onCommand:codexAvatar.trigger.stopspeaking",
+    "onCommand:codexAvatar.trigger.showparticles",
+    "onCommand:codexAvatar.trigger.cleareffects",
     "onCommand:codexAvatar.vectorizeImage",
     "onCommand:codexAvatar.exportBlenderScene"
   ],
@@ -42,6 +55,58 @@
       {
         "command": "codexAvatar.resetSettings",
         "title": "Codex Avatar: Reset Settings"
+      },
+      {
+        "command": "codexAvatar.openSettings",
+        "title": "Codex Avatar: Open Settings"
+      },
+      {
+        "command": "codexAvatar.showDebugPanel",
+        "title": "Codex Avatar: Show Debug Panel"
+      },
+      {
+        "command": "codexAvatar.trigger.blink",
+        "title": "Codex Avatar: Trigger Blink"
+      },
+      {
+        "command": "codexAvatar.trigger.lookleft",
+        "title": "Codex Avatar: Trigger Look Left"
+      },
+      {
+        "command": "codexAvatar.trigger.lookright",
+        "title": "Codex Avatar: Trigger Look Right"
+      },
+      {
+        "command": "codexAvatar.trigger.nod",
+        "title": "Codex Avatar: Trigger Nod"
+      },
+      {
+        "command": "codexAvatar.trigger.shake",
+        "title": "Codex Avatar: Trigger Shake"
+      },
+      {
+        "command": "codexAvatar.trigger.celebrate",
+        "title": "Codex Avatar: Trigger Celebrate"
+      },
+      {
+        "command": "codexAvatar.trigger.point",
+        "title": "Codex Avatar: Trigger Point"
+      },
+      {
+        "command": "codexAvatar.trigger.startspeaking",
+        "title": "Codex Avatar: Start Speaking Animation"
+      },
+      {
+        "command": "codexAvatar.trigger.stopspeaking",
+        "title": "Codex Avatar: Stop Speaking Animation"
+      },
+      {
+        "command": "codexAvatar.trigger.showparticles",
+        "title": "Codex Avatar: Show Particles"
+      },
+      {
+        "command": "codexAvatar.trigger.cleareffects",
+        "title": "Codex Avatar: Clear Effects"
       },
       {
         "command": "codexAvatar.openAssetsFolder",

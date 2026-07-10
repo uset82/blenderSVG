@@ -74,6 +74,9 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
     switch (message.type) {
       case "webview:ready":
         this.refreshSettings();
+        if (this.view) {
+          this.postMessage({ type: "assets:manifestLoaded", manifest: this.createDefaultManifest(this.view.webview) });
+        }
         this.setState(this.currentState);
         break;
       case "command:toggleAssistant":
@@ -107,17 +110,8 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
     const cspSource = webview.cspSource;
-    const avatarUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "avatars", "svg", "placeholder-avatar.svg")
-    );
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "media", "webview", "index.js"));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "media", "webview", "index.css"));
-    const bootstrap = JSON.stringify({
-      config: getAvatarConfig(),
-      placeholderAvatarUri: avatarUri.toString(),
-      manifest: this.createDefaultManifest(webview)
-    }).replace(/</g, "\\u003c");
-
     return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -129,9 +123,6 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
   <div id="root"></div>
-  <script nonce="${nonce}">
-    window.__CODEX_AVATAR_BOOTSTRAP__ = ${bootstrap};
-  </script>
   <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
 </body>
 </html>`;

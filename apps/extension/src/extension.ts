@@ -38,6 +38,16 @@ export function activate(context: vscode.ExtensionContext): void {
       provider.trigger("nod");
       vscode.window.showInformationMessage("Codex Avatar settings reset.");
     }),
+    registerCommand("codexAvatar.openSettings", async () => {
+      await vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "@ext:codex-avatar-studio.codex-avatar-studio-extension"
+      );
+    }),
+    registerCommand("codexAvatar.showDebugPanel", () => {
+      provider.debugEvent("debug_panel_requested");
+      vscode.window.showInformationMessage("Codex Avatar debug events are shown in the assistant panel.");
+    }),
     registerCommand("codexAvatar.openAssetsFolder", async () => {
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (!workspaceFolder) {
@@ -82,6 +92,23 @@ export function activate(context: vscode.ExtensionContext): void {
     registerCommand("codexAvatar.markError", () => {
       ideEvents.setManualState("error", "shake");
     }),
+    ...(
+      [
+        "blink",
+        "look-left",
+        "look-right",
+        "nod",
+        "shake",
+        "celebrate",
+        "point",
+        "start-speaking",
+        "stop-speaking",
+        "show-particles",
+        "clear-effects"
+      ] as const
+    ).map((trigger) =>
+      registerCommand(`codexAvatar.trigger.${trigger.replaceAll("-", "")}`, () => provider.trigger(trigger))
+    ),
     registerCommand("codexAvatar.vectorizeImage", async () => {
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (!workspaceFolder) {
