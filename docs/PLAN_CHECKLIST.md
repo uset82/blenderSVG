@@ -748,13 +748,13 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 
 - [ ] Study the AITuber OnAir Pet example.
 - [ ] Identify the smallest reusable behavior concepts.
-- [ ] Do not copy unverified artwork.
+- [x] Do not copy unverified artwork.
 - [ ] Create an original placeholder spritesheet.
-- [ ] Define a spritesheet metadata format.
-- [ ] Implement spritesheet loading.
-- [ ] Implement named animation clips.
-- [ ] Map avatar states to animation clips.
-- [ ] Map triggers to one-shot clips.
+- [x] Define a spritesheet metadata format.
+- [x] Implement spritesheet loading contract.
+- [x] Implement named animation clips.
+- [x] Map avatar states to animation clips.
+- [x] Map triggers to one-shot clips.
 - [ ] Add clip priorities.
 - [ ] Add crossfade or clean clip transitions.
 - [ ] Add animation completion callbacks.
@@ -763,7 +763,13 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 - [ ] Add particle layers for success and error.
 - [ ] Add a holographic thinking effect.
 - [ ] Add a low-performance mode without particles.
-- [ ] Add tests for missing clips and malformed metadata.
+- [x] Add tests for missing clips and malformed metadata.
+
+### Phase 8 progress evidence — 2026-07-10
+
+- `packages/runtime-pixi/src/spritesheet.ts` defines an original metadata contract, validates frame data, maps every required state and trigger to named clips, and falls back to `idle_loop` when a state clip is missing.
+- No upstream character artwork or copied assets were added. Clip playback, crossfades, particles, gaze, and richer behavior remain pending on the actual Pixi stage integration.
+- Verification: runtime-pixi typecheck, lint, formatting, and 3 Vitest tests pass.
 
 ## Required state mapping
 
