@@ -3,10 +3,11 @@ import type {
   AvatarManifest,
   AvatarState,
   AvatarTrigger,
-  ExtensionToWebviewMessage,
+  ExtensionToWebviewMessageInput,
+  JsonValue,
   WebviewToExtensionMessage
 } from "./avatarState.js";
-import { avatarStates } from "./avatarState.js";
+import { createExtensionToWebviewMessage, parseWebviewToExtensionMessage } from "./avatarState.js";
 import { getAvatarConfig, updateAvatarConfig } from "./settings.js";
 
 export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
@@ -26,13 +27,19 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
     };
 
     webviewView.webview.html = this.getHtml(webviewView.webview);
-    webviewView.webview.onDidReceiveMessage((message: WebviewToExtensionMessage) => {
-      void this.handleWebviewMessage(message);
+    webviewView.webview.onDidReceiveMessage((message: unknown) => {
+      const parsed = parseWebviewToExtensionMessage(message);
+      if (!parsed.success) {
+        console.warn("[Codex Avatar] Rejected Webview message", parsed.error.issues);
+        return;
+      }
+
+      void this.handleWebviewMessage(parsed.data);
     });
   }
 
-  public postMessage(message: ExtensionToWebviewMessage): void {
-    void this.view?.webview.postMessage(message);
+  public postMessage(message: ExtensionToWebviewMessageInput): void {
+    void this.view?.webview.postMessage(createExtensionToWebviewMessage(message));
   }
 
   public setState(state: AvatarState): void {
@@ -45,7 +52,10 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   public debugEvent(event: string, payload?: unknown): void {
-    this.postMessage({ type: "debug:event", event, payload });
+    const safePayload = toJsonValue(payload);
+    this.postMessage(
+      safePayload === undefined ? { type: "debug:event", event } : { type: "debug:event", event, payload: safePayload }
+    );
   }
 
   public refreshSettings(): void {
@@ -133,30 +143,46 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
     );
 
     return {
+      schemaVersion: 1,
       version: "0.1.0",
       id: "default-coder-orb",
       name: "Default Coder Orb",
-      runtimePriority: ["rive", "svg"],
-      assets: {
+      author: "Codex Avatar Studio contributors",
+      license: "Original project placeholder",
+      preferredRuntime: "svg",
+      fallbackRuntime: "svg",
+      entrypoints: {
         svg: avatarUri.toString()
       },
-      rive: {
-        stateMachine: "CodexAssistant",
-        inputs: {
-          state: "state",
-          cursorX: "cursorX",
-          cursorY: "cursorY",
-          mouthOpen: "mouthOpen",
-          scrollProgress: "scrollProgress",
-          isSpeaking: "isSpeaking",
-          isThinking: "isThinking",
-          wave: "wave",
-          celebrate: "celebrate",
-          confused: "confused",
-          point: "point"
-        }
+      capabilities: ["state-animation", "one-shot-triggers", "speech-level", "reduced-motion"],
+      states: {
+        idle: "idle_loop",
+        welcome: "greet_once",
+        listening: "listen_loop",
+        thinking: "think_loop",
+        speaking: "talk_loop",
+        coding: "type_loop",
+        reviewing: "inspect_loop",
+        debugging: "debug_loop",
+        building: "scan_loop",
+        success: "celebrate_once",
+        warning: "concerned_loop",
+        error: "error_once",
+        sleeping: "sleep_loop"
       },
-      states: [...avatarStates]
+      triggers: {
+        blink: "blink_once",
+        nod: "nod_once",
+        celebrate: "celebrate_once",
+        shake: "shake_once",
+        point: "point_once",
+        "start-speaking": "talk_start",
+        "stop-speaking": "talk_stop"
+      },
+      runtimePriority: ["svg"],
+      assets: {
+        svg: avatarUri.toString()
+      }
     };
   }
 }
@@ -168,4 +194,17 @@ function getNonce(): string {
     nonce += characters.charAt(Math.floor(Math.random() * characters.length));
   }
   return nonce;
+}
+
+function toJsonValue(value: unknown): JsonValue | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? undefined : (JSON.parse(serialized) as JsonValue);
+  } catch {
+    return String(value);
+  }
 }

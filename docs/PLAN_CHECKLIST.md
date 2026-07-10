@@ -445,21 +445,21 @@ Git prerequisite resolved: the user authorized repository initialization. `git i
 
 ## Tasks
 
-- [ ] Create the `avatar-core` package.
-- [ ] Define `AvatarRuntimeKind`.
-- [ ] Define `AvatarState`.
-- [ ] Define `AvatarTrigger`.
-- [ ] Define `IdeAssistantEvent`.
-- [ ] Define `AvatarCapability`.
-- [ ] Define `AvatarManifest`.
-- [ ] Define `AvatarRuntimeAdapter`.
-- [ ] Define typed extension-to-Webview messages.
-- [ ] Define typed Webview-to-extension messages.
-- [ ] Add Zod schemas for every message received at runtime.
-- [ ] Reject unknown message types safely.
-- [ ] Add protocol versioning.
-- [ ] Add unit tests for valid and invalid messages.
-- [ ] Document the protocol in `docs/EVENT_PROTOCOL.md`.
+- [x] Create/migrate the `avatar-core` package.
+- [x] Define `AvatarRuntimeKind`.
+- [x] Define `AvatarState`.
+- [x] Define `AvatarTrigger`.
+- [x] Define `IdeAssistantEvent`.
+- [x] Define `AvatarCapability`.
+- [x] Define `AvatarManifest`.
+- [x] Define `AvatarRuntimeAdapter`.
+- [x] Define typed extension-to-Webview messages.
+- [x] Define typed Webview-to-extension messages.
+- [x] Add Zod schemas for every message received at runtime.
+- [x] Reject unknown message types safely.
+- [x] Add protocol versioning.
+- [x] Add unit tests for valid and invalid messages.
+- [x] Document the protocol in `docs/EVENT_PROTOCOL.md`.
 
 ## Required states
 
@@ -516,11 +516,18 @@ export interface AvatarRuntimeAdapter {
 
 ## Acceptance criteria
 
-- [ ] Every message type is serializable.
-- [ ] Invalid messages are rejected without crashing.
-- [ ] State and trigger types are shared by the extension and Webview.
-- [ ] Protocol tests cover all message variants.
-- [ ] No browser API is called during Node-only unit tests.
+- [x] Every message type is serializable.
+- [x] Invalid messages are rejected without crashing.
+- [x] State and trigger types are shared by the extension and Webview.
+- [x] Protocol tests cover all message variants.
+- [x] No browser API is called during Node-only unit tests.
+
+### Phase 2 evidence — 2026-07-10
+
+- `packages/avatar-core` now owns versioned runtime kinds, states, triggers, capabilities, manifests, adapters, and the extension/Webview protocol. Compatibility aliases preserve the legacy manifest shape while migration is in progress.
+- Zod parsers validate every inbound message and reject unknown types, unsupported protocol versions, malformed payloads, and non-serializable values without throwing across the bridge.
+- `docs/EVENT_PROTOCOL.md` documents the message tables, state/trigger vocabulary, parser behavior, and constructor examples.
+- Verification: `pnpm format:check`, `pnpm typecheck`, `pnpm lint`, `pnpm test` (40 tests), and `pnpm build` all pass. Protocol coverage includes all outbound/inbound variants, serialization, invalid-version/type rejection, and malformed pose input.
 
 ---
 

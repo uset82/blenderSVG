@@ -1,5 +1,15 @@
-export const avatarRuntimes = ["svg", "rive", "live2d", "webgl", "webgpu"] as const;
-export type AvatarRuntime = (typeof avatarRuntimes)[number];
+/**
+ * Runtime kinds supported by the shared protocol. The first five values form
+ * the PixiJS-first plan; the final three are retained only to keep existing
+ * user-owned prototype code readable while it remains outside the MVP bundle.
+ */
+export const avatarRuntimeKinds = ["svg", "pixi", "inochi2d", "live2d", "vrm", "rive", "webgl", "webgpu"] as const;
+export type AvatarRuntimeKind = (typeof avatarRuntimeKinds)[number];
+
+/** @deprecated Use AvatarRuntimeKind. */
+export const avatarRuntimes = avatarRuntimeKinds;
+/** @deprecated Use AvatarRuntimeKind. */
+export type AvatarRuntime = AvatarRuntimeKind;
 
 export const avatarStates = [
   "idle",
@@ -20,17 +30,28 @@ export type AvatarState = (typeof avatarStates)[number];
 
 export const avatarTriggers = [
   "blink",
-  "wave",
+  "look-left",
+  "look-right",
   "nod",
-  "shakeHead",
+  "shake",
   "celebrate",
-  "confused",
   "point",
-  "sleep",
-  "wake",
-  "pulse"
+  "start-speaking",
+  "stop-speaking",
+  "show-particles",
+  "clear-effects"
 ] as const;
 export type AvatarTrigger = (typeof avatarTriggers)[number];
+
+export const avatarCapabilities = [
+  "state-animation",
+  "one-shot-triggers",
+  "speech-level",
+  "reduced-motion",
+  "gaze",
+  "particles"
+] as const;
+export type AvatarCapability = (typeof avatarCapabilities)[number];
 
 export const ideAssistantEvents = [
   "extension_ready",
@@ -68,11 +89,12 @@ export type AvatarMessage = {
 };
 
 export type AvatarPoseInput = {
-  cursorX?: number;
-  cursorY?: number;
-  mouthOpen?: number;
-  scrollProgress?: number;
-  audioLevel?: number;
+  cursorX?: number | undefined;
+  cursorY?: number | undefined;
+  mouthOpen?: number | undefined;
+  scrollProgress?: number | undefined;
+  audioLevel?: number | undefined;
+  speechLevel?: number | undefined;
 };
 
 export const live2dParameterChannels = ["mouthOpen", "angleX", "angleY", "breath"] as const;
@@ -80,39 +102,69 @@ export type Live2DParameterChannel = (typeof live2dParameterChannels)[number];
 export type Live2DParameterMap = Partial<Record<Live2DParameterChannel, string>>;
 export type Live2DStateMap = Partial<Record<AvatarState, string>>;
 
+export type Live2DManifestOptions = {
+  model3: string;
+  model?: string | undefined;
+  parameters?: Live2DParameterMap | undefined;
+  motions?: Live2DStateMap | undefined;
+  expressions?: Live2DStateMap | undefined;
+};
+
 export type AvatarConfig = {
   enabled: boolean;
-  runtime: AvatarRuntime;
-  character: string;
-  reducedMotion: boolean;
-  showSpeechBubble: boolean;
-  intensity: "low" | "medium" | "high";
+  runtime: AvatarRuntimeKind;
   position: "bottom-right" | "bottom-left" | "side-panel" | "activity-bar-view";
+  character: string;
+  animationIntensity: "low" | "medium" | "high";
+  focusMode: boolean;
+  showSpeechBubble: boolean;
+  respectReducedMotion: boolean;
+  blenderPath: string;
+  assetWorkspace: string;
+};
+
+export type AvatarConfigPatch = {
+  [Key in keyof AvatarConfig]?: AvatarConfig[Key] | undefined;
 };
 
 export type AvatarManifest = {
-  version: string;
+  schemaVersion: 1;
   id: string;
   name: string;
-  runtimePriority: AvatarRuntime[];
-  assets: Partial<Record<AvatarRuntime, string>>;
-  states: AvatarState[];
-  rive?: {
-    stateMachine: string;
-    inputs: Partial<
-      Record<
-        "state" | "cursorX" | "cursorY" | "mouthOpen" | "scrollProgress" | "isSpeaking" | "isThinking" | AvatarTrigger,
-        string
-      >
-    >;
-  };
-  live2d?: {
-    model3: string;
-    model?: string;
-    parameters?: Live2DParameterMap;
-    motions?: Live2DStateMap;
-    expressions?: Live2DStateMap;
-  };
+  version: string;
+  author: string;
+  license: string;
+  preferredRuntime: AvatarRuntimeKind;
+  fallbackRuntime: AvatarRuntimeKind;
+  entrypoints: Partial<Record<AvatarRuntimeKind, string>>;
+  capabilities: AvatarCapability[];
+  states: Partial<Record<AvatarState, string>>;
+  triggers?: Partial<Record<AvatarTrigger, string>> | undefined;
+  previewImage?: string | undefined;
+  checksums?: Record<string, string> | undefined;
+
+  /** Compatibility fields retained for the pre-migration user baseline. */
+  runtimePriority?: AvatarRuntimeKind[] | undefined;
+  assets?: Partial<Record<AvatarRuntimeKind, string>> | undefined;
+  rive?:
+    | {
+        stateMachine: string;
+        inputs: Partial<
+          Record<
+            | "state"
+            | "cursorX"
+            | "cursorY"
+            | "mouthOpen"
+            | "scrollProgress"
+            | "isSpeaking"
+            | "isThinking"
+            | AvatarTrigger,
+            string
+          >
+        >;
+      }
+    | undefined;
+  live2d?: Live2DManifestOptions | undefined;
 };
 
 export type AvatarManifestValidationResult = {
@@ -122,10 +174,14 @@ export type AvatarManifestValidationResult = {
   warnings: string[];
 };
 
-export function isAvatarRuntime(value: string): value is AvatarRuntime {
-  return (avatarRuntimes as readonly string[]).includes(value);
+export function isAvatarRuntime(value: string): value is AvatarRuntimeKind {
+  return (avatarRuntimeKinds as readonly string[]).includes(value);
 }
 
 export function isAvatarState(value: string): value is AvatarState {
   return (avatarStates as readonly string[]).includes(value);
+}
+
+export function isAvatarTrigger(value: string): value is AvatarTrigger {
+  return (avatarTriggers as readonly string[]).includes(value);
 }

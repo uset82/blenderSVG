@@ -42,7 +42,7 @@ export function AssetManagerPanel({ config, manifest }: AssetManagerPanelProps) 
         </div>
       </dl>
       <ul className="asset-list" aria-label="Runtime assets">
-        {manifest.runtimePriority.map((runtime) => (
+        {getRuntimePriority(manifest).map((runtime) => (
           <li key={runtime}>
             <span>{runtime}</span>
             <code>{getRuntimeAssetPath(manifest, runtime) ?? "missing"}</code>
@@ -82,16 +82,23 @@ export function AssetManagerPanel({ config, manifest }: AssetManagerPanelProps) 
 
 function getRuntimeSupport(manifest: AvatarManifest): Partial<Record<AvatarRuntime, boolean>> {
   return {
-    svg: Boolean(manifest.assets.svg),
-    rive: Boolean(manifest.assets.rive),
-    live2d: Boolean(manifest.assets.live2d),
-    webgl: Boolean(manifest.assets.webgl),
-    webgpu: Boolean(manifest.assets.webgpu)
+    svg: Boolean(getRuntimeAssetPath(manifest, "svg")),
+    pixi: Boolean(getRuntimeAssetPath(manifest, "pixi")),
+    inochi2d: Boolean(getRuntimeAssetPath(manifest, "inochi2d")),
+    live2d: Boolean(getRuntimeAssetPath(manifest, "live2d")),
+    vrm: Boolean(getRuntimeAssetPath(manifest, "vrm")),
+    rive: Boolean(getRuntimeAssetPath(manifest, "rive")),
+    webgl: Boolean(getRuntimeAssetPath(manifest, "webgl")),
+    webgpu: Boolean(getRuntimeAssetPath(manifest, "webgpu"))
   };
 }
 
 function getRuntimeAssetPath(manifest: AvatarManifest, runtime: AvatarRuntime): string | undefined {
-  return manifest.assets[runtime];
+  return manifest.assets?.[runtime] ?? manifest.entrypoints[runtime];
+}
+
+function getRuntimePriority(manifest: AvatarManifest): AvatarRuntime[] {
+  return manifest.runtimePriority ?? [manifest.preferredRuntime, manifest.fallbackRuntime];
 }
 
 function getAssetWarnings(
@@ -101,7 +108,7 @@ function getAssetWarnings(
 ): string[] {
   const warnings = new Set(validationWarnings);
 
-  for (const runtime of manifest.runtimePriority) {
+  for (const runtime of getRuntimePriority(manifest)) {
     if (!getRuntimeAssetPath(manifest, runtime)) {
       warnings.add(`Runtime "${runtime}" is listed but has no asset path.`);
     }

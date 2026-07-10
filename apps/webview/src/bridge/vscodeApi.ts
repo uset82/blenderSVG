@@ -1,5 +1,10 @@
-import { avatarStates, type WebviewBootstrap, type WebviewToExtensionMessage } from "./messages";
-import { isAvatarRuntime } from "@codex-avatar-studio/avatar-core";
+import {
+  createWebviewToExtensionMessage,
+  isAvatarRuntime,
+  type WebviewBootstrap,
+  type WebviewToExtensionMessage,
+  type WebviewToExtensionMessageInput
+} from "./messages";
 
 type VsCodeApi = {
   postMessage(message: WebviewToExtensionMessage): void;
@@ -24,8 +29,8 @@ export function getVsCodeApi(): VsCodeApi | undefined {
   return api;
 }
 
-export function postToExtension(message: WebviewToExtensionMessage): void {
-  getVsCodeApi()?.postMessage(message);
+export function postToExtension(message: WebviewToExtensionMessageInput): void {
+  getVsCodeApi()?.postMessage(createWebviewToExtensionMessage(message));
 }
 
 export function getBootstrap(): WebviewBootstrap {
@@ -47,12 +52,20 @@ export function getBootstrap(): WebviewBootstrap {
       },
       placeholderAvatarUri: "",
       manifest: {
+        schemaVersion: 1,
         version: "0.1.0",
         id: "default-coder-orb",
         name: "Default Coder Orb",
+        author: "Codex Avatar Studio contributors",
+        license: "Original project placeholder",
+        preferredRuntime: "svg",
+        fallbackRuntime: "svg",
+        entrypoints: {},
+        capabilities: ["state-animation", "reduced-motion"],
+        states: { idle: "idle_loop" },
         runtimePriority: ["svg"],
         assets: {},
-        states: [...avatarStates]
+        triggers: {}
       }
     }
   );

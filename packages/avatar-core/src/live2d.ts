@@ -52,7 +52,7 @@ export const defaultLive2DExpressions: Record<AvatarState, string> = {
 };
 
 export function getLive2DModel3Path(manifest: Pick<AvatarManifest, "assets" | "live2d">): string | undefined {
-  return manifest.live2d?.model3 ?? manifest.live2d?.model ?? manifest.assets.live2d;
+  return manifest.live2d?.model3 ?? manifest.live2d?.model ?? manifest.assets?.live2d;
 }
 
 export function getLive2DStateBinding(state: AvatarState, live2d?: AvatarManifest["live2d"]): Live2DStateBinding {

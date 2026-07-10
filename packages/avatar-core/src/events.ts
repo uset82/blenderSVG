@@ -25,11 +25,11 @@ export const eventToAvatarState: Record<IdeAssistantEvent, AvatarState> = {
 };
 
 export const eventToAvatarTrigger: Partial<Record<IdeAssistantEvent, AvatarTrigger>> = {
-  extension_ready: "wave",
+  extension_ready: "nod",
   file_saved: "nod",
   task_finished: "celebrate",
   codex_task_finished: "celebrate",
-  codex_task_failed: "confused"
+  codex_task_failed: "shake"
 };
 
 export function mapEventToAvatarState(event: IdeAssistantEvent): AvatarState {

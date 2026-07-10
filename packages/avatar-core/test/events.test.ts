@@ -9,7 +9,7 @@ test("maps IDE events to avatar states and triggers", () => {
   assert.equal(mapEventToAvatarState("codex_task_streaming"), "speaking");
   assert.equal(mapEventToAvatarState("codex_task_failed"), "error");
 
-  assert.equal(mapEventToAvatarTrigger("extension_ready"), "wave");
+  assert.equal(mapEventToAvatarTrigger("extension_ready"), "nod");
   assert.equal(mapEventToAvatarTrigger("file_saved"), "nod");
   assert.equal(mapEventToAvatarTrigger("codex_task_finished"), "celebrate");
 });

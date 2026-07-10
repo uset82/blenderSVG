@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import type {
-  AvatarConfig,
-  AvatarManifest,
-  AvatarPoseInput,
-  AvatarState,
-  AvatarTrigger,
-  ExtensionToWebviewMessage
-} from "./messages";
+import { parseExtensionToWebviewMessage } from "./messages";
+import type { AvatarConfig, AvatarManifest, AvatarPoseInput, AvatarState, AvatarTrigger } from "./messages";
 import { getBootstrap, postToExtension } from "./vscodeApi";
 
 export type BridgeState = {
@@ -32,8 +26,14 @@ export function useExtensionBridge(): BridgeState {
   useEffect(() => {
     postToExtension({ type: "webview:ready" });
 
-    const handleMessage = (event: MessageEvent<ExtensionToWebviewMessage>) => {
-      const nextMessage = event.data;
+    const handleMessage = (event: MessageEvent<unknown>) => {
+      const parsed = parseExtensionToWebviewMessage(event.data);
+      if (!parsed.success) {
+        console.warn("[Codex Avatar] Rejected extension message", parsed.error.issues);
+        return;
+      }
+
+      const nextMessage = parsed.data;
 
       switch (nextMessage.type) {
         case "avatar:setState":

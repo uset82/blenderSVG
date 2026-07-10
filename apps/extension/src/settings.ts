@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { AvatarExtensionConfig } from "./avatarState.js";
+import type { AvatarConfigPatch, AvatarExtensionConfig } from "./avatarState.js";
 import { isAvatarRuntime } from "./avatarState.js";
 
 export const defaultAvatarConfig: AvatarExtensionConfig = {
@@ -48,7 +48,7 @@ export async function toggleAssistantEnabled(): Promise<boolean> {
   return nextEnabled;
 }
 
-export async function updateAvatarConfig(nextConfig: Partial<AvatarExtensionConfig>): Promise<void> {
+export async function updateAvatarConfig(nextConfig: AvatarConfigPatch): Promise<void> {
   const config = vscode.workspace.getConfiguration("codexAvatar");
   const entries = Object.entries(sanitizeAvatarConfigPatch(nextConfig)) as [
     keyof AvatarExtensionConfig,
@@ -64,8 +64,8 @@ export async function resetAvatarConfig(): Promise<void> {
   await Promise.all(avatarConfigKeys.map((key) => config.update(key, undefined, vscode.ConfigurationTarget.Global)));
 }
 
-function sanitizeAvatarConfigPatch(nextConfig: Partial<AvatarExtensionConfig>): Partial<AvatarExtensionConfig> {
-  const sanitized: Partial<AvatarExtensionConfig> = {};
+function sanitizeAvatarConfigPatch(nextConfig: AvatarConfigPatch): AvatarConfigPatch {
+  const sanitized: AvatarConfigPatch = {};
 
   if (typeof nextConfig.enabled === "boolean") {
     sanitized.enabled = nextConfig.enabled;

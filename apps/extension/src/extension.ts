@@ -35,7 +35,7 @@ export function activate(context: vscode.ExtensionContext): void {
       await resetAvatarConfig();
       provider.refreshSettings();
       provider.setState("welcome");
-      provider.trigger("wake");
+      provider.trigger("nod");
       vscode.window.showInformationMessage("Codex Avatar settings reset.");
     }),
     registerCommand("codexAvatar.openAssetsFolder", async () => {
@@ -57,7 +57,7 @@ export function activate(context: vscode.ExtensionContext): void {
     registerCommand("codexAvatar.reloadAvatar", () => {
       provider.reloadAssets();
       provider.setState("success");
-      provider.trigger("wake");
+      provider.trigger("nod");
       vscode.window.showInformationMessage("Codex Avatar assets reloaded.");
     }),
     registerCommand("codexAvatar.setState", async () => {
@@ -80,7 +80,7 @@ export function activate(context: vscode.ExtensionContext): void {
       ideEvents.setManualState("success", "celebrate");
     }),
     registerCommand("codexAvatar.markError", () => {
-      ideEvents.setManualState("error", "confused");
+      ideEvents.setManualState("error", "shake");
     }),
     registerCommand("codexAvatar.vectorizeImage", async () => {
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -119,7 +119,7 @@ export function activate(context: vscode.ExtensionContext): void {
         await vscode.window.showTextDocument(document, { preview: false });
       } catch (error) {
         provider.setState("error");
-        provider.trigger("confused");
+        provider.trigger("shake");
         vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
       }
     }),
@@ -188,7 +188,7 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.window.showInformationMessage(`Blender export complete: ${results.length} file(s) created.`);
       } catch (error) {
         provider.setState("error");
-        provider.trigger("confused");
+        provider.trigger("shake");
         blenderOutputChannel.show(true);
         vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
       }

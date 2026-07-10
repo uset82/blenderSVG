@@ -8,78 +8,86 @@ import {
 } from "../src/index.js";
 
 const validManifest = {
+  schemaVersion: 1,
   version: "0.1.0",
   id: "default-coder-orb",
   name: "Default Coder Orb",
-  runtimePriority: ["rive", "svg", "webgl"],
+  author: "Codex Avatar Studio contributors",
+  license: "Original project placeholder",
+  preferredRuntime: "pixi",
+  fallbackRuntime: "svg",
+  entrypoints: {
+    svg: "avatars/svg/placeholder-avatar.svg",
+    pixi: "avatars/pixi/default/avatar.json"
+  },
+  capabilities: ["state-animation", "one-shot-triggers", "reduced-motion"],
+  states: {
+    idle: "idle_loop",
+    thinking: "think_loop",
+    speaking: "talk_loop",
+    success: "celebrate_once",
+    error: "error_once"
+  },
+  triggers: {
+    nod: "nod_once",
+    celebrate: "celebrate_once"
+  },
+  runtimePriority: ["pixi", "svg"],
   assets: {
     svg: "avatars/svg/placeholder-avatar.svg",
-    rive: "avatars/rive/default.riv"
-  },
-  states: [
-    "idle",
-    "welcome",
-    "listening",
-    "thinking",
-    "speaking",
-    "coding",
-    "reviewing",
-    "debugging",
-    "building",
-    "success",
-    "warning",
-    "error",
-    "sleeping"
-  ],
-  rive: {
-    stateMachine: "CodexAssistant",
-    inputs: {
-      state: "state",
-      wave: "wave"
-    }
+    pixi: "avatars/pixi/default/avatar.json"
   }
 };
 
-test("validates a complete avatar manifest", () => {
+test("validates the versioned avatar manifest and emits actionable warnings", () => {
   const result = validateAvatarManifest(validManifest);
 
   assert.equal(result.valid, true);
   assert.equal(result.errors.length, 0);
   assert.equal(result.manifest?.id, "default-coder-orb");
-  assert.equal(result.manifest?.rive?.stateMachine, "CodexAssistant");
+  assert.equal(result.manifest?.preferredRuntime, "pixi");
+  assert.equal(result.manifest?.states.idle, "idle_loop");
+  assert.deepEqual(result.warnings, []);
 });
 
-test("rejects missing asset IDs and invalid states", () => {
+test("rejects missing required fields and invalid mapping keys", () => {
   const result = validateAvatarManifest({
+    schemaVersion: 1,
     version: "0.1.0",
     id: "",
     name: "Broken",
-    runtimePriority: ["rive", "unknown"],
-    assets: {
-      svg: ""
-    },
-    states: ["idle", "not-a-state"]
+    author: "Unknown",
+    license: "Unknown",
+    preferredRuntime: "pixi",
+    fallbackRuntime: "svg",
+    entrypoints: { svg: "" },
+    capabilities: ["state-animation"],
+    states: { "not-a-state": "broken" }
   });
 
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /id/);
-  assert.match(result.errors.join("\n"), /unknown/);
-  assert.match(result.errors.join("\n"), /not-a-state/);
+  assert.match(result.errors.join("\n"), /entrypoints/);
+  assert.match(result.errors.join("\n"), /State mapping keys/);
 });
 
-test("resolves preferred runtime with SVG fallback", () => {
+test("resolves preferred runtime with the declared SVG fallback", () => {
   const manifest = validateAvatarManifest(validManifest).manifest;
   assert.ok(manifest);
 
-  assert.equal(resolveAvatarRuntime("rive", manifest, { rive: true }), "rive");
-  assert.equal(resolveAvatarRuntime("webgpu", manifest, { webgpu: true }), "rive");
-  assert.equal(resolveAvatarRuntime("rive", manifest, { rive: false }), "svg");
+  assert.equal(resolveAvatarRuntime("pixi", manifest, { pixi: true }), "pixi");
+  assert.equal(resolveAvatarRuntime("vrm", manifest, { vrm: true }), "pixi");
+  assert.equal(resolveAvatarRuntime("pixi", manifest, { pixi: false }), "svg");
 });
 
-test("validates Live2D model3 manifests and custom bindings", () => {
+test("validates Live2D compatibility metadata without making it an MVP runtime", () => {
   const result = validateAvatarManifest({
     ...validManifest,
-    runtimePriority: ["live2d", "svg"],
+    preferredRuntime: "live2d",
+    entrypoints: {
+      svg: "avatars/svg/placeholder-avatar.svg",
+      live2d: "avatars/live2d/default/model.model3.json"
+    },
     assets: {
       svg: "avatars/svg/placeholder-avatar.svg",
       live2d: "avatars/live2d/default/model.model3.json"
@@ -92,12 +100,8 @@ test("validates Live2D model3 manifests and custom bindings", () => {
         angleY: "ParamAngleY",
         breath: "ParamBreath"
       },
-      motions: {
-        speaking: "TalkLoop"
-      },
-      expressions: {
-        success: "sparkle"
-      }
+      motions: { speaking: "TalkLoop" },
+      expressions: { success: "sparkle" }
     }
   });
 
@@ -110,12 +114,8 @@ test("validates Live2D model3 manifests and custom bindings", () => {
 test("maps Live2D state and pose inputs to Cubism parameter IDs", () => {
   const live2d = {
     model3: "avatars/live2d/default/model.model3.json",
-    motions: {
-      speaking: "TalkLoop"
-    },
-    expressions: {
-      speaking: "talking"
-    }
+    motions: { speaking: "TalkLoop" },
+    expressions: { speaking: "talking" }
   };
 
   assert.deepEqual(getLive2DStateBinding("speaking", live2d), {
@@ -138,18 +138,4 @@ test("maps Live2D state and pose inputs to Cubism parameter IDs", () => {
   assert.equal(parameters.ParamAngleX, 15);
   assert.equal(parameters.ParamAngleY, 10);
   assert.equal(parameters.ParamBreath, 0.5);
-});
-
-test("accepts legacy Live2D model as a model3 alias", () => {
-  const result = validateAvatarManifest({
-    ...validManifest,
-    runtimePriority: ["live2d", "svg"],
-    live2d: {
-      model: "avatars/live2d/legacy/model.model3.json"
-    }
-  });
-
-  assert.equal(result.valid, true);
-  assert.equal(result.manifest?.live2d?.model3, "avatars/live2d/legacy/model.model3.json");
-  assert.equal(result.manifest?.live2d?.model, "avatars/live2d/legacy/model.model3.json");
 });
