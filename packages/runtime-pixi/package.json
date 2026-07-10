@@ -22,5 +22,9 @@
   "devDependencies": {
     "@types/node": "^22.13.14",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@codex-avatar-studio/avatar-core": "workspace:*",
+    "pixi.js": "8.14.0"
   }
 }

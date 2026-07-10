@@ -1,6 +1,9 @@
 import { expect, test } from "vitest";
-import { runtimePixiPackageId } from "../src/index.js";
+import { PixiAvatarRuntime, runtimePixiPackageId } from "../src/index.js";
 
-test("reserves the Pixi runtime package boundary without loading PixiJS", () => {
+test("exposes the optional Pixi runtime adapter contract", () => {
   expect(runtimePixiPackageId).toBe("@codex-avatar-studio/runtime-pixi");
+  const runtime = new PixiAvatarRuntime();
+  expect(runtime.kind).toBe("pixi");
+  expect(runtime.capabilities.has("state-animation")).toBe(true);
 });

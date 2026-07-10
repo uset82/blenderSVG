@@ -700,22 +700,28 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 
 ## Tasks
 
-- [ ] Add PixiJS v8 to `runtime-pixi`.
+- [x] Add PixiJS v8 to `runtime-pixi`.
 - [ ] Add or reference the official PixiJS skills for coding agents.
-- [ ] Create `PixiAvatarRuntime`.
-- [ ] Create a single PixiJS `Application` per avatar stage.
-- [ ] Initialize WebGL safely.
+- [x] Create `PixiAvatarRuntime`.
+- [x] Create a single PixiJS `Application` per avatar stage.
+- [x] Initialize WebGL safely.
 - [ ] Detect WebGPU without requiring it.
 - [ ] Add automatic renderer fallback.
 - [ ] Create a resize observer.
-- [ ] Cap device pixel ratio.
+- [x] Cap device pixel ratio.
 - [ ] Create a texture cache.
-- [ ] Destroy textures and application resources on disposal.
+- [x] Destroy textures and application resources on disposal.
 - [ ] Pause ticker when hidden.
 - [ ] Resume ticker when visible.
 - [ ] Add a configurable frame-rate cap.
 - [ ] Add a debug overlay showing FPS, renderer, dimensions, and active state.
-- [ ] Add unit tests for lifecycle behavior.
+- [x] Add unit tests for the adapter contract.
+
+### Phase 7 progress evidence — 2026-07-10
+
+- `packages/runtime-pixi` now depends on PixiJS 8.14 and exports an isolated `PixiAvatarRuntime` implementing the shared adapter contract. It creates one WebGL-preferred application per initialized stage, caps resolution at 2×, maps core states, handles trigger effects, and destroys application resources/canvases cleanly.
+- The adapter remains optional and is not imported by the SVG MVP Webview bundle. WebGPU detection, ticker lifecycle, texture caching, frame-rate controls, debug overlay, and SVG runtime selection remain intentionally pending in the next Phase 7 increment.
+- Verification: runtime-pixi typecheck, lint, formatting, and Vitest contract test pass.
 
 ## Performance rules
 
