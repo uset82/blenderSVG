@@ -1,5 +1,5 @@
 export function optimizeSvg(svg: string): string {
-  const withoutDeclarations = svg
+  const withoutDeclarations = sanitizeSvg(svg)
     .replace(/<\?xml[\s\S]*?\?>\s*/gi, "")
     .replace(/<!doctype[\s\S]*?>\s*/gi, "")
     .replace(/<!--[\s\S]*?-->/g, "");
@@ -9,6 +9,15 @@ export function optimizeSvg(svg: string): string {
     .trim();
 
   return removeRootDimensionsWhenViewBoxExists(compacted);
+}
+
+/** Remove executable or externally loaded content before an SVG enters the Webview. */
+export function sanitizeSvg(svg: string): string {
+  return svg
+    .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+    .replace(/<foreignObject\b[\s\S]*?<\/foreignObject>/gi, "")
+    .replace(/\s(?:on[a-z]+|href|xlink:href)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/url\s*\(\s*(?:https?:|data:)/gi, "url(");
 }
 
 function normalizeTagWhitespace(tag: string): string {

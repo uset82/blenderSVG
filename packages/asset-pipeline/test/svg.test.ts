@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { createManifestEntry, optimizeSvg, validateSvgLayers } from "../src/index.js";
+import { createManifestEntry, optimizeSvg, sanitizeSvg, validateSvgLayers } from "../src/index.js";
 
 const layeredSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">
   <g id="avatar/root">
@@ -14,6 +14,13 @@ test("optimizes SVG while keeping viewBox", () => {
   const optimized = optimizeSvg(layeredSvg);
   assert.match(optimized, /viewBox=/);
   assert.match(optimized, /svg/);
+});
+
+test("sanitizes executable and external SVG content", () => {
+  const sanitized = sanitizeSvg(
+    `<svg onload="alert(1)"><script>alert(1)</script><image href="https://example.com/a.png"/><foreignObject><div>bad</div></foreignObject></svg>`
+  );
+  assert.doesNotMatch(sanitized, /script|foreignObject|onload|https?:/i);
 });
 
 test("reports layer warnings for unstructured traces", () => {

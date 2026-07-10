@@ -664,29 +664,35 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 
 ## Tasks
 
-- [ ] Create an original built-in SVG mascot.
-- [ ] Ensure the SVG contains no untrusted scripts.
-- [ ] Sanitize imported SVG files.
-- [ ] Create `SvgAvatarRenderer`.
-- [ ] Add state-specific CSS classes.
-- [ ] Add idle breathing.
-- [ ] Add blinking.
-- [ ] Add thinking pulse.
-- [ ] Add coding movement.
-- [ ] Add speaking mouth pulse.
-- [ ] Add success glow.
-- [ ] Add warning pulse.
-- [ ] Add error shake.
-- [ ] Disable continuous effects in reduced-motion mode.
-- [ ] Add runtime fallback selection.
+- [x] Create an original built-in SVG mascot.
+- [x] Ensure the SVG contains no untrusted scripts.
+- [x] Sanitize imported SVG files.
+- [x] Create `SvgAvatarRenderer`.
+- [x] Add state-specific CSS classes.
+- [x] Add idle breathing.
+- [x] Add blinking.
+- [x] Add thinking pulse.
+- [x] Add coding movement.
+- [x] Add speaking mouth pulse.
+- [x] Add success glow.
+- [x] Add warning pulse.
+- [x] Add error shake.
+- [x] Disable continuous effects in reduced-motion mode.
+- [x] Add runtime fallback selection.
 
 ## Acceptance criteria
 
-- [ ] The extension works with only the built-in SVG avatar.
-- [ ] Every required state produces a visible change.
-- [ ] Reduced-motion mode disables looping animation.
-- [ ] SVG sanitization tests pass.
-- [ ] Missing optional assets do not crash the extension.
+- [x] The extension works with only the built-in SVG avatar.
+- [x] Every required state produces a visible change.
+- [x] Reduced-motion mode disables looping animation.
+- [x] SVG sanitization tests pass.
+- [x] Missing optional assets do not crash the extension.
+
+### Phase 6 evidence — 2026-07-10
+
+- The original inline SVG mascot renders every required state with CSS-driven breathing, blink, thinking/building pulse, coding/speaking motion, success/warning/error feedback, and reduced-motion/visibility pause behavior.
+- `sanitizeSvg` now strips scripts, foreign objects, event-handler attributes, external hrefs, and remote/data paint URLs before optimization.
+- Verification: asset-pipeline typecheck and tests pass 15/15; Webview SVG-only smoke tests remain green.
 
 ---
 
