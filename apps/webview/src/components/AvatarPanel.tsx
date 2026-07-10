@@ -6,6 +6,7 @@ import { SettingsPanel } from "./SettingsPanel";
 import { StatusDebugPanel } from "./StatusDebugPanel";
 import type { BridgeState } from "../bridge/useExtensionBridge";
 import { useAvatarBehavior } from "../hooks/useAvatarBehavior";
+import { AvatarRuntimeBoundary } from "./AvatarRuntimeBoundary";
 
 type AvatarPanelProps = BridgeState;
 
@@ -34,13 +35,15 @@ export function AvatarPanel({
       data-intensity={config.focusMode ? "low" : config.animationIntensity}
       data-position={config.position}
     >
-      <AvatarStage
-        state={behavior.displayState}
-        config={config}
-        poseInput={behavior.poseInput}
-        manifest={manifest}
-        triggerEvent={behavior.triggerEvent}
-      />
+      <AvatarRuntimeBoundary>
+        <AvatarStage
+          state={behavior.displayState}
+          config={config}
+          poseInput={behavior.poseInput}
+          manifest={manifest}
+          triggerEvent={behavior.triggerEvent}
+        />
+      </AvatarRuntimeBoundary>
       <AssistantBubble text={behavior.displayMessage} />
       <nav className="action-row" aria-label="Avatar actions">
         <button type="button" onClick={() => postToExtension({ type: "command:toggleAssistant" })}>

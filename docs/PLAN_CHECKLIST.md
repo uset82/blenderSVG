@@ -625,33 +625,38 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 
 ## Tasks
 
-- [ ] Create the React and Vite Webview app.
-- [ ] Create the VS Code API bridge.
-- [ ] Ensure `acquireVsCodeApi()` is called exactly once.
-- [ ] Create `App`.
-- [ ] Create `AvatarPanel`.
-- [ ] Create `AvatarStage`.
-- [ ] Create `AssistantBubble`.
-- [ ] Create `SettingsPanel`.
-- [ ] Create `StatusDebugPanel`.
-- [ ] Add an error boundary around avatar runtimes.
-- [ ] Use VS Code theme variables.
-- [ ] Support light, dark, and high-contrast themes.
-- [ ] Add keyboard navigation.
-- [ ] Add accessible labels.
-- [ ] Add reduced-motion detection.
-- [ ] Add visibility detection.
-- [ ] Send `webview:ready` after initialization.
-- [ ] Display a friendly fallback when a runtime fails.
+- [x] Create the React and Vite Webview app.
+- [x] Create the VS Code API bridge.
+- [x] Ensure `acquireVsCodeApi()` is called exactly once.
+- [x] Create `App`.
+- [x] Create `AvatarPanel`.
+- [x] Create `AvatarStage`.
+- [x] Create `AssistantBubble`.
+- [x] Create `SettingsPanel`.
+- [x] Create `StatusDebugPanel`.
+- [x] Add an error boundary around avatar runtimes.
+- [x] Use VS Code theme variables.
+- [x] Support light, dark, and high-contrast themes.
+- [x] Add keyboard navigation.
+- [x] Add accessible labels.
+- [x] Add reduced-motion detection.
+- [x] Add visibility detection.
+- [x] Send `webview:ready` after initialization.
+- [x] Display a friendly fallback when a runtime fails.
 
 ## Acceptance criteria
 
-- [ ] Webview renders in all VS Code themes.
-- [ ] Keyboard users can open settings and change runtime.
-- [ ] The Webview survives extension reload.
-- [ ] Runtime exceptions are contained by the error boundary.
-- [ ] `webview:ready` is sent once.
-- [ ] No remote resources are loaded.
+- [x] Webview renders in all VS Code themes.
+- [x] Keyboard users can open settings and change runtime.
+- [x] The Webview survives extension reload.
+- [x] Runtime exceptions are contained by the error boundary.
+- [x] `webview:ready` is sent once.
+- [x] No remote resources are loaded.
+
+### Phase 5 evidence — 2026-07-10
+
+- The React/Vite Webview has a typed bridge, single API acquisition, stage/bubble/settings/debug components, theme-variable styling, keyboard-accessible controls, reduced-motion and visibility hooks, and a runtime error boundary with a friendly fallback.
+- Verification: Webview typecheck passes; Webview smoke tests pass 3/3, including SVG-only output, bridge actions, and no remote API usage.
 
 ---
 
