@@ -26,6 +26,8 @@ Useful commands:
 - `Codex Avatar: Open Avatar Assets Folder`
 - `Codex Avatar: Reload Avatar`
 
+Read `docs/USER_GUIDE.md` for installation, package import, settings, and recovery. Read `docs/DEVELOPER_SETUP.md` to build from a clean checkout, and `docs/RUNTIME_ADAPTERS.md` to add a renderer.
+
 ## Development
 
 ```bash
@@ -38,6 +40,7 @@ pnpm smoke:webview
 pnpm package:vsix
 pnpm validate:vsix
 pnpm smoke:vsix
+pnpm validate:docs
 
 # Pre-release artifact (does not modify package.json)
 pnpm package:vsix:pre
@@ -46,6 +49,6 @@ pnpm package:vsix:pre
 Start with:
 
 1. Read `AGENTS.md`.
-2. Read `SKILLS.md`.
-3. Read `docs/PLAN_CHECKLIST.md`.
+2. Read `docs/PLAN_CHECKLIST.md`.
+3. Read `docs/DEVELOPER_SETUP.md`.
 4. Use `docs/CODEX_IDE_PROMPT.md` in Codex IDE.

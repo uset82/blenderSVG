@@ -35,9 +35,9 @@ Exact installed versions were read from `pnpm list -r --depth 0 --json` and thei
 | `vite` | 7.3.6 | MIT | Approved Webview build dependency |
 | `@types/node`, `@types/react`, `@types/react-dom`, `@types/three`, `@types/vscode` | lockfile versions | MIT | Approved development-only type packages |
 
-### Potrace decision
+### Potrace decision and current release status
 
-The installed `potrace@2.1.8` package declares `GPL-2.0`. The preserved baseline can remain untouched during the earlier ordered phases, but the project will not expand that code path or treat it as the planned MVP vectorizer. The new Phase 11 pipeline selects `imagetracerjs@1.2.6` (Unlicense) unless a later security/quality review rejects it. Packaging must prove that Potrace and its transitive runtime are absent from the base VSIX before release.
+The installed `potrace@2.1.8` package declares `GPL-2.0`, and the current `packages/asset-pipeline` implementation still imports it. This is a release-review item: the project must either complete the permissive tracer migration and remove Potrace from the distributable bundle, or complete the required GPL compliance review before publishing. The documentation and package validator do not grant a license or waive this obligation. Do not treat a successful build as a licensing approval.
 
 ## Approved or reviewed MVP additions
 
@@ -107,3 +107,6 @@ No `.riv`, `.glb`, `.vrm`, Live2D model, spritesheet, voice, or third-party char
 - Re-run dependency and asset license checks before every release candidate.
 - Treat any unknown or ambiguous asset license as non-redistributable until resolved.
 
+## What users may distribute
+
+The repository's project license is currently **UNLICENSED / all rights reserved**. Imported avatar packages are user-owned inputs and remain subject to their own licenses; the extension does not relicense them. A distributable VSIX must include the project `LICENSE`, `THIRD_PARTY_NOTICES.md`, dependency license texts required by the final dependency graph, and a written decision for the Potrace/tracer path. This document is guidance for engineering release review, not legal advice.

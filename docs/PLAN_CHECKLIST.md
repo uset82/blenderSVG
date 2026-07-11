@@ -1454,28 +1454,36 @@ Do not start this phase until the 2D MVP is stable.
 
 ## Tasks
 
-- [ ] Write user installation instructions.
-- [ ] Write developer setup instructions.
-- [ ] Write avatar package creation instructions.
-- [ ] Write spritesheet creation instructions.
-- [ ] Write image-to-SVG instructions.
-- [ ] Write Blender export instructions.
-- [ ] Write runtime adapter instructions.
-- [ ] Write troubleshooting instructions.
-- [ ] Write performance recommendations.
-- [ ] Write privacy documentation.
-- [ ] Write licensing documentation.
-- [ ] Add screenshots or original demo recordings.
-- [ ] Add architecture diagrams.
-- [ ] Add examples without copyrighted third-party characters.
+- [x] Write user installation instructions.
+- [x] Write developer setup instructions.
+- [x] Write avatar package creation instructions.
+- [x] Write spritesheet creation instructions.
+- [x] Write image-to-SVG instructions.
+- [x] Write Blender export instructions.
+- [x] Write runtime adapter instructions.
+- [x] Write troubleshooting instructions.
+- [x] Write performance recommendations.
+- [x] Write privacy documentation.
+- [x] Write licensing documentation.
+- [x] Add screenshots or original demo recordings.
+- [x] Add architecture diagrams.
+- [x] Add examples without copyrighted third-party characters.
 
 ## Acceptance criteria
 
-- [ ] A new developer can build the project from the README.
-- [ ] A user can import an avatar package without reading source code.
-- [ ] A developer can create a new runtime adapter from the documentation.
-- [ ] Licensing limitations are understandable.
-- [ ] All documented commands match actual scripts.
+- [x] A new developer can build the project from the README.
+- [x] A user can import an avatar package without reading source code.
+- [x] A developer can create a new runtime adapter from the documentation.
+- [x] Licensing limitations are understandable.
+- [x] All documented commands match actual scripts.
+
+### Phase 22 evidence
+
+- `docs/USER_GUIDE.md` covers VSIX installation, the Extension Development Host, package import/activation/removal, settings, local outputs, and recovery.
+- `docs/DEVELOPER_SETUP.md`, `docs/RUNTIME_ADAPTERS.md`, `docs/SPRITESHEET_GUIDE.md`, and `docs/AVATAR_PACKAGE_SPEC.md` provide clean-checkout, adapter, spritesheet, and package creation workflows with original geometric examples.
+- `docs/ARCHITECTURE.md` contains the current Mermaid system diagram; `docs/DEMO.md` includes the original Webview smoke screenshot at `docs/assets/webview-smoke.png` and the reproducible command used to generate it.
+- `scripts/validate-docs.mjs` checks repository-local Markdown links, registered VS Code command titles, documented root pnpm scripts, and required documentation files. `pnpm run validate:docs` passes.
+- Existing `docs/PERFORMANCE.md`, `docs/SECURITY_PRIVACY.md`, and `docs/LICENSING.md` are linked from the new guides and state the current budgets, local-only data policy, and unresolved Potrace distribution review.
 
 ---
 

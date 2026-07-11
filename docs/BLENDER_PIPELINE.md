@@ -42,6 +42,8 @@ For GLB/WebGL work:
 
 ## Outputs
 
+Run `Codex Avatar: Export Blender Scene`, select a local `.blend` file, and choose SVG line art, GLB, or PNG preview. The extension checks for Blender before starting and shows a readable error when it is unavailable.
+
 The command writes local files to:
 
 ```txt

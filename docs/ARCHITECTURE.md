@@ -1,110 +1,67 @@
 # Architecture — Codex Avatar Studio
 
-> Phase 0 preflight audit — 2026-07-10
->
-> This document records the user-owned baseline before the PixiJS-first implementation plan changes any structural source code.
+Codex Avatar Studio is a pnpm TypeScript workspace that separates IDE integration, the React Webview, shared avatar contracts, and optional renderers. The MVP is local-first: SVG is always available, while PixiJS is the required rich runtime and is loaded lazily.
 
-## Current classification
+## System map
 
-This workspace is an existing pnpm TypeScript monorepo for a VS Code extension, not an empty repository. It already contains a compiled extension, a React/Vite Webview, shared avatar types, a local image-to-SVG pipeline, and optional-runtime prototypes.
+```mermaid
+flowchart LR
+  IDE["VS Code extension host"] -->|typed local messages| WV["React Webview"]
+  IDE --> EV["IDE event bridge"]
+  EV --> CORE["avatar-core states, events, manifest, adapter"]
+  CORE --> WV
+  WV --> SELECT["runtime selection and fallback"]
+  SELECT --> SVG["SVG renderer"]
+  SELECT -->|lazy import| PIXI["PixiJS runtime"]
+  PIXI --> ATLAS["local avatar manifest and spritesheet"]
+  IDE --> PKG["secure local package registry"]
+  PKG --> ATLAS
+  PIPE["asset pipeline and optional Blender exporter"] --> PKG
+```
 
-At the start of the audit, the selected working directory (`D:\Proyectos\Blender`) was not a Git repository. The user subsequently authorized initialization. `git init -b main` created the repository, baseline commit `5bad6a2` captured the pre-migration state, and branch `backup/pre-pixi-migration-20260710` now preserves that commit before Phase 1 structural source work.
-
-## Toolchain baseline
-
-| Concern | Baseline |
-| --- | --- |
-| Package manager | pnpm 11.7.0 (`packageManager` in the root package manifest) |
-| Node.js observed | v22.22.0 |
-| TypeScript observed | 5.9.3 |
-| TypeScript policy already enabled | `strict`, `noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes` |
-| Workspace layout | `apps/*` and `packages/*` |
-| Root verification scripts | `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` |
-| Current lint implementation | TypeScript no-emit checking; a formatter/linter is not yet configured |
-
-### Baseline verification evidence
-
-Environment: Windows workspace at `D:\Proyectos\Blender`, Node v22.22.0, pnpm 11.7.0.
-
-| Command | Result |
-| --- | --- |
-| `pnpm build` | Passed. Vite emitted non-blocking warnings for WebGL-related chunks over 500 kB. |
-| `pnpm typecheck` | Passed. |
-| `pnpm lint` | Passed; it currently runs TypeScript no-emit checking. |
-| `pnpm test` | Passed: 36 tests, 0 failures, 0 skipped. The Vite bundle-size warnings repeated but did not fail the command. |
-
-The bundle warnings are a performance finding to address in the later PixiJS/optional-runtime isolation work; they do not invalidate the baseline.
-
-## Existing package topology
+## Workspace topology
 
 ```text
 apps/
   extension/          VS Code extension host, commands, settings, IDE events, Webview provider
-  webview/            React/Vite UI and renderer selection
+  webview/            React/Vite UI, bridge, renderer selection, SVG fallback
 packages/
-  avatar-core/        shared states, runtime types, event mapping, manifest validation helpers
-  asset-pipeline/     local Potrace-based image-to-SVG workflow and asset helpers
+  avatar-core/        states, triggers, capabilities, protocol, manifest validation, adapter contract
+  asset-pipeline/     local image-to-SVG processing and manifest generation
+  runtime-pixi/       isolated PixiJS v8 adapter, spritesheet validation, animation controller, cache
 scripts/
-  blender/            optional SVG, GLB, and preview exporters
+  blender/            optional Blender SVG, GLB, and PNG exporters
 ```
 
-### Extension host baseline
+## Runtime flow
 
-`apps/extension` targets VS Code `^1.96.0`. It currently provides an Activity Bar view, manual state commands, workspace-local asset actions, basic IDE event listeners, settings persistence, a Content Security Policy, and local-resource handling through `webview.asWebviewUri()`.
+1. The extension host listens to IDE events and user commands.
+2. A versioned, schema-validated local bridge sends state, trigger, pose, and visibility messages to the Webview.
+3. The Webview selects a renderer from the avatar manifest and user settings.
+4. SVG renders immediately as the permanent fallback. PixiJS is dynamically imported and initialized only when requested.
+5. A runtime failure, invalid local asset, or unsupported GPU returns control to SVG without taking down the assistant panel.
+6. Visibility changes pause continuous animation; `dispose` removes canvases, observers, event listeners, and cached textures.
 
-The current Webview provider uses an executable nonce-bearing inline bootstrap script and unvalidated inbound messages. The corrected plan requires a versioned, schema-validated bridge and no executable inline bootstrap code, so this behavior is retained as baseline only and will be migrated in the appropriate later phases.
+## Security boundaries
 
-### Webview baseline
+- Avatar packages are copied into `.codex-avatar/avatars/<id>/` only after manifest, path, checksum, SVG, size, and symlink validation.
+- Webview resources use local VS Code URIs and a strict nonce-based CSP.
+- The bridge accepts only known message schemas and bounded values.
+- Blender is an optional trusted-workspace process launched with argument arrays and `shell: false`.
+- No remote runtime downloads, telemetry, cloud asset service, or microphone permission is required.
 
-`apps/webview` uses React 19 and Vite 7. It provides an SVG renderer plus lazy-loaded Rive, Live2D, and Three/WebGL renderer placeholders. It already has theme variables, reduced-motion detection, visibility detection, an error boundary, and a typed-at-compile-time bridge.
+See [SECURITY_PRIVACY.md](SECURITY_PRIVACY.md) and [AVATAR_PACKAGE_SPEC.md](AVATAR_PACKAGE_SPEC.md) for the enforceable details.
 
-The active MVP renderer in the corrected plan is not present: there is no PixiJS dependency, `runtime-pixi` package, spritesheet format, or PixiJS lifecycle implementation.
+## Performance boundaries
 
-### Shared core and asset baseline
+The default animation cap is 30 FPS; 60 FPS is opt-in. The Pixi runtime bounds canvas dimensions to 2048×2048 logical pixels at a maximum 2× resolution, limits its texture cache to 8 entries and 32 MiB estimated RGBA memory, pauses while hidden, and fails initialization after the Webview's 8-second timeout. See [PERFORMANCE.md](PERFORMANCE.md).
 
-`packages/avatar-core` defines the required state names and an earlier set of triggers, basic event mappings, runtime fallback selection, manifest validation helpers, reduced-motion helpers, and GPU feature checks. It does **not** yet contain the required deterministic state machine, capabilities model, Zod schemas, protocol versioning, or secure avatar-package validation.
+## Extension and Webview responsibilities
 
-`packages/asset-pipeline` performs local tracing and includes path/metadata tests. It does not yet provide the full sanitization, cancellation, preview, complexity-limiting, or package-validation contract required by the corrected plan.
+The extension owns VS Code APIs, settings, package import, filesystem policy, IDE event mapping, and process launch. The Webview owns presentation and renderer lifecycle. Shared types prevent renderer-specific state names from leaking into the IDE event bridge.
 
-### Optional-runtime baseline
+The optional Rive, Live2D, WebGL/WebGPU, Inochi2D, and VRM work remains isolated or deferred. It must not become a prerequisite for the SVG/Pixi MVP.
 
-Rive, Live2D, Three/WebGL/WebGPU, and Blender-related code predates the new plan. It is user-owned baseline code and must be preserved. It is not evidence that optional phases are complete, and it must not be expanded or included in the PixiJS-first MVP bundle.
+## Historical audit
 
-## Corrected MVP architecture
-
-The authoritative checklist is `docs/PLAN_CHECKLIST.md`. The required non-voice MVP route is:
-
-```text
-Phase 0–12: preflight → tooling → core/protocol → state machine → extension → webview
-             → SVG fallback → PixiJS → spritesheet behavior → IDE events
-             → avatar packages → local vectorization → settings/accessibility
-Phase 18–22: security/privacy → performance → testing → CI/release → documentation
-```
-
-Phases 13–17 remain unchecked and deferred unless their optional scope is explicitly approved. SVG remains the permanent fallback; PixiJS v8 becomes the only rich runtime required for the MVP.
-
-## Phase 0 decision lock
-
-| Decision | Recorded choice | Status |
-| --- | --- | --- |
-| Primary IDE target | VS Code `^1.96.0` | Locked from existing extension manifest |
-| Compatible IDE support | Best-effort only where the public VS Code Webview API is compatible; formal compatibility testing belongs to Phase 20 | Locked |
-| Node policy | Node 22 LTS only (`>=22 <23`) | Locked; enforce in Phase 1 |
-| pnpm policy | pnpm 11.7.0, locked by the root `packageManager` field | Locked |
-| Formatter/linter | Biome, replacing the current typecheck-as-lint placeholder | Locked; configure in Phase 1 |
-| Unit-test framework | Vitest | Locked; configure in Phase 1 |
-| Extension integration tests | `@vscode/test-electron` | Locked; configure in Phase 1 |
-| AITuber OnAir | Reference-only for the MVP; no source code or assets may be copied/adapted | Locked |
-| Raster vectorization dependency | ImageTracerJS 1.2.6 (Unlicense) for the new pipeline; the existing Potrace 2.1.8 dependency is GPL-2.0 and must be removed from the distributable base before release | Locked; migration belongs to Phase 11 after earlier required phases |
-
-## Preservation and migration rules
-
-- No existing source file is to be deleted merely to fit the new design.
-- Existing Rive, Live2D, WebGL/WebGPU, and Blender code remains isolated from the base MVP. It can be adapted only in a later optional phase after its license and loading model are verified.
-- Prior checkboxes in `docs/PLAN_CHECKLIST_LEGACY.md` are historical notes, not evidence for this checklist.
-- The old checklist has been preserved before `docs/PLAN_CHECKLIST.md` was replaced by the corrected authoritative plan.
-
-## Phase 0 gate status
-
-1. Git safety gate resolved: repository `main` and backup branch `backup/pre-pixi-migration-20260710` both descend from the captured baseline.
-2. The existing Potrace 2.1.8 GPL-2.0 dependency remains a recorded migration risk. It may remain untouched in the preserved baseline, but it must not be expanded or shipped in the eventual base VSIX; the corrected pipeline will use the permissively licensed ImageTracerJS alternative.
+The initial Phase 0 audit is preserved in Git history and in `docs/PLAN_CHECKLIST_LEGACY.md`. It described the pre-Pixi baseline; this document describes the implemented architecture after Phases 0–13 and 18–22.

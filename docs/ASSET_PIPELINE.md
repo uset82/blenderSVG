@@ -2,6 +2,16 @@
 
 All asset processing is local. Do not upload source images, SVGs, `.blend`, `.riv`, `.glb`, or Live2D files from this pipeline.
 
+## Image-to-SVG workflow
+
+1. Run `Codex Avatar: Vectorize Image to SVG`.
+2. Select a local PNG, JPG, JPEG, or WEBP file.
+3. Review the generated preview and warnings.
+4. Confirm the save operation.
+5. Inspect `.codex-avatar/exports/svg/` for the raw trace, optimized SVG, and manifest.
+
+The command is a local reference-art workflow. It does not upload the input, modify the source image, or create an animated rig automatically. Use [SPRITESHEET_GUIDE.md](SPRITESHEET_GUIDE.md) for animation-ready Pixi art and [AVATAR_PACKAGE_SPEC.md](AVATAR_PACKAGE_SPEC.md) to package a finished fallback.
+
 Image tracing is for references, icons, silhouettes, and quick shape exploration. Do not use a full poster/image trace as the final animated avatar. Animated characters need clean, named layers or a rigged runtime file.
 
 ## Output
@@ -16,7 +26,7 @@ The manifest records the source image, outputs, guidance, and validation warning
 
 The optimized SVG is produced locally with SVGO configured to preserve IDs and groups, plus a conservative pass that removes declarations, doctypes, comments, and extra tag whitespace while preserving paths and `viewBox`.
 
-The current pipeline uses SVGO with ID and group preservation, then sanitizes the result again before it can enter the Webview. The command presents the optimized SVG in a preview editor and asks for confirmation before writing output files. The source raster file is never modified.
+The current pipeline uses the installed local tracer and SVGO with ID and group preservation, then sanitizes the result again before it can enter the Webview. The command presents the optimized SVG in a preview editor and asks for confirmation before writing output files. The source raster file is never modified. Check [LICENSING.md](LICENSING.md) before distributing generated output because the current tracer dependency remains a release-review item.
 
 ## Preprocessing and safety
 

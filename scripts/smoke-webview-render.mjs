@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { statSync } from "node:fs";
 import { createServer } from "node:http";
 import { createServer as createTcpServer } from "node:net";
-import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,6 +82,14 @@ try {
   assert.equal(rendered.hasStage, true, "avatar stage rendered");
   assert.match(rendered.text, /Ready to build\./, "assistant message rendered");
   assert.match(rendered.text, /welcome/, "initial avatar state rendered");
+
+  if (process.env.SMOKE_SCREENSHOT) {
+    const screenshotPath = path.resolve(root, process.env.SMOKE_SCREENSHOT);
+    await mkdir(path.dirname(screenshotPath), { recursive: true });
+    const screenshot = await cdp.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(screenshotPath, Buffer.from(screenshot.data, "base64"));
+    console.log(`Webview screenshot written: ${path.relative(root, screenshotPath)}`);
+  }
 
   cdp.close();
   console.log(`Webview render smoke passed: ${url}`);
