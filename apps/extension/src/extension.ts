@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "node:path";
 import { vectorizeImageToSvg } from "@codex-avatar-studio/asset-pipeline";
 import { AvatarWebviewProvider } from "./AvatarWebviewProvider.js";
-import { avatarStates, isAvatarState, type AvatarState } from "./avatarState.js";
+import { avatarStates, isAvatarState, isIdeAssistantEvent, type AvatarState } from "./avatarState.js";
 import { findBlenderExecutable, runBlenderExports, type BlenderExportMode } from "./blenderRunner.js";
 import { IdeEventsController } from "./ideEvents.js";
 import { getAvatarConfig, resetAvatarConfig, toggleAssistantEnabled } from "./settings.js";
@@ -85,6 +85,13 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     registerCommand("codexAvatar.startSpeaking", () => {
       ideEvents.setManualState("speaking");
+    }),
+    registerCommand("codexAvatar.emitEvent", (event?: unknown, payload?: unknown) => {
+      if (typeof event !== "string" || !isIdeAssistantEvent(event)) {
+        vscode.window.showErrorMessage(`Unsupported Codex Avatar event: ${String(event)}`);
+        return;
+      }
+      ideEvents.emitEvent(event, payload);
     }),
     registerCommand("codexAvatar.markSuccess", () => {
       ideEvents.setManualState("success", "celebrate");

@@ -10,8 +10,10 @@ export const eventToAvatarState: Record<IdeAssistantEvent, AvatarState> = {
   terminal_finished: "idle",
   task_started: "thinking",
   task_finished: "success",
+  task_failed: "error",
   debug_started: "debugging",
   debug_stopped: "idle",
+  workspace_trust_changed: "welcome",
   codex_task_started: "thinking",
   codex_task_thinking: "thinking",
   codex_task_streaming: "speaking",
@@ -28,8 +30,10 @@ export const eventToAvatarTrigger: Partial<Record<IdeAssistantEvent, AvatarTrigg
   extension_ready: "nod",
   file_saved: "nod",
   task_finished: "celebrate",
+  task_failed: "shake",
   codex_task_finished: "celebrate",
-  codex_task_failed: "shake"
+  codex_task_failed: "shake",
+  workspace_trust_changed: "nod"
 };
 
 export function mapEventToAvatarState(event: IdeAssistantEvent): AvatarState {

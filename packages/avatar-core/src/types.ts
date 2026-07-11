@@ -63,8 +63,10 @@ export const ideAssistantEvents = [
   "terminal_finished",
   "task_started",
   "task_finished",
+  "task_failed",
   "debug_started",
   "debug_stopped",
+  "workspace_trust_changed",
   "codex_task_started",
   "codex_task_thinking",
   "codex_task_streaming",
@@ -184,4 +186,8 @@ export function isAvatarState(value: string): value is AvatarState {
 
 export function isAvatarTrigger(value: string): value is AvatarTrigger {
   return (avatarTriggers as readonly string[]).includes(value);
+}
+
+export function isIdeAssistantEvent(value: string): value is IdeAssistantEvent {
+  return (ideAssistantEvents as readonly string[]).includes(value);
 }

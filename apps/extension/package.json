@@ -26,6 +26,7 @@
     "onCommand:codexAvatar.setState",
     "onCommand:codexAvatar.startThinking",
     "onCommand:codexAvatar.startSpeaking",
+    "onCommand:codexAvatar.emitEvent",
     "onCommand:codexAvatar.markSuccess",
     "onCommand:codexAvatar.markError",
     "onCommand:codexAvatar.trigger.blink",
@@ -127,6 +128,10 @@
       {
         "command": "codexAvatar.startSpeaking",
         "title": "Codex Avatar: Start Speaking"
+      },
+      {
+        "command": "codexAvatar.emitEvent",
+        "title": "Codex Avatar: Emit IDE Event"
       },
       {
         "command": "codexAvatar.markSuccess",
@@ -242,7 +247,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && tsc -p tsconfig.json --noEmit",
     "lint": "pnpm --workspace-root exec biome lint apps/extension",
-    "test": "pnpm build && node --test test/*.test.mjs",
+    "test": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm build && node --test test/*.test.mjs && pnpm --workspace-root exec vitest run apps/extension/test/ideEvents.test.ts",
     "watch": "tsc -p tsconfig.json --watch",
     "package:vsix": "node ../../scripts/package-extension.mjs"
   },

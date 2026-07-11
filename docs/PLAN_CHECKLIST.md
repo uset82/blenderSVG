@@ -821,25 +821,32 @@ sleeping   -> sleep_loop
 
 ## Tasks
 
-- [ ] Listen to active editor changes.
-- [ ] Listen to text document changes with throttling.
-- [ ] Listen to document save events.
-- [ ] Listen to diagnostics changes.
-- [ ] Listen to debug session start.
-- [ ] Listen to debug session termination.
-- [ ] Listen to task start.
-- [ ] Listen to task end.
-- [ ] Listen to terminal creation and closure where useful.
-- [ ] Listen to workspace trust changes.
-- [ ] Map public IDE events to `IdeAssistantEvent`.
-- [ ] Map assistant events to avatar states.
-- [ ] Add debounce and cooldown rules.
-- [ ] Add an idle timer.
-- [ ] Add a sleep timer.
-- [ ] Add manual state commands for events that cannot be detected reliably.
-- [ ] Do not assume access to private Codex internal state.
-- [ ] Add optional command hooks that other extensions can invoke.
-- [ ] Document integration limits.
+- [x] Listen to active editor changes.
+- [x] Listen to text document changes with throttling.
+- [x] Listen to document save events.
+- [x] Listen to diagnostics changes.
+- [x] Listen to debug session start.
+- [x] Listen to debug session termination.
+- [x] Listen to task start.
+- [x] Listen to task end.
+- [x] Listen to terminal creation and closure where useful.
+- [x] Listen to workspace trust changes.
+- [x] Map public IDE events to `IdeAssistantEvent`.
+- [x] Map assistant events to avatar states.
+- [x] Add debounce and cooldown rules.
+- [x] Add an idle timer.
+- [x] Add a sleep timer.
+- [x] Add manual state commands for events that cannot be detected reliably.
+- [x] Do not assume access to private Codex internal state.
+- [x] Add optional command hooks that other extensions can invoke.
+- [x] Document integration limits.
+
+### Phase 9 progress evidence — 2026-07-11
+
+- `apps/extension/src/ideEvents.ts` now listens to public VS Code editor, document, save, diagnostics, debug, task, terminal, and workspace-trust events. Task process exit codes map to success/error, and optional event surfaces are guarded.
+- Rapid document changes use a trailing throttle; diagnostics use a trailing debounce; activity resets an idle-to-sleep timer; manual state commands and the validated `codexAvatar.emitEvent` hook remain available for events that cannot be observed directly.
+- `docs/IDE_EVENT_BRIDGE.md` documents the public-only boundary, optional hook, throttling, and integration limits. No private Codex state is read.
+- Verification: `apps/extension/test/ideEvents.test.ts` passes 2/2 tests covering typing throttling, diagnostics debounce, task failure mapping, terminal/trust mapping, sleep behavior, graceful diagnostics failure, and listener disposal. Extension typecheck and tests pass.
 
 ## Example event mapping
 
@@ -859,12 +866,17 @@ Manual "Codex Speaking"      -> speaking
 
 ## Acceptance criteria
 
-- [ ] Public IDE events produce the expected avatar states.
-- [ ] Rapid typing does not flood the Webview.
-- [ ] Repeated diagnostics are debounced.
-- [ ] Tasks map exit results correctly.
-- [ ] Event listeners are disposed.
-- [ ] Unsupported IDE events fail gracefully.
+- [x] Public IDE events produce the expected avatar states.
+- [x] Rapid typing does not flood the Webview.
+- [x] Repeated diagnostics are debounced.
+- [x] Tasks map exit results correctly.
+- [x] Event listeners are disposed.
+- [x] Unsupported IDE events fail gracefully.
+
+### Phase 9 acceptance evidence — 2026-07-11
+
+- `pnpm --workspace-root exec vitest run apps/extension/test/ideEvents.test.ts` verifies the public event mappings, throttling, debounce, task exit-code mapping, optional diagnostics failure handling, sleep transition, and disposal.
+- `pnpm --filter codex-avatar-studio-extension typecheck` and `pnpm --filter codex-avatar-studio-extension test` pass, including extension manifest/compiled-command smoke checks and the event bridge suite.
 
 ---
 

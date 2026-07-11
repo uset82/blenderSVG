@@ -8,6 +8,7 @@ export {
   isAvatarRuntime,
   isAvatarState,
   isAvatarTrigger,
+  isIdeAssistantEvent,
   parseExtensionToWebviewMessage,
   parseWebviewToExtensionMessage,
   type AvatarCapability,
