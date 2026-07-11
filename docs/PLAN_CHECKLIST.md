@@ -884,26 +884,35 @@ Manual "Codex Speaking"      -> speaking
 
 ## Tasks
 
-- [ ] Define `avatar.manifest.json`.
-- [ ] Add manifest versioning.
-- [ ] Add runtime preference.
-- [ ] Add runtime fallback.
-- [ ] Add capability declarations.
-- [ ] Add state-to-animation mappings.
-- [ ] Add trigger mappings.
-- [ ] Add preview image path.
-- [ ] Add license metadata.
-- [ ] Add author metadata.
-- [ ] Add asset checksums.
-- [ ] Validate all paths against path traversal.
-- [ ] Reject remote URLs by default.
-- [ ] Create a local avatar registry.
-- [ ] Add import-avatar command.
-- [ ] Add remove-avatar command.
-- [ ] Add activate-avatar command.
-- [ ] Add avatar validation report.
-- [ ] Add a built-in example package.
-- [ ] Document the format in `docs/AVATAR_PACKAGE_SPEC.md`.
+- [x] Define `avatar.manifest.json`.
+- [x] Add manifest versioning.
+- [x] Add runtime preference.
+- [x] Add runtime fallback.
+- [x] Add capability declarations.
+- [x] Add state-to-animation mappings.
+- [x] Add trigger mappings.
+- [x] Add preview image path.
+- [x] Add license metadata.
+- [x] Add author metadata.
+- [x] Add asset checksums.
+- [x] Validate all paths against path traversal.
+- [x] Reject remote URLs by default.
+- [x] Create a local avatar registry.
+- [x] Add import-avatar command.
+- [x] Add remove-avatar command.
+- [x] Add activate-avatar command.
+- [x] Add avatar validation report.
+- [x] Add a built-in example package.
+- [x] Document the format in `docs/AVATAR_PACKAGE_SPEC.md`.
+
+### Phase 10 progress evidence — 2026-07-11
+
+- `packages/avatar-core/src/manifest.ts` defines the versioned manifest schema, runtime preference/fallback, capabilities, state/trigger maps, author/license metadata, preview path, and SHA-256 checksum format.
+- `apps/extension/src/avatarPackages.ts` validates local packages, checks referenced files and checksums, rejects traversal/absolute/remote paths, rejects symlink escapes, and maintains a workspace-local registry under `.codex-avatar/`.
+- Import, remove, and activate commands are contributed by the extension. Active package paths are converted to approved Webview URIs; failures reload the built-in SVG/Pixi manifest.
+- The asset manager displays name, author, license, runtime paths, and validation status. `docs/AVATAR_PACKAGE_SPEC.md` documents the format and integration rules.
+- `apps/extension/media/avatars/avatar.manifest.json` is the built-in versioned example package for the original geometric avatar.
+- Verification: `apps/extension/test/avatar-packages.test.mjs` passes package import/activation/removal, built-in validation, traversal/remote rejection, and checksum mismatch tests; extension/Webview smoke tests and full `pnpm run ci` pass.
 
 ## Example manifest
 
@@ -940,12 +949,18 @@ Manual "Codex Speaking"      -> speaking
 
 ## Acceptance criteria
 
-- [ ] Valid packages import successfully.
-- [ ] Invalid packages produce actionable errors.
-- [ ] Path traversal attempts are rejected.
-- [ ] Remote entrypoints are rejected by default.
-- [ ] Removing an active avatar returns to the built-in avatar.
-- [ ] License metadata is visible in settings.
+- [x] Valid packages import successfully.
+- [x] Invalid packages produce actionable errors.
+- [x] Path traversal attempts are rejected.
+- [x] Remote entrypoints are rejected by default.
+- [x] Removing an active avatar returns to the built-in avatar.
+- [x] License metadata is visible in settings.
+
+### Phase 10 acceptance evidence — 2026-07-11
+
+- `pnpm --filter codex-avatar-studio-extension test` verifies valid import, activation, removal-to-built-in behavior, malformed package errors, traversal/remote rejection, checksum mismatch handling, and contributed command wiring.
+- `pnpm --filter @codex-avatar-studio/webview test` verifies the built asset manager bundle includes license metadata and the manifest bridge remains local-only.
+- `pnpm run ci` passes formatting, lint, typecheck, tests, and builds.
 
 ---
 

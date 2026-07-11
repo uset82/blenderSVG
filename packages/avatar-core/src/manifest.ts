@@ -18,6 +18,7 @@ export const avatarTriggerSchema = z.enum(avatarTriggers);
 export const avatarCapabilitySchema = z.enum(avatarCapabilities);
 
 const nonEmptyString = z.string().trim().min(1);
+const sha256Checksum = z.string().regex(/^[a-f\d]{64}$/i, "Checksums must be SHA-256 hex strings.");
 const runtimePathMapSchema = z
   .record(z.string(), nonEmptyString)
   .refine(
@@ -72,7 +73,7 @@ export const avatarManifestSchema = z.object({
   states: stateClipMapSchema,
   triggers: triggerClipMapSchema.optional(),
   previewImage: nonEmptyString.optional(),
-  checksums: z.record(z.string(), nonEmptyString).optional(),
+  checksums: z.record(z.string(), sha256Checksum).optional(),
 
   // Compatibility fields are intentionally optional and are removed only after
   // their preserved optional adapters receive a dedicated migration phase.

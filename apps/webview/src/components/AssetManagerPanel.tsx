@@ -37,6 +37,14 @@ export function AssetManagerPanel({ config, manifest }: AssetManagerPanelProps) 
           <dd>{manifest.id}</dd>
         </div>
         <div>
+          <dt>Author</dt>
+          <dd>{manifest.author}</dd>
+        </div>
+        <div>
+          <dt>License</dt>
+          <dd>{manifest.license}</dd>
+        </div>
+        <div>
           <dt>Runtime</dt>
           <dd>{config.runtime}</dd>
         </div>

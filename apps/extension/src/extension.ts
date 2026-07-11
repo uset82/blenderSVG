@@ -2,13 +2,18 @@ import * as vscode from "vscode";
 import * as path from "node:path";
 import { vectorizeImageToSvg } from "@codex-avatar-studio/asset-pipeline";
 import { AvatarWebviewProvider } from "./AvatarWebviewProvider.js";
+import { AvatarPackageError, AvatarPackageRegistry } from "./avatarPackages.js";
 import { avatarStates, isAvatarState, isIdeAssistantEvent, type AvatarState } from "./avatarState.js";
 import { findBlenderExecutable, runBlenderExports, type BlenderExportMode } from "./blenderRunner.js";
 import { IdeEventsController } from "./ideEvents.js";
-import { getAvatarConfig, resetAvatarConfig, toggleAssistantEnabled } from "./settings.js";
+import { getAvatarConfig, resetAvatarConfig, toggleAssistantEnabled, updateAvatarConfig } from "./settings.js";
 
 export function activate(context: vscode.ExtensionContext): void {
-  const provider = new AvatarWebviewProvider(context.extensionUri);
+  const packageRegistry = new AvatarPackageRegistry(
+    () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+    () => getAvatarConfig().assetWorkspace
+  );
+  const provider = new AvatarWebviewProvider(context.extensionUri, packageRegistry);
   const ideEvents = new IdeEventsController(provider);
   const blenderOutputChannel = vscode.window.createOutputChannel("Codex Avatar Blender");
   ideEvents.start();
@@ -65,10 +70,69 @@ export function activate(context: vscode.ExtensionContext): void {
       await vscode.commands.executeCommand("revealFileInOS", assetWorkspaceUri);
     }),
     registerCommand("codexAvatar.reloadAvatar", () => {
-      provider.reloadAssets();
+      void provider.reloadAssets();
       provider.setState("success");
       provider.trigger("nod");
       vscode.window.showInformationMessage("Codex Avatar assets reloaded.");
+    }),
+    registerCommand("codexAvatar.importAvatar", async () => {
+      const selected = await vscode.window.showOpenDialog({
+        title: "Codex Avatar: Import Avatar Package",
+        canSelectFiles: true,
+        canSelectFolders: true,
+        canSelectMany: false,
+        filters: { "Avatar package manifest": ["json"] }
+      });
+      const source = selected?.[0];
+      if (!source) return;
+
+      try {
+        const imported = await packageRegistry.importPackage(source.fsPath);
+        vscode.window.showInformationMessage(`Imported avatar package "${imported.manifest.name}".`);
+      } catch (error) {
+        showPackageError(error);
+      }
+    }),
+    registerCommand("codexAvatar.removeAvatar", async () => {
+      try {
+        const packages = await packageRegistry.listPackages();
+        const selected = await vscode.window.showQuickPick(
+          packages.map((avatarPackage) => ({ label: avatarPackage.manifest.name, description: avatarPackage.id })),
+          { title: "Codex Avatar: Remove Avatar Package" }
+        );
+        if (!selected) return;
+        const wasActive = await packageRegistry.removeAvatar(selected.description);
+        if (wasActive) await updateAvatarConfig({ character: "default" });
+        if (wasActive) void provider.reloadAssets();
+        vscode.window.showInformationMessage(
+          wasActive ? "Avatar removed. The built-in avatar is active again." : "Avatar package removed."
+        );
+      } catch (error) {
+        showPackageError(error);
+      }
+    }),
+    registerCommand("codexAvatar.activateAvatar", async () => {
+      try {
+        const packages = await packageRegistry.listPackages();
+        const selected = await vscode.window.showQuickPick(
+          [
+            { label: "Default Coder Orb", description: "default-coder-orb", id: undefined },
+            ...packages.map((avatarPackage) => ({
+              label: avatarPackage.manifest.name,
+              description: avatarPackage.id,
+              id: avatarPackage.id
+            }))
+          ],
+          { title: "Codex Avatar: Activate Avatar Package" }
+        );
+        if (!selected) return;
+        await packageRegistry.activateAvatar(selected.id);
+        await updateAvatarConfig({ character: selected.id ?? "default" });
+        await provider.reloadAssets();
+        vscode.window.showInformationMessage(`Active avatar: ${selected.label}.`);
+      } catch (error) {
+        showPackageError(error);
+      }
     }),
     registerCommand("codexAvatar.setState", async () => {
       const selected = await vscode.window.showQuickPick([...avatarStates], {
@@ -236,4 +300,10 @@ export function deactivate(): void {
 
 function registerCommand(command: string, callback: (...args: unknown[]) => unknown): vscode.Disposable {
   return vscode.commands.registerCommand(command, callback);
+}
+
+function showPackageError(error: unknown): void {
+  const message =
+    error instanceof AvatarPackageError ? error.message : error instanceof Error ? error.message : String(error);
+  vscode.window.showErrorMessage(`Avatar package error: ${message}`);
 }

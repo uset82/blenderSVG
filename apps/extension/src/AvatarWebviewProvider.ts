@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import path from "node:path";
 import type {
   AvatarManifest,
   AvatarState,
@@ -9,6 +10,7 @@ import type {
 } from "./avatarState.js";
 import { createExtensionToWebviewMessage, parseWebviewToExtensionMessage } from "./avatarState.js";
 import { getAvatarConfig, updateAvatarConfig } from "./settings.js";
+import type { AvatarPackage, AvatarPackageRegistry } from "./avatarPackages.js";
 
 export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "codexAvatar.assistantView";
@@ -16,14 +18,22 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private currentState: AvatarState = "welcome";
 
-  public constructor(private readonly extensionUri: vscode.Uri) {}
+  public constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly packageRegistry?: AvatarPackageRegistry
+  ) {}
 
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.view = webviewView;
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")]
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.extensionUri, "media"),
+        ...(this.packageRegistry?.getAssetRoot()
+          ? [vscode.Uri.file(this.packageRegistry.getAssetRoot() as string)]
+          : [])
+      ]
     };
 
     webviewView.webview.html = this.getHtml(webviewView.webview);
@@ -62,21 +72,15 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: "settings:update", config: getAvatarConfig() });
   }
 
-  public reloadAssets(): void {
-    if (!this.view) {
-      return;
-    }
-
-    this.postMessage({ type: "assets:manifestLoaded", manifest: this.createDefaultManifest(this.view.webview) });
+  public async reloadAssets(): Promise<void> {
+    await this.postActiveManifest();
   }
 
   private async handleWebviewMessage(message: WebviewToExtensionMessage): Promise<void> {
     switch (message.type) {
       case "webview:ready":
         this.refreshSettings();
-        if (this.view) {
-          this.postMessage({ type: "assets:manifestLoaded", manifest: this.createDefaultManifest(this.view.webview) });
-        }
+        await this.postActiveManifest();
         this.setState(this.currentState);
         break;
       case "command:toggleAssistant":
@@ -104,6 +108,22 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
       case "debug:log":
         console.log("[Codex Avatar]", message.message, message.payload ?? "");
         break;
+    }
+  }
+
+  private async postActiveManifest(): Promise<void> {
+    const view = this.view;
+    if (!view) return;
+
+    try {
+      const activePackage = await this.packageRegistry?.getActivePackage();
+      const manifest = activePackage
+        ? createWebviewManifest(activePackage, view.webview)
+        : this.createDefaultManifest(view.webview);
+      this.postMessage({ type: "assets:manifestLoaded", manifest });
+    } catch (error) {
+      this.debugEvent("avatar_package_invalid", { message: error instanceof Error ? error.message : String(error) });
+      this.postMessage({ type: "assets:manifestLoaded", manifest: this.createDefaultManifest(view.webview) });
     }
   }
 
@@ -203,4 +223,18 @@ function toJsonValue(value: unknown): JsonValue | undefined {
   } catch {
     return String(value);
   }
+}
+
+function createWebviewManifest(avatarPackage: AvatarPackage, webview: vscode.Webview): AvatarManifest {
+  const toWebviewUri = (relativePath: string): string =>
+    webview.asWebviewUri(vscode.Uri.file(path.resolve(avatarPackage.rootPath, relativePath))).toString();
+  const mapPaths = (paths: Partial<Record<string, string>>): Partial<Record<string, string>> =>
+    Object.fromEntries(Object.entries(paths).flatMap(([key, value]) => (value ? [[key, toWebviewUri(value)]] : [])));
+
+  return {
+    ...avatarPackage.manifest,
+    entrypoints: mapPaths(avatarPackage.manifest.entrypoints),
+    assets: avatarPackage.manifest.assets ? mapPaths(avatarPackage.manifest.assets) : undefined,
+    previewImage: avatarPackage.manifest.previewImage ? toWebviewUri(avatarPackage.manifest.previewImage) : undefined
+  };
 }

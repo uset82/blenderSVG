@@ -23,6 +23,9 @@
     "onCommand:codexAvatar.showDebugPanel",
     "onCommand:codexAvatar.openAssetsFolder",
     "onCommand:codexAvatar.reloadAvatar",
+    "onCommand:codexAvatar.importAvatar",
+    "onCommand:codexAvatar.removeAvatar",
+    "onCommand:codexAvatar.activateAvatar",
     "onCommand:codexAvatar.setState",
     "onCommand:codexAvatar.startThinking",
     "onCommand:codexAvatar.startSpeaking",
@@ -116,6 +119,18 @@
       {
         "command": "codexAvatar.reloadAvatar",
         "title": "Codex Avatar: Reload Avatar"
+      },
+      {
+        "command": "codexAvatar.importAvatar",
+        "title": "Codex Avatar: Import Avatar Package"
+      },
+      {
+        "command": "codexAvatar.removeAvatar",
+        "title": "Codex Avatar: Remove Avatar Package"
+      },
+      {
+        "command": "codexAvatar.activateAvatar",
+        "title": "Codex Avatar: Activate Avatar Package"
       },
       {
         "command": "codexAvatar.setState",
