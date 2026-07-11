@@ -7,6 +7,29 @@ export type VectorizeImageOptions = {
   workspaceRoot: string;
   assetWorkspace?: string;
   threshold?: number;
+  signal?: AbortSignal;
+  maxSvgBytes?: number;
+  maxSvgPaths?: number;
+  preprocessing?: RasterPreprocessingOptions;
+};
+
+export type RasterPreprocessingOptions = {
+  grayscale?: boolean;
+  threshold?: number;
+  quantizationLevels?: 2 | 4 | 8 | 16;
+  removeBackground?: boolean;
+  noiseReduction?: number;
+};
+
+export type VectorizePreview = {
+  inputPath: string;
+  exportDirectory: string;
+  rawSvgPath: string;
+  optimizedSvgPath: string;
+  manifestPath: string;
+  rawSvg: string;
+  optimizedSvg: string;
+  warnings: string[];
 };
 
 export type VectorizeImageResult = {

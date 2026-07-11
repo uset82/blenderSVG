@@ -14,7 +14,15 @@ The image-to-SVG command writes to `.codex-avatar/exports/svg/`:
 
 The manifest records the source image, outputs, guidance, and validation warnings.
 
-The optimized SVG is produced locally with a conservative optimizer that removes XML declarations, doctypes, comments, and extra tag whitespace while preserving IDs, paths, and `viewBox`. The pipeline does not require SVGO at runtime, which keeps the packaged extension self-contained.
+The optimized SVG is produced locally with SVGO configured to preserve IDs and groups, plus a conservative pass that removes declarations, doctypes, comments, and extra tag whitespace while preserving paths and `viewBox`.
+
+The current pipeline uses SVGO with ID and group preservation, then sanitizes the result again before it can enter the Webview. The command presents the optimized SVG in a preview editor and asks for confirmation before writing output files. The source raster file is never modified.
+
+## Preprocessing and safety
+
+`previewImageToSvg` accepts local preprocessing options for grayscale/threshold tracing, binary foreground/background removal, noise reduction, and quantization-level warnings. Potrace produces a monochrome SVG, so requested color quantization is intentionally reduced to two output tones and reported as a limitation.
+
+Every run supports an `AbortSignal`, rejects oversized raster dimensions, and enforces SVG byte and path-count limits. Generated output is never written when preview generation or validation fails.
 
 ## Layer IDs
 
@@ -83,3 +91,5 @@ The validator warns when:
 - auto-tracing creates too many tiny paths
 
 Warnings do not mean the file is unusable. They mean the asset is better treated as reference art until it is cleaned into stable animation layers.
+
+The tracer is not a full-color illustration converter or automatic character-rigging system. Background removal is binary and local, and complex multi-color artwork should be cleaned into named layers manually before animation.

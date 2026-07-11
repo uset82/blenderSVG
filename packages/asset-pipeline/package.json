@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "fast-xml-parser": "^5.9.3",
-    "potrace": "^2.1.8"
+    "potrace": "^2.1.8",
+    "svgo": "^4.0.1"
   }
 }

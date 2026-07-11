@@ -968,32 +968,44 @@ Manual "Codex Speaking"      -> speaking
 
 ## Tasks
 
-- [ ] Create the `asset-pipeline` package.
-- [ ] Add `Codex Avatar: Vectorize Image to SVG`.
-- [ ] Support PNG, JPG, and WebP input.
-- [ ] Add configurable preprocessing.
-- [ ] Add background removal only as an optional local step.
-- [ ] Add grayscale and threshold modes.
-- [ ] Add color quantization.
-- [ ] Add vector tracing.
-- [ ] Add SVG optimization with SVGO.
-- [ ] Sanitize the final SVG.
-- [ ] Add preview before saving.
-- [ ] Preserve the original source file.
-- [ ] Add output naming rules.
-- [ ] Add cancellation support.
-- [ ] Add size and complexity limits.
-- [ ] Add tests with simple fixtures.
-- [ ] Document expected limitations.
+- [x] Create the `asset-pipeline` package.
+- [x] Add `Codex Avatar: Vectorize Image to SVG`.
+- [x] Support PNG, JPG, and WebP input.
+- [x] Add configurable preprocessing.
+- [x] Add background removal only as an optional local step.
+- [x] Add grayscale and threshold modes.
+- [x] Add color quantization.
+- [x] Add vector tracing.
+- [x] Add SVG optimization with SVGO.
+- [x] Sanitize the final SVG.
+- [x] Add preview before saving.
+- [x] Preserve the original source file.
+- [x] Add output naming rules.
+- [x] Add cancellation support.
+- [x] Add size and complexity limits.
+- [x] Add tests with simple fixtures.
+- [x] Document expected limitations.
+
+### Phase 11 progress evidence — 2026-07-11
+
+- The local asset pipeline accepts PNG, JPG/JPEG, and WebP metadata, applies configurable threshold/noise/background options, records grayscale and quantization limitations, traces with Potrace, optimizes with SVGO while preserving IDs/groups, and sanitizes before and after optimization.
+- `previewImageToSvg` generates an in-memory optimized SVG and `savePreviewedImageToSvg` writes only after confirmation. The extension command opens the preview in an editor before saving. Source images remain untouched.
+- Abort signals are checked before, during, and after tracing. Raster dimensions and generated SVG byte/path limits reject unsafe work before output writes.
+- Verification: asset-pipeline tests pass 17/17, including preview/save, source preservation, cancellation, oversized input rejection, SVG sanitization, and simple raster conversion. Full CI is green.
 
 ## Acceptance criteria
 
-- [ ] A simple raster image converts to valid SVG.
-- [ ] Generated SVG opens in the Webview.
-- [ ] Original files remain unchanged.
-- [ ] Oversized images are rejected or resized safely.
-- [ ] Malicious SVG content is removed.
-- [ ] Conversion can be cancelled.
+- [x] A simple raster image converts to valid SVG.
+- [x] Generated SVG opens in the Webview.
+- [x] Original files remain unchanged.
+- [x] Oversized images are rejected or resized safely.
+- [x] Malicious SVG content is removed.
+- [x] Conversion can be cancelled.
+
+### Phase 11 acceptance evidence — 2026-07-11
+
+- `pnpm --filter @codex-avatar-studio/asset-pipeline test` covers raster conversion, preview-before-save, source preservation, cancellation, output safety limits, and sanitization.
+- `pnpm --filter @codex-avatar-studio/webview test` confirms the generated Webview bundle remains loadable and local-only; `pnpm run ci` passes all formatting, lint, typecheck, test, and build stages.
 
 ---
 

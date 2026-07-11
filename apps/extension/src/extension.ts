@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
-import { vectorizeImageToSvg } from "@codex-avatar-studio/asset-pipeline";
+import { previewImageToSvg, savePreviewedImageToSvg } from "@codex-avatar-studio/asset-pipeline";
 import { AvatarWebviewProvider } from "./AvatarWebviewProvider.js";
 import { AvatarPackageError, AvatarPackageRegistry } from "./avatarPackages.js";
 import { avatarStates, isAvatarState, isIdeAssistantEvent, type AvatarState } from "./avatarState.js";
@@ -203,11 +203,27 @@ export function activate(context: vscode.ExtensionContext): void {
 
       try {
         provider.setState("building");
-        const result = await vectorizeImageToSvg({
+        const pipelineOptions = {
           inputPath: selectedFile.fsPath,
           workspaceRoot: workspaceFolder.uri.fsPath,
           assetWorkspace: getAvatarConfig().assetWorkspace
+        };
+        const preview = await previewImageToSvg(pipelineOptions);
+        const previewDocument = await vscode.workspace.openTextDocument({
+          content: preview.optimizedSvg,
+          language: "xml"
         });
+        await vscode.window.showTextDocument(previewDocument, { preview: true });
+        const confirmation = await vscode.window.showInformationMessage(
+          "SVG preview generated. Save the optimized avatar asset?",
+          "Save",
+          "Cancel"
+        );
+        if (confirmation !== "Save") {
+          provider.setState("idle");
+          return;
+        }
+        const result = await savePreviewedImageToSvg(pipelineOptions, preview);
         provider.setState("success");
         provider.trigger("celebrate");
 
