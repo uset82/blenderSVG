@@ -60,4 +60,10 @@ assert.ok(
   "VSIX contains the clean-room Pixi avatar"
 );
 
+const extensionBundle = execFileSync("tar", ["-xOf", vsixPath, "extension/dist/extension.js"], {
+  encoding: "utf8",
+  maxBuffer: 8 * 1024 * 1024
+});
+assert.doesNotMatch(extensionBundle, /potrace/i, "VSIX does not contain the removed GPL-2.0 Potrace runtime");
+
 console.log(`VSIX contents validated: ${path.basename(vsixPath)} (${entries.length} files)`);

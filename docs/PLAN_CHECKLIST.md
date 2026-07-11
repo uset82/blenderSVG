@@ -379,7 +379,7 @@ Git prerequisite resolved: the user authorized repository initialization. `git i
 - Final Phase 0 gate: `pnpm ci` completed a clean frozen-lockfile install, then `pnpm run ci` passed build, typecheck, lint, and all 36 tests. The known optional WebGL chunk-size warnings remained non-blocking and are recorded for later isolation/performance work.
 - Checklist copy: line-by-line `Compare-Object` verification returned `PLAN_CHECKLIST_CONTENT_MATCHES` immediately after the authoritative plan was copied; this live checklist then began recording progress.
 - Preservation/document check: the PowerShell required-path and `.gitignore` assertion returned `PHASE_0_DOCUMENT_AND_PRESERVATION_CHECK_PASSED`. The older checklist remains at `docs/PLAN_CHECKLIST_LEGACY.md`.
-- License verification: installed manifest metadata, registry metadata, GitHub repository metadata, and `git ls-remote <repository> HEAD` were recorded in `docs/LICENSING.md` and `THIRD_PARTY_NOTICES.md`. AITuber OnAir is reference-only. Existing `potrace@2.1.8` is GPL-2.0 and is explicitly scheduled for replacement rather than expansion/distribution.
+- License verification: installed manifest metadata, registry metadata, GitHub repository metadata, and `git ls-remote <repository> HEAD` were recorded in `docs/LICENSING.md` and `THIRD_PARTY_NOTICES.md`. AITuber OnAir is reference-only. The initial Potrace GPL-2.0 risk was removed during the Phase 11 tracer migration.
 - Asset audit: no new avatar art was added. The active source inventory contains only the existing simple orb SVG/icon; their SHA-256 values and pending final clean-room attestation are recorded in `docs/LICENSING.md`. No upstream character asset, `.riv`, `.glb`, `.vrm`, Live2D model, spritesheet, texture set, or voice asset was added.
 - Git safety gate: with user authorization, `git init -b main` succeeded, `git commit -m "chore: capture pre-migration baseline"` created commit `5bad6a2`, and `git branch backup/pre-pixi-migration-20260710` created the required immutable pre-Phase-1 reference.
 
@@ -988,10 +988,15 @@ Manual "Codex Speaking"      -> speaking
 
 ### Phase 11 progress evidence — 2026-07-11
 
-- The local asset pipeline accepts PNG, JPG/JPEG, and WebP metadata, applies configurable threshold/noise/background options, records grayscale and quantization limitations, traces with Potrace, optimizes with SVGO while preserving IDs/groups, and sanitizes before and after optimization.
+- The local asset pipeline accepts PNG, JPG/JPEG, and WebP metadata, decodes PNG/JPG/JPEG with MIT Jimp, applies configurable threshold/noise/background options, records grayscale and quantization limitations, traces with Unlicense ImageTracerJS, optimizes with SVGO while preserving IDs/groups, and sanitizes before and after optimization. WebP metadata is validated, but unsupported WebP encodings return a clear local decoder error.
 - `previewImageToSvg` generates an in-memory optimized SVG and `savePreviewedImageToSvg` writes only after confirmation. The extension command opens the preview in an editor before saving. Source images remain untouched.
 - Abort signals are checked before, during, and after tracing. Raster dimensions and generated SVG byte/path limits reject unsafe work before output writes.
 - Verification: asset-pipeline tests pass 17/17, including preview/save, source preservation, cancellation, oversized input rejection, SVG sanitization, and simple raster conversion. Full CI is green.
+
+### Phase 11 tracer migration follow-up — 2026-07-12
+
+- Replaced the GPL-2.0 Potrace import with Unlicense ImageTracerJS and MIT Jimp decoding. The Potrace package and declaration are removed from the workspace and lockfile.
+- `scripts/validate-vsix.mjs` now scans the packaged extension bundle and rejects the removed Potrace runtime by name. `pnpm run package:vsix` and `pnpm run validate:vsix` pass with the 27-file VSIX.
 
 ## Acceptance criteria
 
@@ -1492,7 +1497,7 @@ Do not start this phase until the 2D MVP is stable.
 - `docs/DEVELOPER_SETUP.md`, `docs/RUNTIME_ADAPTERS.md`, `docs/SPRITESHEET_GUIDE.md`, and `docs/AVATAR_PACKAGE_SPEC.md` provide clean-checkout, adapter, spritesheet, and package creation workflows with original geometric examples.
 - `docs/ARCHITECTURE.md` contains the current Mermaid system diagram; `docs/DEMO.md` includes the original Webview smoke screenshot at `docs/assets/webview-smoke.png` and the reproducible command used to generate it.
 - `scripts/validate-docs.mjs` checks repository-local Markdown links, registered VS Code command titles, documented root pnpm scripts, and required documentation files. `pnpm run validate:docs` passes.
-- Existing `docs/PERFORMANCE.md`, `docs/SECURITY_PRIVACY.md`, and `docs/LICENSING.md` are linked from the new guides and state the current budgets, local-only data policy, and unresolved Potrace distribution review.
+- Existing `docs/PERFORMANCE.md`, `docs/SECURITY_PRIVACY.md`, and `docs/LICENSING.md` are linked from the new guides and state the current budgets, local-only data policy, and completed Potrace migration.
 
 ---
 
@@ -1547,7 +1552,7 @@ Cross-checked against completed Phases 0–13 and 18–22. Optional Phases 14–
 | Tests pass | `pnpm test` 2026-07-12: 19 core + 17 pipeline + 24 Pixi + 15 extension Node + 5 extension Vitest + 4 Webview |
 | CI passes | `.github/workflows/ci.yml` runs install/build/typecheck/lint/test/package/validate/smoke; local `pnpm run ci` evidence from Phases 20–21 |
 | VSIX clean profile | `pnpm smoke:clean-profile` (CLI shim, not `Code.exe`) |
-| No unlicensed character assets | Clean-room built-in SVG/Pixi; `pnpm validate:vsix` rejects proprietary SDK/dev assets; `docs/LICENSING.md` non-negotiable asset policy. Separate release note: GPL Potrace remains a vectorization dependency review item and is not a character asset in the VSIX |
+| No unlicensed character assets | Clean-room built-in SVG/Pixi; `pnpm validate:vsix` rejects proprietary SDK/dev assets; `docs/LICENSING.md` non-negotiable asset policy. The permissive ImageTracerJS/Jimp replacement is not character artwork |
 | Documentation complete | Phase 22 + `pnpm validate:docs` |
 
 Re-verified this session: `pnpm test`, `pnpm validate:vsix` (27 files), `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, `pnpm validate:docs`.

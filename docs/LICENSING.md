@@ -28,16 +28,17 @@ Exact installed versions were read from `pnpm list -r --depth 0 --json` and thei
 | `@vscode/vsce` | 3.9.2 | MIT | Approved packaging dependency |
 | `esbuild` | 0.28.1 | MIT | Approved build-time dependency |
 | `fast-xml-parser` | 5.9.3 | MIT | Approved for local XML/SVG parsing, subject to sanitization controls |
-| `potrace` | 2.1.8 | GPL-2.0 | **Migration required.** Do not expand or ship in the final base VSIX; replace with the approved permissive tracing choice in Phase 11 |
+| `imagetracerjs` | 1.2.6 | Unlicense | Approved local raster tracing implementation |
+| `jimp` | 0.14.0 | MIT | Approved local PNG/JPG/JPEG decoder for the tracing pipeline |
 | `react` / `react-dom` | 19.2.7 | MIT | Approved Webview dependencies |
 | `three` | 0.185.1 | MIT | Existing optional 3D dependency; deferred and must remain out of the base MVP bundle |
 | `typescript` | 5.9.3 | Apache-2.0 | Approved build-time dependency |
 | `vite` | 7.3.6 | MIT | Approved Webview build dependency |
 | `@types/node`, `@types/react`, `@types/react-dom`, `@types/three`, `@types/vscode` | lockfile versions | MIT | Approved development-only type packages |
 
-### Potrace decision and current release status
+### Tracer migration and current release status
 
-The installed `potrace@2.1.8` package declares `GPL-2.0`, and the current `packages/asset-pipeline` implementation still imports it. This is a release-review item: the project must either complete the permissive tracer migration and remove Potrace from the distributable bundle, or complete the required GPL compliance review before publishing. The documentation and package validator do not grant a license or waive this obligation. Do not treat a successful build as a licensing approval.
+The asset pipeline no longer imports or declares `potrace@2.1.8`. It uses `imagetracerjs@1.2.6` under the Unlicense and `jimp@0.14.0` under MIT. `pnpm-lock.yaml` contains no Potrace package entry, and `scripts/validate-vsix.mjs` rejects a packaged extension bundle containing the removed dependency name. This removes the recorded GPL-2.0 tracer blocker; dependency and asset review is still required before publication.
 
 ## Approved or reviewed MVP additions
 
@@ -51,7 +52,6 @@ The following registry metadata was reviewed on 2026-07-10. Versions are the aud
 | `@biomejs/biome` | 2.5.3 | MIT OR Apache-2.0 | Formatter and linter |
 | `@vscode/test-electron` | 3.0.0 | MIT | Extension integration tests |
 | `svgo` | 4.0.1 | MIT | Conservative SVG optimization |
-| `imagetracerjs` | 1.2.6 | Unlicense | Planned local raster tracing replacement |
 
 These candidates are reviewed but not automatically authorized for immediate installation outside their numbered phase:
 
@@ -102,11 +102,11 @@ No `.riv`, `.glb`, `.vrm`, Live2D model, spritesheet, voice, or third-party char
 ## Required release actions
 
 - Generate `THIRD_PARTY_NOTICES.md` entries from the final lockfile and include required license texts in the VSIX.
-- Prove optional runtime packages and the GPL-2.0 Potrace path are absent from the base bundle.
+- Prove optional runtime packages and removed GPL-2.0 paths are absent from the base bundle.
 - Attach authorship/license metadata to the original built-in SVG and PixiJS spritesheet.
 - Re-run dependency and asset license checks before every release candidate.
 - Treat any unknown or ambiguous asset license as non-redistributable until resolved.
 
 ## What users may distribute
 
-The repository's project license is currently **UNLICENSED / all rights reserved**. Imported avatar packages are user-owned inputs and remain subject to their own licenses; the extension does not relicense them. A distributable VSIX must include the project `LICENSE`, `THIRD_PARTY_NOTICES.md`, dependency license texts required by the final dependency graph, and a written decision for the Potrace/tracer path. This document is guidance for engineering release review, not legal advice.
+The repository's project license is currently **UNLICENSED / all rights reserved**. Imported avatar packages are user-owned inputs and remain subject to their own licenses; the extension does not relicense them. A distributable VSIX must include the project `LICENSE`, `THIRD_PARTY_NOTICES.md`, and dependency license texts required by the final dependency graph. This document is guidance for engineering release review, not legal advice.

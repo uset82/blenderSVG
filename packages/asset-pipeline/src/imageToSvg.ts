@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { trace } from "potrace";
+import ImageTracer from "imagetracerjs";
+import Jimp from "jimp";
 import { assertTraceableImageMetadata, readImageMetadata } from "./imageMetadata.js";
 import { createManifestEntry } from "./manifestGenerator.js";
 import { optimizeSvg } from "./optimizeSvg.js";
@@ -30,7 +31,7 @@ export async function previewImageToSvg(options: VectorizeImageOptions): Promise
   const { rawSvgPath, optimizedSvgPath, manifestPath } = createOutputPaths(options.inputPath, exportDirectory);
 
   const preprocessing = normalizePreprocessing(options);
-  const rawSvg = await traceImage(options.inputPath, createTraceOptions(preprocessing), options.signal);
+  const rawSvg = await traceImage(options.inputPath, preprocessing, options.signal);
   throwIfAborted(options.signal);
   const optimizedSvg = optimizeSvg(rawSvg);
   const rawValidation = validateSvgLayers(rawSvg);
@@ -87,42 +88,36 @@ export async function savePreviewedImageToSvg(
 
 function traceImage(
   inputPath: string,
-  options: {
-    threshold?: number;
-    turdSize?: number;
-    color: string;
-    background: string;
-  },
+  preprocessing: RasterPreprocessingOptions,
   signal?: AbortSignal
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const abort = () => {
-      settled = true;
-      reject(createAbortError());
-    };
-    if (signal?.aborted) {
-      abort();
-      return;
-    }
-    signal?.addEventListener("abort", abort, { once: true });
-    trace(inputPath, options, (error, svg) => {
-      signal?.removeEventListener("abort", abort);
-      if (settled) return;
-      settled = true;
-      if (error) {
-        reject(new Error(`Unable to trace image locally: ${error.message}`));
-        return;
-      }
+  throwIfAborted(signal);
+  return Jimp.read(inputPath)
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Unable to decode image locally for tracing: ${message}`);
+    })
+    .then((image) => {
+      throwIfAborted(signal);
+      applyPreprocessing(image, preprocessing);
+      throwIfAborted(signal);
 
-      if (!svg) {
-        reject(new Error("Unable to trace image locally: no SVG data was produced."));
-        return;
+      try {
+        const svg = ImageTracer.imagedataToSVG(
+          {
+            width: image.bitmap.width,
+            height: image.bitmap.height,
+            data: Uint8ClampedArray.from(image.bitmap.data)
+          },
+          createTraceOptions(preprocessing)
+        );
+        if (!svg) throw new Error("no SVG data was produced");
+        return svg;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Unable to trace image locally: ${message}`);
       }
-
-      resolve(svg);
     });
-  });
 }
 
 function normalizePreprocessing(options: VectorizeImageOptions): RasterPreprocessingOptions {
@@ -142,32 +137,48 @@ function normalizePreprocessing(options: VectorizeImageOptions): RasterPreproces
   return { ...preprocessing, ...(threshold === undefined ? {} : { threshold }) };
 }
 
-function createTraceOptions(preprocessing: RasterPreprocessingOptions): {
-  threshold?: number;
-  turdSize?: number;
-  color: string;
-  background: string;
-} {
+function createTraceOptions(preprocessing: RasterPreprocessingOptions): ImageTracerOptions {
+  const numberOfColors = preprocessing.grayscale === false ? (preprocessing.quantizationLevels ?? 16) : 2;
   return {
-    ...(preprocessing.threshold === undefined ? {} : { threshold: preprocessing.threshold }),
-    ...(preprocessing.noiseReduction === undefined ? {} : { turdSize: preprocessing.noiseReduction }),
-    color: "#111827",
-    background: preprocessing.removeBackground === false ? "#ffffff" : "transparent"
+    colorsampling: 0,
+    numberofcolors: numberOfColors,
+    pathomit: Math.max(1, Math.ceil((preprocessing.noiseReduction ?? 0) / 10)),
+    layering: 0,
+    linefilter: false,
+    roundcoords: 2,
+    viewbox: true,
+    strokewidth: 0
   };
+}
+
+function applyPreprocessing(image: JimpImage, preprocessing: RasterPreprocessingOptions): void {
+  if (preprocessing.grayscale !== false) image.greyscale();
+  if (preprocessing.threshold !== undefined) {
+    image.threshold({ max: preprocessing.threshold, replace: 255, autoGreyscale: true });
+  }
+  if (preprocessing.noiseReduction !== undefined && preprocessing.noiseReduction > 0) {
+    image.blur(Math.min(5, Math.max(1, Math.ceil(preprocessing.noiseReduction / 25))));
+  }
+  if (preprocessing.removeBackground !== false) removeNearWhiteBackground(image);
+}
+
+function removeNearWhiteBackground(image: JimpImage): void {
+  const pixels = image.bitmap.data;
+  for (let index = 0; index < pixels.length; index += 4) {
+    const red = pixels[index] ?? 0;
+    const green = pixels[index + 1] ?? 0;
+    const blue = pixels[index + 2] ?? 0;
+    if (red >= 248 && green >= 248 && blue >= 248) pixels[index + 3] = 0;
+  }
 }
 
 function preprocessingWarnings(preprocessing: RasterPreprocessingOptions): string[] {
   const warnings: string[] = [];
-  if (preprocessing.grayscale === false) {
-    warnings.push("Potrace produces a monochrome SVG; color information is reduced to foreground/background.");
-  }
-  if (preprocessing.quantizationLevels && preprocessing.quantizationLevels > 2) {
-    warnings.push(
-      `Color quantization requested at ${preprocessing.quantizationLevels} levels; the local monochrome trace uses two output tones.`
-    );
-  }
   if (preprocessing.removeBackground === false) {
-    warnings.push("Background removal is disabled; the traced background is retained as white.");
+    warnings.push("Background removal is disabled; the source background and alpha values are retained.");
+  }
+  if (preprocessing.grayscale === false && preprocessing.quantizationLevels === undefined) {
+    warnings.push("Color tracing uses a bounded 16-color palette; clean complex artwork into named layers manually.");
   }
   return warnings;
 }
@@ -192,3 +203,21 @@ function createAbortError(): Error {
 function uniqueWarnings(warnings: string[]): string[] {
   return [...new Set(warnings)];
 }
+
+type JimpImage = {
+  bitmap: { width: number; height: number; data: Buffer };
+  greyscale(): JimpImage;
+  threshold(options: { max: number; replace: number; autoGreyscale: boolean }): JimpImage;
+  blur(radius: number): JimpImage;
+};
+
+type ImageTracerOptions = {
+  colorsampling: number;
+  numberofcolors: number;
+  pathomit: number;
+  layering: number;
+  linefilter: boolean;
+  roundcoords: number;
+  viewbox: boolean;
+  strokewidth: number;
+};

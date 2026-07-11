@@ -25,7 +25,8 @@
   },
   "dependencies": {
     "fast-xml-parser": "^5.9.3",
-    "potrace": "^2.1.8",
+    "imagetracerjs": "1.2.6",
+    "jimp": "0.14.0",
     "svgo": "^4.0.1"
   }
 }

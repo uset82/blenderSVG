@@ -15,14 +15,15 @@ The authoritative engineering review, optional-runtime restrictions, asset polic
 | `@vscode/vsce` | 3.9.2 | MIT | <https://github.com/microsoft/vscode-vsce> |
 | `esbuild` | 0.28.1 | MIT | <https://github.com/evanw/esbuild> |
 | `fast-xml-parser` | 5.9.3 | MIT | <https://github.com/NaturalIntelligence/fast-xml-parser> |
-| `potrace` | 2.1.8 | GPL-2.0 | <https://github.com/tooolbox/node-potrace> |
+| `imagetracerjs` | 1.2.6 | Unlicense | <https://github.com/jankovicsandras/imagetracerjs> |
+| `jimp` | 0.14.0 | MIT | <https://github.com/oliver-moran/jimp> |
 | `react` / `react-dom` | 19.2.7 | MIT | <https://github.com/facebook/react> |
 | `three` | 0.185.1 | MIT | <https://github.com/mrdoob/three.js> |
 | `typescript` | 5.9.3 | Apache-2.0 | <https://github.com/microsoft/TypeScript> |
 | `vite` | 7.3.6 | MIT | <https://github.com/vitejs/vite> |
 | `@types/node`, `@types/react`, `@types/react-dom`, `@types/three`, `@types/vscode` | lockfile versions | MIT | <https://github.com/DefinitelyTyped/DefinitelyTyped> |
 
-`potrace@2.1.8` is a recorded migration risk. It is preserved only as part of the existing baseline and must not be expanded or included in the final base VSIX. Phase 11 will replace that path with the reviewed permissive alternative.
+The image-to-SVG implementation now uses `imagetracerjs@1.2.6` and `jimp@0.14.0`; the GPL-2.0 Potrace dependency has been removed from the asset-pipeline manifest and lockfile. The VSIX validator also scans the bundled extension code for the removed dependency name.
 
 ## Reviewed additions for the PixiJS-first plan
 
@@ -36,7 +37,6 @@ These components are not all installed yet. Their license metadata was reviewed 
 | `@biomejs/biome` | 2.5.3 | MIT OR Apache-2.0 | <https://github.com/biomejs/biome> |
 | `@vscode/test-electron` | 3.0.0 | MIT | <https://github.com/microsoft/vscode-test> |
 | `svgo` | 4.0.1 | MIT | <https://github.com/svg/svgo> |
-| `imagetracerjs` | 1.2.6 | Unlicense | <https://github.com/jankovicsandras/imagetracerjs> |
 | `sharp` | 0.35.3 | Apache-2.0 | <https://github.com/lovell/sharp> |
 | `motion` | 12.42.2 | MIT | <https://github.com/motiondivision/motion> |
 | `@pixiv/three-vrm` | 3.5.5 | MIT | <https://github.com/pixiv/three-vrm> |
@@ -51,4 +51,3 @@ These components are not all installed yet. Their license metadata was reviewed 
 ## Packaging requirement
 
 Before a release candidate is distributed, regenerate this inventory from the final lockfile, include all license texts and copyright notices required by the packaged dependencies, and validate the actual VSIX contents. A dependency listed here but absent from the VSIX does not need to be represented as bundled code; a dependency present in the VSIX must never be omitted from the final notices.
-

@@ -26,11 +26,11 @@ The manifest records the source image, outputs, guidance, and validation warning
 
 The optimized SVG is produced locally with SVGO configured to preserve IDs and groups, plus a conservative pass that removes declarations, doctypes, comments, and extra tag whitespace while preserving paths and `viewBox`.
 
-The current pipeline uses the installed local tracer and SVGO with ID and group preservation, then sanitizes the result again before it can enter the Webview. The command presents the optimized SVG in a preview editor and asks for confirmation before writing output files. The source raster file is never modified. Check [LICENSING.md](LICENSING.md) before distributing generated output because the current tracer dependency remains a release-review item.
+The current pipeline decodes PNG/JPG/JPEG locally with Jimp, traces with ImageTracerJS, and uses SVGO with ID and group preservation before sanitizing the result again for the Webview. The command presents the optimized SVG in a preview editor and asks for confirmation before writing output files. The source raster file is never modified. WebP paths remain validated by the input contract, but the current Node decoder reports a clear local error for WebP files that Jimp cannot decode; use PNG or JPG/JPEG for the packaged workflow.
 
 ## Preprocessing and safety
 
-`previewImageToSvg` accepts local preprocessing options for grayscale/threshold tracing, binary foreground/background removal, noise reduction, and quantization-level warnings. Potrace produces a monochrome SVG, so requested color quantization is intentionally reduced to two output tones and reported as a limitation.
+`previewImageToSvg` accepts local preprocessing options for grayscale/threshold tracing, binary foreground/background removal, noise reduction, and color quantization. ImageTracerJS produces bounded color layers; complex artwork should still be cleaned into stable named layers before animation.
 
 Every run supports an `AbortSignal`, rejects oversized raster dimensions, and enforces SVG byte and path-count limits. Generated output is never written when preview generation or validation fails.
 
