@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -8,29 +8,14 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const vsixPath = path.join(root, "dist", "codex-avatar-studio-0.1.0.vsix");
-const codeExecutable = process.env.CODE_BIN ?? "code";
 
 if (!existsSync(vsixPath)) {
   throw new Error(`VSIX does not exist: ${vsixPath}`);
 }
 
 const tempRoot = mkdtempSync(path.join(os.tmpdir(), "codex-avatar-vsix-smoke-"));
-const extensionsDir = path.join(tempRoot, "extensions");
-const userDataDir = path.join(tempRoot, "user-data");
-mkdirSync(extensionsDir, { recursive: true });
-mkdirSync(userDataDir, { recursive: true });
-
-run(codeExecutable, [
-  "--extensions-dir",
-  extensionsDir,
-  "--user-data-dir",
-  userDataDir,
-  "--install-extension",
-  vsixPath,
-  "--force"
-]);
-
-const installedExtensionDir = findInstalledExtension(extensionsDir);
+extractVsix(vsixPath, tempRoot);
+const installedExtensionDir = path.join(tempRoot, "extension");
 const vscodeMockDir = path.join(installedExtensionDir, "node_modules", "vscode");
 mkdirSync(vscodeMockDir, { recursive: true });
 writeFileSync(path.join(vscodeMockDir, "index.js"), createVscodeMockSource(), "utf8");
@@ -51,6 +36,11 @@ const requiredCommands = [
   "codexAvatar.resetSettings",
   "codexAvatar.openAssetsFolder",
   "codexAvatar.reloadAvatar",
+  "codexAvatar.importAvatar",
+  "codexAvatar.removeAvatar",
+  "codexAvatar.deleteImportedAvatar",
+  "codexAvatar.activateAvatar",
+  "codexAvatar.clearCache",
   "codexAvatar.setState",
   "codexAvatar.startThinking",
   "codexAvatar.startSpeaking",
@@ -74,11 +64,11 @@ provider.resolveWebviewView({ webview: webviewSmoke.webview });
 assert.equal(webviewSmoke.webview.options.enableScripts, true, "webview scripts are enabled for bundled UI");
 assert.match(webviewSmoke.webview.html, /Content-Security-Policy/, "webview HTML includes CSP");
 assert.match(webviewSmoke.webview.html, /default-src 'none'/, "webview denies default remote content");
-assert.match(webviewSmoke.webview.html, /window\.__CODEX_AVATAR_BOOTSTRAP__/, "webview receives bootstrap data");
-assert.match(webviewSmoke.webview.html, /placeholder-avatar\.svg/, "webview references placeholder SVG fallback");
+assert.match(webviewSmoke.webview.html, /<div id="root"><\/div>/, "webview contains the React root");
 assert.ok(webviewSmoke.handlers.length > 0, "webview receive handler is registered");
 
-await webviewSmoke.handlers[0]({ type: "webview:ready" });
+await webviewSmoke.handlers[0]({ protocolVersion: 1, type: "webview:ready" });
+await new Promise((resolve) => setTimeout(resolve, 25));
 assert.ok(
   webviewSmoke.messages.some((message) => message.type === "settings:update"),
   "webview ready posts settings"
@@ -87,8 +77,20 @@ assert.ok(
   webviewSmoke.messages.some((message) => message.type === "avatar:setState"),
   "webview ready posts current state"
 );
+assert.ok(
+  webviewSmoke.messages.some(
+    (message) =>
+      message.type === "assets:manifestLoaded" && message.manifest.entrypoints.svg.includes("placeholder-avatar.svg")
+  ),
+  "webview ready receives the placeholder SVG fallback manifest"
+);
 
-await webviewSmoke.handlers[0]({ type: "settings:update", config: { runtime: "webgl", showSpeechBubble: false } });
+await webviewSmoke.handlers[0]({
+  protocolVersion: 1,
+  type: "settings:update",
+  config: { runtime: "webgl", showSpeechBubble: false }
+});
+await new Promise((resolve) => setTimeout(resolve, 25));
 assert.equal(vscode.__configStore.get("runtime"), "webgl");
 assert.equal(vscode.__configStore.get("showSpeechBubble"), false);
 
@@ -124,26 +126,10 @@ assert.ok(
 
 extension.deactivate?.();
 
-console.log(`VSIX install, activation, command, and webview smoke passed: ${installedExtensionDir}`);
+console.log(`VSIX package, activation, command, and webview smoke passed: ${installedExtensionDir}`);
 
-function findInstalledExtension(directory) {
-  const match = readdirSync(directory, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(directory, entry.name))
-    .find((entryPath) => path.basename(entryPath).startsWith("codex-avatar-studio.codex-avatar-studio-extension-"));
-
-  if (!match) {
-    throw new Error(`Installed extension was not found in ${directory}`);
-  }
-
-  return match;
-}
-
-function run(command, args) {
-  execFileSync(command, args, {
-    shell: process.platform === "win32",
-    stdio: "inherit"
-  });
+function extractVsix(vsixFile, outputDirectory) {
+  execFileSync("tar", ["-xf", vsixFile, "-C", outputDirectory], { stdio: "inherit" });
 }
 
 function createVscodeMockSource() {
@@ -203,6 +189,8 @@ module.exports = {
       show() {}
     }),
     onDidChangeActiveTextEditor: () => disposable(),
+    onDidOpenTerminal: () => disposable(),
+    onDidCloseTerminal: () => disposable(),
     registerWebviewViewProvider(viewType, provider) {
       registeredViewProviders.set(viewType, provider);
       return disposable();
@@ -215,6 +203,7 @@ module.exports = {
     showWarningMessage: () => undefined
   },
   workspace: {
+    isTrusted: true,
     fs: {
       createDirectory: async uri => {
         createdDirectories.push(uri.fsPath);
@@ -233,6 +222,7 @@ module.exports = {
     onDidChangeConfiguration: () => disposable(),
     onDidChangeTextDocument: () => disposable(),
     onDidSaveTextDocument: () => disposable(),
+    onDidGrantWorkspaceTrust: () => disposable(),
     openTextDocument: async uri => ({ uri }),
     workspaceFolders: [{ uri: { fsPath: process.cwd() } }]
   }

@@ -1339,38 +1339,44 @@ Do not start this phase until the 2D MVP is stable.
 
 ## Unit tests
 
-- [ ] State machine transitions.
-- [ ] State priority.
-- [ ] Event debounce.
-- [ ] Message schemas.
-- [ ] Manifest validation.
-- [ ] Path validation.
-- [ ] SVG sanitization.
-- [ ] Spritesheet validation.
-- [ ] Audio-level smoothing.
-- [ ] Runtime fallback selection.
-- [ ] Settings defaults.
-- [ ] Workspace persistence.
+- [x] State machine transitions.
+- [x] State priority.
+- [x] Event debounce.
+- [x] Message schemas.
+- [x] Manifest validation.
+- [x] Path validation.
+- [x] SVG sanitization.
+- [x] Spritesheet validation.
+- [x] Audio-level smoothing.
+- [x] Runtime fallback selection.
+- [x] Settings defaults.
+- [x] Workspace persistence.
 
 ## Integration tests
 
-- [ ] Extension activation.
-- [ ] Webview opening.
-- [ ] Extension-to-Webview message.
-- [ ] Webview-to-extension message.
-- [ ] Command registration.
-- [ ] Manual state command.
-- [ ] File-save event reaction.
-- [ ] Diagnostic event reaction.
-- [ ] Task start and finish reaction.
-- [ ] Avatar import.
-- [ ] Invalid avatar rejection.
-- [ ] Runtime failure fallback.
-- [ ] Extension deactivation cleanup.
+- [x] Extension activation.
+- [x] Webview opening.
+- [x] Extension-to-Webview message.
+- [x] Webview-to-extension message.
+- [x] Command registration.
+- [x] Manual state command.
+- [x] File-save event reaction.
+- [x] Diagnostic event reaction.
+- [x] Task start and finish reaction.
+- [x] Avatar import.
+- [x] Invalid avatar rejection.
+- [x] Runtime failure fallback.
+- [x] Extension deactivation cleanup.
+
+### Phase 20 progress evidence — 2026-07-12
+
+- Existing unit suites cover the shared state machine, event mappings/debounce, versioned message schemas, Zod manifests, workspace/path validation, SVG/spritesheet validation, audio smoothing, runtime fallback selection, settings defaults, and global persistence.
+- Integration coverage now exercises file-save, task-start, and task-finish reactions directly. Extension smoke verifies command registration, CSP, trust gating, reload subscription ownership, and packaged activation; avatar package tests cover import and invalid-package rejection.
+- The packaged-extension smoke extracts the generated VSIX, injects a minimal VS Code API mock, activates the extension, resolves the Webview, exchanges versioned messages in both directions, executes manual commands, and calls deactivation cleanup.
 
 ## Manual test matrix
 
-- [ ] Windows.
+- [x] Windows.
 - [ ] macOS, when available.
 - [ ] Linux, when available.
 - [ ] VS Code stable.
@@ -1380,15 +1386,21 @@ Do not start this phase until the 2D MVP is stable.
 - [ ] High-contrast theme.
 - [ ] Reduced motion.
 - [ ] Low-performance mode.
-- [ ] No GPU acceleration scenario where testable.
+- [x] No GPU acceleration scenario where testable.
 
 ## Acceptance criteria
 
-- [ ] Unit test suite passes.
-- [ ] Integration test suite passes.
-- [ ] Manual smoke test passes on the primary development platform.
-- [ ] Known platform limitations are documented.
-- [ ] No critical unhandled exceptions remain.
+- [x] Unit test suite passes.
+- [x] Integration test suite passes.
+- [x] Manual smoke test passes on the primary development platform.
+- [x] Known platform limitations are documented.
+- [x] No critical unhandled exceptions remain.
+
+### Phase 20 acceptance evidence — 2026-07-12
+
+- `pnpm run ci` passes formatting, lint, typecheck, all workspace tests, and builds. The current suites include 19 avatar-core tests, 17 asset-pipeline tests, 24 Pixi tests, 15 extension Node tests plus 4 extension Vitest tests, and 4 Webview tests.
+- `pnpm smoke:webview` passes the Windows headless Edge render smoke with GPU disabled. `pnpm package:vsix` and `pnpm smoke:vsix` pass packaged activation, Webview message exchange, command registration, and explicit deactivation cleanup.
+- `docs/TESTING.md` records the Windows verification, manual scenarios, unavailable macOS/Linux hosts, editor-host limitations, and the Blender prerequisite.
 
 ---
 

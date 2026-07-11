@@ -7,6 +7,8 @@ import { findBlenderExecutable, runBlenderExports, type BlenderExportMode } from
 import { IdeEventsController } from "./ideEvents.js";
 import { getAvatarConfig, resetAvatarConfig, toggleAssistantEnabled, updateAvatarConfig } from "./settings.js";
 
+let activeIdeEvents: IdeEventsController | undefined;
+
 export function activate(context: vscode.ExtensionContext): void {
   const initialConfig = getAvatarConfig();
   const packageRegistry = new AvatarPackageRegistry(
@@ -20,6 +22,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   const blenderOutputChannel = vscode.window.createOutputChannel("Codex Avatar Blender");
   ideEvents.start();
+  activeIdeEvents = ideEvents;
 
   const deleteImportedAvatar = async (): Promise<void> => {
     if (!requireWorkspaceTrust("delete an imported avatar")) return;
@@ -338,7 +341,8 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
-  // VS Code disposes registered commands and providers through context subscriptions.
+  activeIdeEvents?.dispose();
+  activeIdeEvents = undefined;
 }
 
 function registerCommand(command: string, callback: (...args: unknown[]) => unknown): vscode.Disposable {

@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildSync } from "esbuild";
+import { build } from "esbuild";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const extensionRoot = path.join(root, "apps", "extension");
@@ -36,7 +36,19 @@ cpSync(path.join(root, "scripts", "blender"), path.join(stage, "media", "blender
 });
 mkdirSync(path.join(stage, "dist"), { recursive: true });
 
-buildSync({
+const bundleCssTreeDataPlugin = {
+  name: "bundle-css-tree-data",
+  setup(build) {
+    build.onLoad({ filter: /[\\/](?:css-tree|csso)[\\/](?:lib|dist)[\\/](?:data|data-patch|version)\.js$/ }, (args) => {
+      const contents = readFileSync(args.path, "utf8")
+        .replace(/import\s+\{\s*createRequire\s*\}\s+from\s+["']module["'];\s*/g, "")
+        .replace(/const\s+require\s*=\s*createRequire\(import\.meta\.url\);\s*/g, "");
+      return { contents, loader: "js" };
+    });
+  }
+};
+
+await build({
   absWorkingDir: root,
   bundle: true,
   entryPoints: [path.join(root, "apps", "extension", "src", "extension.ts")],
@@ -46,7 +58,8 @@ buildSync({
   outfile: path.join(stage, "dist", "extension.js"),
   platform: "node",
   sourcemap: true,
-  target: "node20"
+  target: "node20",
+  plugins: [bundleCssTreeDataPlugin]
 });
 
 const manifestPath = path.join(stage, "package.json");

@@ -111,6 +111,29 @@ describe("IdeEventsController", () => {
     controller.dispose();
   });
 
+  it("reacts to file saves, task starts, and successful task completion", () => {
+    const sink = createSink();
+    const controller = new IdeEventsController(sink, { taskCompletionGraceMs: 100 });
+    controller.start();
+    sink.setState.mockClear();
+    sink.trigger.mockClear();
+
+    fakeVscode.signals.documentSaved.fire({ languageId: "typescript", fileName: "saved.ts" });
+    expect(sink.setState).toHaveBeenLastCalledWith("success");
+    expect(sink.trigger).toHaveBeenLastCalledWith("nod");
+
+    const execution = { task: { name: "test" } };
+    fakeVscode.signals.taskStarted.fire({ execution });
+    expect(sink.setState).toHaveBeenLastCalledWith("thinking");
+
+    fakeVscode.signals.taskEnded.fire({ execution });
+    vi.advanceTimersByTime(100);
+    expect(sink.setState).toHaveBeenLastCalledWith("success");
+    expect(sink.trigger).toHaveBeenLastCalledWith("celebrate");
+
+    controller.dispose();
+  });
+
   it("debounces diagnostics, handles public listeners, sleeps, and disposes listeners", () => {
     const sink = createSink();
     const controller = new IdeEventsController(sink, {
