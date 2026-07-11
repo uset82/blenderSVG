@@ -9,12 +9,16 @@ import { IdeEventsController } from "./ideEvents.js";
 import { getAvatarConfig, resetAvatarConfig, toggleAssistantEnabled, updateAvatarConfig } from "./settings.js";
 
 export function activate(context: vscode.ExtensionContext): void {
+  const initialConfig = getAvatarConfig();
   const packageRegistry = new AvatarPackageRegistry(
     () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     () => getAvatarConfig().assetWorkspace
   );
   const provider = new AvatarWebviewProvider(context.extensionUri, packageRegistry);
-  const ideEvents = new IdeEventsController(provider);
+  const ideEvents = new IdeEventsController(provider, {
+    defaultIdleDelayMs: initialConfig.idleTimeout * 1000,
+    sleepDelayMs: initialConfig.sleepTimeout * 1000
+  });
   const blenderOutputChannel = vscode.window.createOutputChannel("Codex Avatar Blender");
   ideEvents.start();
 
@@ -25,6 +29,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("codexAvatar")) {
         provider.refreshSettings();
+        const config = getAvatarConfig();
+        ideEvents.updateTiming(config.idleTimeout, config.sleepTimeout);
       }
     }),
     registerCommand("codexAvatar.openAssistant", async () => {

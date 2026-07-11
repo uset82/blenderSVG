@@ -118,6 +118,14 @@ export type AvatarConfig = {
   position: "bottom-right" | "bottom-left" | "side-panel" | "activity-bar-view";
   character: string;
   animationIntensity: "low" | "medium" | "high";
+  frameRate: 30 | 60;
+  particleEffects: boolean;
+  soundEnabled: boolean;
+  lipSyncEnabled: boolean;
+  idleTimeout: number;
+  sleepTimeout: number;
+  debugOverlay: boolean;
+  noAnimation: boolean;
   focusMode: boolean;
   showSpeechBubble: boolean;
   respectReducedMotion: boolean;

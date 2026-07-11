@@ -18,6 +18,7 @@ export const runtimePixiPackageId = "@codex-avatar-studio/runtime-pixi";
 export type PixiRuntimeOptions = {
   maxFps?: 30 | 60;
   lowPerformance?: boolean;
+  particlesEnabled?: boolean;
   reducedMotion?: boolean;
 };
 
@@ -256,13 +257,24 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
       this.effects.circle(0, 0, 58).fill(0xa78bfa);
       this.effects.circle(0, 0, 68).fill(0x60a5fa);
     }
-    if (!this.options.lowPerformance && (this.currentState === "success" || this.currentState === "error")) {
+    if (
+      this.options.particlesEnabled !== false &&
+      !this.options.lowPerformance &&
+      (this.currentState === "success" || this.currentState === "error")
+    ) {
       this.drawParticles(this.currentState === "error" ? "error" : "success");
     }
   }
 
   private drawParticles(kind: "success" | "error"): void {
-    if (!this.effects || this.options.lowPerformance || this.options.reducedMotion) return;
+    if (
+      !this.effects ||
+      this.options.particlesEnabled === false ||
+      this.options.lowPerformance ||
+      this.options.reducedMotion
+    ) {
+      return;
+    }
     const color = kind === "error" ? 0xf85149 : 0x3fb950;
     for (const [x, y, radius] of particlePositions) this.effects.circle(x, y, radius).fill(color);
   }

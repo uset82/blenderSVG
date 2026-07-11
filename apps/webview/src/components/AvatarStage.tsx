@@ -21,8 +21,8 @@ type AvatarStageProps = {
 export function AvatarStage({ state, config, poseInput, manifest, triggerEvent }: AvatarStageProps) {
   const systemReducedMotion = useSystemReducedMotion();
   const pageVisible = usePageVisibility();
-  const reducedMotion = !pageVisible || (config.respectReducedMotion && systemReducedMotion);
-  const effectiveIntensity = config.focusMode ? "low" : config.animationIntensity;
+  const reducedMotion = config.noAnimation || !pageVisible || (config.respectReducedMotion && systemReducedMotion);
+  const effectiveIntensity = config.noAnimation || config.focusMode ? "low" : config.animationIntensity;
   const runtimeKey = `${config.runtime}:${manifest.id}`;
   const [pixiFailureKey, setPixiFailureKey] = useState<string | null>(null);
   const pixiFailed = pixiFailureKey === runtimeKey;
@@ -35,6 +35,7 @@ export function AvatarStage({ state, config, poseInput, manifest, triggerEvent }
       reducedMotion={reducedMotion}
       intensity={effectiveIntensity}
       focusMode={config.focusMode}
+      lipSyncEnabled={config.lipSyncEnabled}
     />
   );
   const usePixi = config.runtime === "pixi" && !pixiFailed;

@@ -229,6 +229,52 @@
           "default": "medium",
           "description": "Avatar animation intensity."
         },
+        "codexAvatar.frameRate": {
+          "type": "number",
+          "enum": [
+            30,
+            60
+          ],
+          "default": 30,
+          "description": "Maximum avatar animation frame rate."
+        },
+        "codexAvatar.particleEffects": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable success and error particle effects."
+        },
+        "codexAvatar.soundEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow optional local avatar sounds when a runtime supports them."
+        },
+        "codexAvatar.lipSyncEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow audio-level input to drive mouth animation."
+        },
+        "codexAvatar.idleTimeout": {
+          "type": "number",
+          "minimum": 0,
+          "default": 15,
+          "description": "Seconds before transient activity returns to idle."
+        },
+        "codexAvatar.sleepTimeout": {
+          "type": "number",
+          "minimum": 0,
+          "default": 300,
+          "description": "Seconds without activity before the avatar sleeps."
+        },
+        "codexAvatar.debugOverlay": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show recent avatar debug events in the assistant panel."
+        },
+        "codexAvatar.noAnimation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable continuous and event animation while keeping the assistant functional."
+        },
         "codexAvatar.focusMode": {
           "type": "boolean",
           "default": false,
@@ -262,7 +308,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && tsc -p tsconfig.json --noEmit",
     "lint": "pnpm --workspace-root exec biome lint apps/extension",
-    "test": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm build && node --test test/*.test.mjs && pnpm --workspace-root exec vitest run apps/extension/test/ideEvents.test.ts",
+    "test": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm build && node --test test/*.test.mjs && pnpm --workspace-root exec vitest run apps/extension/test/ideEvents.test.ts apps/extension/test/settings.test.ts",
     "watch": "tsc -p tsconfig.json --watch",
     "package:vsix": "node ../../scripts/package-extension.mjs"
   },

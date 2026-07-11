@@ -1013,32 +1013,45 @@ Manual "Codex Speaking"      -> speaking
 
 ## Tasks
 
-- [ ] Add extension settings schema.
-- [ ] Add active avatar setting.
-- [ ] Add runtime preference.
-- [ ] Add animation intensity.
-- [ ] Add frame-rate setting.
-- [ ] Add particle-effects setting.
-- [ ] Add reduced-motion override.
-- [ ] Add sound and lip-sync settings.
-- [ ] Add idle timeout.
-- [ ] Add sleep timeout.
-- [ ] Add debug overlay setting.
-- [ ] Persist global preferences.
-- [ ] Persist workspace-specific preferences only when appropriate.
-- [ ] Add reset-to-defaults command.
-- [ ] Add accessible settings descriptions.
-- [ ] Add high-contrast compatibility.
-- [ ] Add a no-animation mode.
+- [x] Add extension settings schema.
+- [x] Add active avatar setting.
+- [x] Add runtime preference.
+- [x] Add animation intensity.
+- [x] Add frame-rate setting.
+- [x] Add particle-effects setting.
+- [x] Add reduced-motion override.
+- [x] Add sound and lip-sync settings.
+- [x] Add idle timeout.
+- [x] Add sleep timeout.
+- [x] Add debug overlay setting.
+- [x] Persist global preferences.
+- [x] Persist workspace-specific preferences only when appropriate.
+- [x] Add reset-to-defaults command.
+- [x] Add accessible settings descriptions.
+- [x] Add high-contrast compatibility.
+- [x] Add a no-animation mode.
+
+### Phase 12 progress evidence — 2026-07-11
+
+- Extension settings now validate and persist runtime, active avatar, intensity, frame rate, particles, reduced motion, sound/lip-sync flags, idle/sleep timeouts, debug overlay, and no-animation mode. Invalid persisted values fall back to safe defaults; updates are global because these preferences are user-level, while avatar package files remain workspace-local.
+- Pixi receives frame-rate, particle, lip-sync, and no-animation policy. SVG mouth movement respects the lip-sync flag. No-animation keeps the assistant rendered while suppressing continuous effects.
+- Settings descriptions are explicit, reset-to-defaults remains available, and the Webview includes keyboard-visible controls plus forced-colors styling.
+- Verification: `apps/extension/test/settings.test.ts` passes invalid-value fallback and global persistence checks; Pixi tests pass particle suppression; Webview smoke verifies no-animation wiring and high-contrast CSS; full CI is green.
 
 ## Acceptance criteria
 
-- [ ] Settings survive IDE restart.
-- [ ] Workspace settings do not leak to unrelated workspaces.
-- [ ] Invalid settings fall back to defaults.
-- [ ] No-animation mode keeps the assistant functional.
-- [ ] High-contrast mode remains usable.
-- [ ] Reset command restores defaults.
+- [x] Settings survive IDE restart.
+- [x] Workspace settings do not leak to unrelated workspaces.
+- [x] Invalid settings fall back to defaults.
+- [x] No-animation mode keeps the assistant functional.
+- [x] High-contrast mode remains usable.
+- [x] Reset command restores defaults.
+
+### Phase 12 acceptance evidence — 2026-07-11
+
+- `pnpm --filter codex-avatar-studio-extension test` covers settings fallback, bounded timing persistence, reset/contributed command wiring, and extension compilation.
+- `pnpm --filter @codex-avatar-studio/webview test` verifies no-animation settings and forced-colors CSS in the built Webview.
+- `pnpm run ci` passes formatting, lint, typecheck, tests, and builds.
 
 ---
 

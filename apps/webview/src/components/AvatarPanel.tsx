@@ -32,7 +32,8 @@ export function AvatarPanel({
       className="avatar-panel"
       data-enabled={String(config.enabled)}
       data-focus-mode={String(config.focusMode)}
-      data-intensity={config.focusMode ? "low" : config.animationIntensity}
+      data-no-animation={String(config.noAnimation)}
+      data-intensity={config.noAnimation || config.focusMode ? "low" : config.animationIntensity}
       data-position={config.position}
     >
       <AvatarRuntimeBoundary>
@@ -58,7 +59,7 @@ export function AvatarPanel({
       </nav>
       <SettingsPanel config={config} />
       <AssetManagerPanel config={config} manifest={manifest} />
-      <StatusDebugPanel events={debugEvents} />
+      {config.debugOverlay ? <StatusDebugPanel events={debugEvents} /> : null}
     </main>
   );
 }

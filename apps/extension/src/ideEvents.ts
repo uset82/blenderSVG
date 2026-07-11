@@ -106,6 +106,12 @@ export class IdeEventsController implements vscode.Disposable {
     this.emit(event, payload);
   }
 
+  public updateTiming(idleTimeoutSeconds: number, sleepTimeoutSeconds: number): void {
+    this.options.defaultIdleDelayMs = Math.max(0, idleTimeoutSeconds * 1000);
+    this.options.sleepDelayMs = Math.max(0, sleepTimeoutSeconds * 1000);
+    this.scheduleSleep();
+  }
+
   public setManualState(state: AvatarState, trigger?: AvatarTrigger): void {
     this.clearIdleTimer();
     this.scheduleSleep();

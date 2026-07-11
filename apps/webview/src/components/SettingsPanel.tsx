@@ -81,6 +81,75 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
           <option value="high">High</option>
         </select>
       </label>
+      <label className="setting-row">
+        <span>Frame rate</span>
+        <select
+          value={config.frameRate}
+          onChange={(event) =>
+            postToExtension({
+              type: "settings:update",
+              config: { frameRate: Number(event.currentTarget.value) as 30 | 60 }
+            })
+          }
+        >
+          <option value={30}>30 FPS</option>
+          <option value={60}>60 FPS</option>
+        </select>
+      </label>
+      <label className="setting-row checkbox-row">
+        <span>Particle effects</span>
+        <input
+          type="checkbox"
+          checked={config.particleEffects}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { particleEffects: event.currentTarget.checked } })
+          }
+        />
+      </label>
+      <label className="setting-row checkbox-row">
+        <span>Sound</span>
+        <input
+          type="checkbox"
+          checked={config.soundEnabled}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { soundEnabled: event.currentTarget.checked } })
+          }
+        />
+      </label>
+      <label className="setting-row checkbox-row">
+        <span>Lip sync</span>
+        <input
+          type="checkbox"
+          checked={config.lipSyncEnabled}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { lipSyncEnabled: event.currentTarget.checked } })
+          }
+        />
+      </label>
+      <label className="setting-row">
+        <span>Idle seconds</span>
+        <input
+          type="number"
+          min={0}
+          max={86400}
+          value={config.idleTimeout}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { idleTimeout: Number(event.currentTarget.value) } })
+          }
+        />
+      </label>
+      <label className="setting-row">
+        <span>Sleep seconds</span>
+        <input
+          type="number"
+          min={0}
+          max={86400}
+          value={config.sleepTimeout}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { sleepTimeout: Number(event.currentTarget.value) } })
+          }
+        />
+      </label>
       <label className="setting-row checkbox-row">
         <span>Focus mode</span>
         <input
@@ -108,6 +177,26 @@ export function SettingsPanel({ config }: SettingsPanelProps) {
           checked={config.respectReducedMotion}
           onChange={(event) =>
             postToExtension({ type: "settings:update", config: { respectReducedMotion: event.currentTarget.checked } })
+          }
+        />
+      </label>
+      <label className="setting-row checkbox-row">
+        <span>No animation</span>
+        <input
+          type="checkbox"
+          checked={config.noAnimation}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { noAnimation: event.currentTarget.checked } })
+          }
+        />
+      </label>
+      <label className="setting-row checkbox-row">
+        <span>Debug overlay</span>
+        <input
+          type="checkbox"
+          checked={config.debugOverlay}
+          onChange={(event) =>
+            postToExtension({ type: "settings:update", config: { debugOverlay: event.currentTarget.checked } })
           }
         />
       </label>

@@ -248,6 +248,16 @@ describe("PixiAvatarRuntime lifecycle", () => {
     lowPerformance.setState("success");
     expect(lowEffects.circle).not.toHaveBeenCalled();
     await lowPerformance.dispose();
+
+    const particlesDisabled = new PixiAvatarRuntime({ particlesEnabled: false });
+    await particlesDisabled.initialize(createContainer(), manifest);
+    const disabledApplication = pixiState.applications[2];
+    const disabledEffects = disabledApplication?.stage.addChild.mock.calls[1]?.[0] as {
+      circle: ReturnType<typeof vi.fn>;
+    };
+    particlesDisabled.setState("success");
+    expect(disabledEffects.circle).not.toHaveBeenCalled();
+    await particlesDisabled.dispose();
   });
 
   it("tries WebGPU when WebGL initialization fails and WebGPU is available", async () => {

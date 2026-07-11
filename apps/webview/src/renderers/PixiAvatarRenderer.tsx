@@ -53,8 +53,9 @@ export function PixiAvatarRenderer({
         if (cancelled) return;
 
         runtime = new PixiAvatarRuntime({
-          maxFps: intensity === "high" && !focusMode ? 60 : 30,
+          maxFps: config.frameRate,
           lowPerformance: intensity === "low" || focusMode,
+          particlesEnabled: config.particleEffects && !config.noAnimation,
           reducedMotion
         });
         runtimeRef.current = runtime;
@@ -84,7 +85,7 @@ export function PixiAvatarRenderer({
       runtimeRef.current = null;
       if (activeRuntime) void activeRuntime.dispose();
     };
-  }, [intensity, focusMode, reducedMotion]);
+  }, [config.frameRate, config.noAnimation, config.particleEffects, intensity, focusMode, reducedMotion]);
 
   useEffect(() => {
     runtimeRef.current?.setState(state);
@@ -92,8 +93,8 @@ export function PixiAvatarRenderer({
 
   useEffect(() => {
     const speechLevel = poseInput.speechLevel ?? poseInput.audioLevel ?? 0;
-    runtimeRef.current?.setSpeechLevel(speechLevel);
-  }, [poseInput.audioLevel, poseInput.speechLevel]);
+    runtimeRef.current?.setSpeechLevel(config.lipSyncEnabled ? speechLevel : 0);
+  }, [config.lipSyncEnabled, poseInput.audioLevel, poseInput.speechLevel]);
 
   useEffect(() => {
     runtimeRef.current?.setPoseInput({ cursorX: poseInput.cursorX, cursorY: poseInput.cursorY });

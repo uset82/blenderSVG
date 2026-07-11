@@ -39,6 +39,8 @@ test("webview bundle includes asset manager bridge actions", async () => {
 
   assert.ok(script.includes("assets:manifestLoaded"), "manifest reload message is handled");
   assert.ok(script.includes("License"), "license metadata is visible in the asset manager");
+  assert.ok(script.includes("noAnimation"), "no-animation setting is wired into the Webview");
+  assert.match(styles, /forced-colors:\s*active/, "high-contrast styles are bundled");
 });
 
 test("webview source does not call remote network APIs", async () => {

@@ -7,6 +7,7 @@ type SvgAvatarRendererProps = {
   reducedMotion: boolean;
   intensity: "low" | "medium" | "high";
   focusMode: boolean;
+  lipSyncEnabled: boolean;
 };
 
 type AvatarCssProperties = CSSProperties & {
@@ -15,10 +16,17 @@ type AvatarCssProperties = CSSProperties & {
   "--mouth-open-scale": string;
 };
 
-export function SvgAvatarRenderer({ state, poseInput, reducedMotion, intensity, focusMode }: SvgAvatarRendererProps) {
+export function SvgAvatarRenderer({
+  state,
+  poseInput,
+  reducedMotion,
+  intensity,
+  focusMode,
+  lipSyncEnabled
+}: SvgAvatarRendererProps) {
   const lookX = (((poseInput.cursorX ?? 0.5) - 0.5) * 5).toFixed(2);
   const lookY = (((poseInput.cursorY ?? 0.5) - 0.5) * 4).toFixed(2);
-  const mouthScale = (0.65 + (poseInput.mouthOpen ?? 0) * 0.9).toFixed(2);
+  const mouthScale = (0.65 + (lipSyncEnabled ? (poseInput.mouthOpen ?? 0) : 0) * 0.9).toFixed(2);
   const style: AvatarCssProperties = {
     "--look-x": `${lookX}px`,
     "--look-y": `${lookY}px`,
