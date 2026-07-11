@@ -56,6 +56,21 @@ export class SpriteAnimationController {
     return this.active;
   }
 
+  public frameAt(elapsedMs: number): number {
+    const frames = this.active.clip.frames;
+    const fps = this.active.clip.fps ?? 12;
+    const frameIndex = Math.floor((Math.max(0, elapsedMs) * fps) / 1000);
+    return (
+      frames[this.active.clip.loop === true ? frameIndex % frames.length : Math.min(frameIndex, frames.length - 1)] ?? 0
+    );
+  }
+
+  public isComplete(elapsedMs: number): boolean {
+    if (!this.active.oneShot) return false;
+    const fps = this.active.clip.fps ?? 12;
+    return elapsedMs >= (this.active.clip.frames.length / fps) * 1000;
+  }
+
   private selectIdleVariant(state: AvatarState): SpriteClip {
     const base = clipForState(this.manifest, state);
     if (state !== "idle") return base;

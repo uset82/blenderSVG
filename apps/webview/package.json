@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build && node ../../scripts/copy-webview-build.mjs",
-    "typecheck": "pnpm --filter @codex-avatar-studio/avatar-core build && tsc -p tsconfig.json --noEmit",
+    "typecheck": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/runtime-pixi build && tsc -p tsconfig.json --noEmit",
     "lint": "pnpm --workspace-root exec biome lint apps/webview",
     "test": "pnpm build && node --test test/*.test.mjs"
   },

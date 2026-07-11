@@ -7,9 +7,16 @@ const pixiState = vi.hoisted(() => ({
     destroy: ReturnType<typeof vi.fn>;
     initOptions: unknown;
     stage: { addChild: ReturnType<typeof vi.fn>; visible: boolean };
-    ticker: { maxFPS: number; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
+    ticker: {
+      maxFPS: number;
+      start: ReturnType<typeof vi.fn>;
+      stop: ReturnType<typeof vi.fn>;
+      add: ReturnType<typeof vi.fn>;
+      remove: ReturnType<typeof vi.fn>;
+    };
   }>,
-  nextInitError: null as Error | null
+  nextInitError: null as Error | null,
+  assetTexture: { source: {}, width: 128, height: 64, destroy: vi.fn() }
 }));
 
 vi.mock("pixi.js", () => {
@@ -17,7 +24,7 @@ vi.mock("pixi.js", () => {
     public readonly canvas = {};
     public readonly stage = { addChild: vi.fn(), visible: true };
     public readonly renderer = { resolution: 1 };
-    public readonly ticker = { maxFPS: 0, start: vi.fn(), stop: vi.fn() };
+    public readonly ticker = { maxFPS: 0, start: vi.fn(), stop: vi.fn(), add: vi.fn(), remove: vi.fn() };
     public readonly destroy = vi.fn();
     public initOptions: unknown = undefined;
 
@@ -43,20 +50,50 @@ vi.mock("pixi.js", () => {
     public tint = 0;
     public readonly position = { set: vi.fn() };
     public readonly scale = { set: vi.fn() };
+    public readonly circle = vi.fn(() => this);
+    public readonly clear = vi.fn(() => this);
+    public readonly fill = vi.fn(() => this);
+  }
 
-    public circle(): this {
-      return this;
+  class MockRectangle {
+    public constructor(
+      public readonly x: number,
+      public readonly y: number,
+      public readonly width: number,
+      public readonly height: number
+    ) {}
+  }
+
+  class MockTexture {
+    public readonly source: object;
+    public readonly width: number;
+    public readonly height: number;
+    public readonly destroy = vi.fn();
+
+    public constructor(options: { source?: object; frame?: MockRectangle } = {}) {
+      this.source = options.source ?? {};
+      this.width = options.frame?.width ?? 128;
+      this.height = options.frame?.height ?? 64;
     }
+  }
 
-    public fill(): this {
-      return this;
+  class MockSprite {
+    public texture: MockTexture;
+    public readonly position = { set: vi.fn() };
+    public readonly scale = { set: vi.fn() };
+
+    public constructor(options: { texture: MockTexture }) {
+      this.texture = options.texture;
     }
   }
 
   return {
     Application: MockApplication,
-    Assets: { load: vi.fn() },
-    Graphics: MockGraphics
+    Assets: { load: vi.fn(async () => pixiState.assetTexture) },
+    Graphics: MockGraphics,
+    Rectangle: MockRectangle,
+    Sprite: MockSprite,
+    Texture: MockTexture
   };
 });
 
@@ -95,6 +132,7 @@ function createContainer() {
 beforeEach(() => {
   pixiState.applications.length = 0;
   pixiState.nextInitError = null;
+  pixiState.assetTexture = { source: {}, width: 128, height: 64, destroy: vi.fn() };
   visibilityHandler = undefined;
   vi.stubGlobal("document", {
     visibilityState: "visible",
@@ -180,6 +218,38 @@ describe("PixiAvatarRuntime lifecycle", () => {
     expect(application?.ticker.stop).toHaveBeenCalled();
   });
 
+  it("approximates gaze and draws effects without work in low-performance mode", async () => {
+    const container = createContainer();
+    const runtime = new PixiAvatarRuntime();
+    await runtime.initialize(container, manifest);
+    const application = pixiState.applications[0];
+    const face = application?.stage.addChild.mock.calls[2]?.[0] as {
+      position: { set: ReturnType<typeof vi.fn> };
+    };
+    const effects = application?.stage.addChild.mock.calls[1]?.[0] as {
+      circle: ReturnType<typeof vi.fn>;
+    };
+
+    runtime.setPoseInput({ cursorX: 1, cursorY: 0 });
+    runtime.setState("thinking");
+    expect(face.position.set).toHaveBeenLastCalledWith(167, 85);
+    expect(effects.circle).toHaveBeenCalledTimes(2);
+
+    runtime.setState("success");
+    expect(effects.circle).toHaveBeenCalledTimes(8);
+    await runtime.dispose();
+
+    const lowPerformance = new PixiAvatarRuntime({ lowPerformance: true });
+    await lowPerformance.initialize(createContainer(), manifest);
+    const lowApplication = pixiState.applications[1];
+    const lowEffects = lowApplication?.stage.addChild.mock.calls[1]?.[0] as {
+      circle: ReturnType<typeof vi.fn>;
+    };
+    lowPerformance.setState("success");
+    expect(lowEffects.circle).not.toHaveBeenCalled();
+    await lowPerformance.dispose();
+  });
+
   it("tries WebGPU when WebGL initialization fails and WebGPU is available", async () => {
     vi.stubGlobal("navigator", { gpu: {} });
     pixiState.nextInitError = new Error("WebGL unavailable");
@@ -200,5 +270,67 @@ describe("PixiAvatarRuntime lifecycle", () => {
 
     await expect(runtime.initialize(createContainer(), manifest)).rejects.toThrow("WebGL unavailable");
     expect(pixiState.applications[0]?.destroy).toHaveBeenCalled();
+  });
+
+  it("loads the local spritesheet contract and advances clips on the ticker", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              schemaVersion: 1,
+              image: "placeholder-spritesheet.svg",
+              frameWidth: 64,
+              frameHeight: 64,
+              clips: {
+                idle_loop: { name: "idle_loop", frames: [0, 1], fps: 4, loop: true },
+                talk_loop: { name: "talk_loop", frames: [1, 0], fps: 4, loop: true }
+              }
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+      )
+    );
+    const runtime = new PixiAvatarRuntime({ maxFps: 60 });
+    const spritesheetManifest = {
+      ...manifest,
+      assets: { pixi: "https://avatar.test/spritesheet.json" }
+    } as AvatarManifest;
+
+    await runtime.initialize(createContainer(), spritesheetManifest);
+    const application = pixiState.applications[0];
+    const sprite = application?.stage.addChild.mock.calls[1]?.[0] as {
+      texture: unknown;
+    };
+    const tickerHandler = application?.ticker.add.mock.calls[0]?.[0] as
+      | ((ticker: { deltaMS: number }) => void)
+      | undefined;
+
+    expect(sprite).toBeDefined();
+    expect(application?.ticker.add).toHaveBeenCalledTimes(1);
+    expect(runtime.getDebugInfo()?.maxFps).toBe(60);
+    tickerHandler?.({ deltaMS: 250 });
+    expect(sprite.texture).toBeDefined();
+    await runtime.dispose();
+  });
+
+  it("cleans up the renderer when spritesheet metadata is invalid", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ schemaVersion: 1, image: "missing.svg" }), { status: 200 }))
+    );
+    const container = createContainer();
+    const runtime = new PixiAvatarRuntime();
+    const spritesheetManifest = {
+      ...manifest,
+      assets: { pixi: "https://avatar.test/spritesheet.json" }
+    } as AvatarManifest;
+
+    await expect(runtime.initialize(container, spritesheetManifest)).rejects.toThrow(
+      "Invalid PixiJS spritesheet metadata"
+    );
+    expect(pixiState.applications[0]?.destroy).toHaveBeenCalled();
+    expect(container.pixiChildren).toHaveLength(0);
   });
 });

@@ -132,6 +132,9 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
     const avatarUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "avatars", "svg", "placeholder-avatar.svg")
     );
+    const pixiManifestUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "avatars", "pixi", "placeholder-spritesheet.json")
+    );
 
     return {
       schemaVersion: 1,
@@ -143,7 +146,8 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
       preferredRuntime: "svg",
       fallbackRuntime: "svg",
       entrypoints: {
-        svg: avatarUri.toString()
+        svg: avatarUri.toString(),
+        pixi: pixiManifestUri.toString()
       },
       capabilities: ["state-animation", "one-shot-triggers", "speech-level", "reduced-motion"],
       states: {
@@ -170,9 +174,10 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
         "start-speaking": "talk_start",
         "stop-speaking": "talk_stop"
       },
-      runtimePriority: ["svg"],
+      runtimePriority: ["svg", "pixi"],
       assets: {
-        svg: avatarUri.toString()
+        svg: avatarUri.toString(),
+        pixi: pixiManifestUri.toString()
       }
     };
   }

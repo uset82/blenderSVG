@@ -54,6 +54,7 @@ export function PixiAvatarRenderer({
 
         runtime = new PixiAvatarRuntime({
           maxFps: intensity === "high" && !focusMode ? 60 : 30,
+          lowPerformance: intensity === "low" || focusMode,
           reducedMotion
         });
         runtimeRef.current = runtime;
@@ -93,6 +94,10 @@ export function PixiAvatarRenderer({
     const speechLevel = poseInput.speechLevel ?? poseInput.audioLevel ?? 0;
     runtimeRef.current?.setSpeechLevel(speechLevel);
   }, [poseInput.audioLevel, poseInput.speechLevel]);
+
+  useEffect(() => {
+    runtimeRef.current?.setPoseInput({ cursorX: poseInput.cursorX, cursorY: poseInput.cursorY });
+  }, [poseInput.cursorX, poseInput.cursorY]);
 
   useEffect(() => {
     runtimeRef.current?.setVisible(pageVisible);

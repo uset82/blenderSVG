@@ -751,10 +751,10 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 
 ## Tasks
 
-- [ ] Study the AITuber OnAir Pet example.
-- [ ] Identify the smallest reusable behavior concepts.
+- [x] Study the AITuber OnAir Pet example.
+- [x] Identify the smallest reusable behavior concepts.
 - [x] Do not copy unverified artwork.
-- [ ] Create an original placeholder spritesheet.
+- [x] Create an original placeholder spritesheet.
 - [x] Define a spritesheet metadata format.
 - [x] Implement spritesheet loading contract.
 - [x] Implement named animation clips.
@@ -764,18 +764,22 @@ error > warning > speaking > debugging > building > thinking > coding > idle
 - [x] Add clean clip transitions.
 - [x] Add animation completion callbacks.
 - [x] Add random idle variation.
-- [ ] Add cursor or editor-direction gaze approximation.
-- [ ] Add particle layers for success and error.
-- [ ] Add a holographic thinking effect.
+- [x] Add cursor or editor-direction gaze approximation.
+- [x] Add particle layers for success and error.
+- [x] Add a holographic thinking effect.
 - [x] Add a low-performance mode without particles.
 - [x] Add tests for missing clips and malformed metadata.
 
 ### Phase 8 progress evidence — 2026-07-10
 
+- Reference study: reviewed the AITuber OnAir Pet example README and `PetStage.tsx` at `https://github.com/shinshin86/aituber-onair/tree/main/packages/core/examples/react-pet-app`. The reference describes a local pet manifest plus spritesheet, state-row animation, audio-level reactions, and runtime pet replacement; its implementation adds weighted thinking actions, speaking action sequencing, keyword-driven mood reactions, and small movement physics.
+- Reusable concepts selected for this project: manifest-driven atlas metadata; deterministic state-to-clip mapping; bounded weighted idle/thinking variation; one-shot and looped clips; optional gaze/effects layers; and local-only asset replacement. No upstream artwork, code, or asset files were copied.
+- Original placeholder asset: `apps/extension/media/avatars/pixi/placeholder-spritesheet.svg` is a clean-room 4×4 atlas of geometric orb frames, paired with 23 state/trigger clips in `placeholder-spritesheet.json`. The extension asset test confirms the pairing, required clip set, internal-only references, and absence of scripts or remote URLs.
+- Pixi behavior: `PixiAvatarRuntime.setPoseInput` applies bounded cursor-direction gaze offsets; thinking draws a reduced-motion-aware holographic ring; success/error states and the particle trigger draw local effect dots; low-performance mode suppresses effect work. The Webview forwards cursor pose and intensity policy into the runtime.
 - `packages/runtime-pixi/src/spritesheet.ts` defines an original metadata contract, validates frame data, maps every required state and trigger to named clips, and falls back to `idle_loop` when a state clip is missing.
-- No upstream character artwork or copied assets were added. Particle layers, gaze, and richer visual effects remain pending on the actual Pixi stage integration.
+- No upstream character artwork or copied assets were added. The runtime now loads the original local atlas through the Pixi stage, while SVG remains the failure fallback.
 - `SpriteAnimationController` applies clip priorities, restores the active state after one-shot completion, supports deterministic idle variation, exposes completion callbacks, and suppresses particle clips in low-performance mode.
-- Verification: runtime-pixi typecheck, lint, formatting, and 5 Vitest tests pass.
+- Verification: runtime-pixi typecheck, lint, formatting, and 16 Vitest tests pass; extension asset smoke tests pass 10/10; full `pnpm run ci` passes.
 
 ## Required state mapping
 
@@ -797,12 +801,19 @@ sleeping   -> sleep_loop
 
 ## Acceptance criteria
 
-- [ ] All required states have a clip or fallback.
-- [ ] Missing clips fall back to idle.
-- [ ] One-shot clips return to the expected state.
-- [ ] Spritesheet validation catches malformed data.
-- [ ] No upstream character artwork is present.
-- [ ] Animation remains responsive at the configured frame rate.
+- [x] All required states have a clip or fallback.
+- [x] Missing clips fall back to idle.
+- [x] One-shot clips return to the expected state.
+- [x] Spritesheet validation catches malformed data.
+- [x] No upstream character artwork is present.
+- [x] Animation remains responsive at the configured frame rate.
+
+### Phase 8 acceptance evidence — 2026-07-10
+
+- Required state and trigger coverage is asserted by `apps/extension/test/pixi-assets.test.mjs` (23 named clips) and `packages/runtime-pixi/test/spritesheet.test.ts` (state mapping plus idle fallback).
+- One-shot restoration, priorities, deterministic idle variation, and low-performance particle suppression are covered by `packages/runtime-pixi/test/animationController.test.ts`; malformed metadata is rejected by `packages/runtime-pixi/test/spritesheet.test.ts`.
+- Clean-room asset checks confirm the original geometric atlas has no scripts, remote references, or upstream character artwork.
+- `packages/runtime-pixi/test/runtimeLifecycle.test.ts` verifies local metadata/image loading and ticker-driven frame advancement at the configured FPS; `pnpm run ci` passes all formatting, lint, typecheck, test, and build stages.
 
 ---
 
