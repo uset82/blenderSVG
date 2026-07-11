@@ -11,11 +11,12 @@
 - [ ] Run `pnpm package:vsix`.
 - [ ] Run `pnpm validate:vsix`.
 - [ ] Run `pnpm smoke:vsix`.
+- [ ] Run `pnpm smoke:clean-profile` (requires a local VS Code CLI; uses `code.cmd`, not `Code.exe`).
 
 ## VSIX
 
 - [ ] Confirm `dist/codex-avatar-studio-0.1.0.vsix` exists.
-- [ ] Install the VSIX in an isolated VS Code extensions directory.
+- [ ] Install the VSIX in an isolated VS Code profile (`pnpm smoke:clean-profile` or the same CLI with temp `--extensions-dir` / `--user-data-dir`).
 - [ ] Open Extension Development Host or a local VS Code window with the installed extension.
 - [ ] Run `Codex Avatar: Open Assistant`.
 - [ ] Confirm SVG fallback renders.

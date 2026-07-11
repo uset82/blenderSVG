@@ -40,6 +40,7 @@ pnpm smoke:webview
 pnpm package:vsix
 pnpm validate:vsix
 pnpm smoke:vsix
+pnpm smoke:clean-profile
 pnpm validate:docs
 
 # Pre-release artifact (does not modify package.json)

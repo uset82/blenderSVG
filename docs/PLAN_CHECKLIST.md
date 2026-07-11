@@ -1447,6 +1447,7 @@ Do not start this phase until the 2D MVP is stable.
 - `pnpm package:vsix:pre` creates and validates `codex-avatar-studio-0.1.0-pre.1.vsix`; its packaged smoke also passes.
 - A clean temporary VS Code profile installed the stable VSIX with `code.cmd --install-extension` and listed `codex-avatar-studio.codex-avatar-studio-extension`. The package smoke verifies activation, Webview CSP/message exchange, command registration, local SVG manifest, Pixi assets, and deactivation cleanup.
 - Package validation confirms the final artifact contains no source, test, map, node_modules, research, fixture, or proprietary SDK files and includes `LICENSE.txt`, `THIRD_PARTY_NOTICES.md`, and `changelog.md`.
+- Follow-up (2026-07-12): `pnpm smoke:clean-profile` (`scripts/smoke-clean-profile-install.mjs`) automates the isolated install via the CLI shim, refuses `Code.exe` (which can hang the shell), and cleans the temp profile. Re-verified: install listed `codex-avatar-studio.codex-avatar-studio-extension`.
 
 ---
 
@@ -1509,7 +1510,7 @@ The MVP is complete only when every item below is checked.
 - [ ] Invalid runtime falls back safely.
 - [ ] Tests pass.
 - [ ] CI passes.
-- [ ] VSIX installs in a clean profile.
+- [x] VSIX installs in a clean profile.
 - [ ] No unlicensed character assets are included.
 - [ ] Documentation is complete.
 

@@ -17,7 +17,8 @@ The default repository gate is `pnpm run ci`. It runs formatting, lint, typechec
 | Windows 11 / Node 22 / pnpm 11 | Verified | `pnpm run ci` |
 | Windows headless browser | Run when Edge is installed | `pnpm smoke:webview` |
 | VSIX package activation | Verified with the extracted packaged extension and VS Code API mock | `pnpm package:vsix` then `pnpm smoke:vsix` |
-| VS Code/compatible editor install | Host install remains environment-dependent | Install the VSIX manually with the editor CLI |
+| VS Code clean-profile install | Verified when the VS Code CLI is installed | `pnpm package:vsix` then `pnpm smoke:clean-profile` (uses `code.cmd` / `code`, never `Code.exe`) |
+| VS Code/compatible editor install | Host install remains environment-dependent | Prefer `pnpm smoke:clean-profile`, or the editor CLI with isolated dirs |
 | macOS | Not available in this workspace | Run CI and the manual matrix on a macOS host |
 | Linux | Not available in this workspace | Run CI and the manual matrix on a Linux host |
 | VS Code Stable | Compatible target; host smoke is environment-dependent | Use the VSIX smoke command |

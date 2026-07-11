@@ -50,10 +50,11 @@ The source-of-truth runtime contract is `packages/avatar-core/src/runtime.ts`. T
 pnpm run package:vsix
 pnpm run validate:vsix
 pnpm run smoke:vsix
+pnpm run smoke:clean-profile
 pnpm run package:vsix:pre
 ```
 
-The stable package uses the extension version from `apps/extension/package.json`. The pre-release command emits a `-pre.1` artifact without changing source version files. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) before distributing an artifact.
+The stable package uses the extension version from `apps/extension/package.json`. The pre-release command emits a `-pre.1` artifact without changing source version files. `smoke:clean-profile` installs the stable VSIX into a temporary VS Code profile through the CLI shim (`code.cmd` / `code`) so the command exits; do not call `Code.exe` for packaging checks. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) before distributing an artifact.
 
 ## Change workflow
 

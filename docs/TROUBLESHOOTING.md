@@ -30,7 +30,11 @@ Blender is optional. Set `codexAvatar.blenderPath`, put `blender` on `PATH`, or 
 
 ## Tests fail locally
 
-Use Node 22.22.0 and pnpm 11.7.0, run `pnpm install --frozen-lockfile`, and retry `pnpm run ci`. `pnpm smoke:webview` needs Microsoft Edge; `pnpm smoke:vsix` is a clean extraction/runtime smoke and does not install an extension into the active editor. For a real isolated install, use the VS Code CLI with separate `--extensions-dir` and `--user-data-dir` folders.
+Use Node 22.22.0 and pnpm 11.7.0, run `pnpm install --frozen-lockfile`, and retry `pnpm run ci`. `pnpm smoke:webview` needs Microsoft Edge; `pnpm smoke:vsix` is a clean extraction/runtime smoke and does not install an extension into the active editor.
+
+For a real isolated install, run `pnpm run smoke:clean-profile` after packaging. That script uses the VS Code **CLI shim** (`…/bin/code.cmd` on Windows, or `code` on PATH) with temporary `--extensions-dir` and `--user-data-dir` folders.
+
+Do **not** invoke `Code.exe` directly for `--install-extension`. The GUI binary can leave the shell hung for minutes while VS Code stays open. If a command is stuck after using `Code.exe`, cancel the shell job; leave your normal VS Code session alone (it uses `%APPDATA%\Code`, not the temp profile dirs).
 
 ## Performance or motion concerns
 
