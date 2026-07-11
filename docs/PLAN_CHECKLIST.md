@@ -1408,31 +1408,45 @@ Do not start this phase until the 2D MVP is stable.
 
 ## Tasks
 
-- [ ] Add CI for install, lint, type-check, test, and build.
-- [ ] Pin or control Node and pnpm versions.
-- [ ] Add dependency caching.
-- [ ] Add extension packaging.
-- [ ] Validate package contents.
-- [ ] Exclude research clones and development-only assets.
-- [ ] Exclude optional proprietary SDK files.
-- [ ] Add versioning policy.
-- [ ] Add changelog.
-- [ ] Add release checklist.
-- [ ] Add license and third-party notices to the package.
-- [ ] Add a clean-room built-in avatar.
-- [ ] Create a pre-release VSIX.
-- [ ] Install the VSIX in a clean profile.
-- [ ] Run final smoke tests.
+- [x] Add CI for install, lint, type-check, test, and build.
+- [x] Pin or control Node and pnpm versions.
+- [x] Add dependency caching.
+- [x] Add extension packaging.
+- [x] Validate package contents.
+- [x] Exclude research clones and development-only assets.
+- [x] Exclude optional proprietary SDK files.
+- [x] Add versioning policy.
+- [x] Add changelog.
+- [x] Add release checklist.
+- [x] Add license and third-party notices to the package.
+- [x] Add a clean-room built-in avatar.
+- [x] Create a pre-release VSIX.
+- [x] Install the VSIX in a clean profile.
+- [x] Run final smoke tests.
+
+### Phase 21 progress evidence — 2026-07-12
+
+- GitHub Actions now controls Node through `.nvmrc` (`22.22.0`), activates pnpm `11.7.0`, uses setup-node pnpm caching, installs with `--frozen-lockfile`, and runs build, typecheck, lint, tests, packaging, VSIX validation, and packaged smoke.
+- `scripts/package-vsix.mjs` supports stable and `--pre-release` artifacts, bundles the required CSS data safely for the CommonJS extension host, strips source maps through `.vscodeignore`, and validates the generated artifact before returning success.
+- `scripts/validate-vsix.mjs` rejects development files, research/fixture content, node_modules, source maps, and proprietary runtime files; it requires the clean-room SVG/Pixi assets, extension bundle, Webview entry, license, third-party notices, and changelog.
+- Release policy and handoff steps are documented in `docs/RELEASE_CHECKLIST.md`; the changelog and package notices are included in the VSIX.
 
 ## Acceptance criteria
 
-- [ ] CI passes on the main branch.
-- [ ] VSIX builds.
-- [ ] VSIX installs in a clean VS Code profile.
-- [ ] Assistant opens without development files.
-- [ ] Built-in SVG and PixiJS avatars work.
-- [ ] Package contains all required notices.
-- [ ] Package contains no unlicensed assets.
+- [x] CI passes on the main branch.
+- [x] VSIX builds.
+- [x] VSIX installs in a clean VS Code profile.
+- [x] Assistant opens without development files.
+- [x] Built-in SVG and PixiJS avatars work.
+- [x] Package contains all required notices.
+- [x] Package contains no unlicensed assets.
+
+### Phase 21 acceptance evidence — 2026-07-12
+
+- `pnpm run ci` passes on the working `main` branch. `pnpm package:vsix` creates a 27-file `codex-avatar-studio-0.1.0.vsix`; `pnpm validate:vsix` and `pnpm smoke:vsix` pass.
+- `pnpm package:vsix:pre` creates and validates `codex-avatar-studio-0.1.0-pre.1.vsix`; its packaged smoke also passes.
+- A clean temporary VS Code profile installed the stable VSIX with `code.cmd --install-extension` and listed `codex-avatar-studio.codex-avatar-studio-extension`. The package smoke verifies activation, Webview CSP/message exchange, command registration, local SVG manifest, Pixi assets, and deactivation cleanup.
+- Package validation confirms the final artifact contains no source, test, map, node_modules, research, fixture, or proprietary SDK files and includes `LICENSE.txt`, `THIRD_PARTY_NOTICES.md`, and `changelog.md`.
 
 ---
 

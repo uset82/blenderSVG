@@ -36,7 +36,11 @@ pnpm lint
 pnpm test
 pnpm smoke:webview
 pnpm package:vsix
+pnpm validate:vsix
 pnpm smoke:vsix
+
+# Pre-release artifact (does not modify package.json)
+pnpm package:vsix:pre
 ```
 
 Start with:

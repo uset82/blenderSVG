@@ -17,11 +17,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Enable pnpm
         run: corepack enable
+
+      - name: Pin pnpm
+        run: corepack prepare pnpm@11.7.0 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -40,3 +43,9 @@ jobs:
 
       - name: Package VSIX
         run: pnpm package:vsix
+
+      - name: Validate VSIX contents
+        run: pnpm validate:vsix
+
+      - name: Run packaged smoke
+        run: pnpm smoke:vsix

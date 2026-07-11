@@ -8,7 +8,11 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const extensionRoot = path.join(root, "apps", "extension");
 const dist = path.join(root, "dist");
 const stage = path.join(dist, `vsix-stage-${process.pid}`);
-const packageName = "codex-avatar-studio-0.1.0.vsix";
+const extensionPackage = JSON.parse(readFileSync(path.join(extensionRoot, "package.json"), "utf8"));
+const baseVersion = extensionPackage.version;
+const version =
+  process.env.VSIX_VERSION ?? (process.argv.includes("--pre-release") ? `${baseVersion}-pre.1` : baseVersion);
+const packageName = `codex-avatar-studio-${version}.vsix`;
 const output = path.join(dist, packageName);
 const vsceExecutable = path.join(root, "node_modules", ".bin", process.platform === "win32" ? "vsce.CMD" : "vsce");
 const pnpmExecutable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
@@ -64,6 +68,7 @@ await build({
 
 const manifestPath = path.join(stage, "package.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+manifest.version = version;
 manifest.private = false;
 manifest.scripts = {};
 delete manifest.dependencies;
@@ -73,6 +78,7 @@ writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
 rmSync(output, { force: true });
 run(vsceExecutable, ["package", "--allow-missing-repository", "--no-dependencies", "--out", output], stage);
+run(process.execPath, [path.join(root, "scripts", "validate-vsix.mjs"), output], root);
 rmSync(stage, { force: true, recursive: true });
 
 console.log(`Created ${path.relative(root, output)}`);

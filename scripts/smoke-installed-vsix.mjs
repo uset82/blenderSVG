@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const vsixPath = path.join(root, "dist", "codex-avatar-studio-0.1.0.vsix");
+const vsixPath = path.resolve(process.env.VSIX_PATH ?? path.join(root, "dist", "codex-avatar-studio-0.1.0.vsix"));
 
 if (!existsSync(vsixPath)) {
   throw new Error(`VSIX does not exist: ${vsixPath}`);
