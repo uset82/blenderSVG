@@ -18,12 +18,15 @@ export * from "./textureCache.js";
 import { PixiTextureCache } from "./textureCache.js";
 
 export const runtimePixiPackageId = "@codex-avatar-studio/runtime-pixi";
+export const MAX_CANVAS_DIMENSION = 2048;
+export const DEFAULT_RUNTIME_INITIALIZATION_TIMEOUT_MS = 10_000;
 
 export type PixiRuntimeOptions = {
   maxFps?: 30 | 60;
   lowPerformance?: boolean;
   particlesEnabled?: boolean;
   reducedMotion?: boolean;
+  initializeTimeoutMs?: number;
 };
 
 export type PixiRuntimeDebugInfo = {
@@ -34,6 +37,10 @@ export type PixiRuntimeDebugInfo = {
   maxFps: number;
   visible: boolean;
   state: AvatarState;
+  canvasWidth: number;
+  canvasHeight: number;
+  textureCount: number;
+  textureBytes: number;
 };
 
 export function supportsWebGpu(): boolean {
@@ -71,12 +78,34 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
   }
 
   public async initialize(container: HTMLElement, manifest: AvatarManifest): Promise<void> {
+    const timeoutMs = this.options.initializeTimeoutMs ?? DEFAULT_RUNTIME_INITIALIZATION_TIMEOUT_MS;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      throw new Error("PixiJS initialization timeout must be a positive number.");
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        this.initializeInternal(container, manifest),
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            void this.dispose();
+            reject(new Error(`PixiJS initialization timed out after ${timeoutMs} ms.`));
+          }, timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    }
+  }
+
+  private async initializeInternal(container: HTMLElement, manifest: AvatarManifest): Promise<void> {
     if (this.application) await this.dispose();
     const lifecycleToken = ++this.lifecycleToken;
     this.container = container;
     let application: Application;
     try {
-      application = await initializePixiApplication(container, this.options);
+      application = await initializePixiApplication(this.options);
     } catch (error) {
       if (lifecycleToken === this.lifecycleToken) this.container = undefined;
       throw error;
@@ -183,9 +212,11 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
     if (!this.face || !this.container) return;
     const cursorX = clampUnit(input.cursorX ?? 0.5);
     const cursorY = clampUnit(input.cursorY ?? 0.5);
+    const width = Math.min(Math.max(this.container.clientWidth, 1), MAX_CANVAS_DIMENSION);
+    const height = Math.min(Math.max(this.container.clientHeight, 1), MAX_CANVAS_DIMENSION);
     const lookX = (cursorX - 0.5) * 14;
     const lookY = (cursorY - 0.5) * 10;
-    this.face.position.set(this.container.clientWidth / 2 + lookX, this.container.clientHeight / 2 + lookY);
+    this.face.position.set(width / 2 + lookX, height / 2 + lookY);
   }
 
   public setVisible(visible: boolean): void {
@@ -197,11 +228,14 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
 
   public resize(width: number, height: number, devicePixelRatio: number): void {
     if (!this.application || !this.avatar) return;
+    const boundedWidth = Math.min(Math.max(width, 1), MAX_CANVAS_DIMENSION);
+    const boundedHeight = Math.min(Math.max(height, 1), MAX_CANVAS_DIMENSION);
     this.application.renderer.resolution = Math.min(Math.max(devicePixelRatio, 1), 2);
-    this.avatar.position.set(width / 2, height / 2);
-    this.sprite?.position.set(width / 2, height / 2);
-    this.effects?.position.set(width / 2, height / 2);
-    this.mouth?.position.set(width / 2, height / 2);
+    this.application.renderer.resize?.(boundedWidth, boundedHeight);
+    this.avatar.position.set(boundedWidth / 2, boundedHeight / 2);
+    this.sprite?.position.set(boundedWidth / 2, boundedHeight / 2);
+    this.effects?.position.set(boundedWidth / 2, boundedHeight / 2);
+    this.mouth?.position.set(boundedWidth / 2, boundedHeight / 2);
     this.setPoseInput({});
   }
 
@@ -237,7 +271,11 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
       devicePixelRatio: this.application.renderer.resolution,
       maxFps: this.application.ticker.maxFPS,
       visible: this.application.stage.visible,
-      state: this.currentState
+      state: this.currentState,
+      canvasWidth: Math.min(Math.max(this.container.clientWidth, 1), MAX_CANVAS_DIMENSION),
+      canvasHeight: Math.min(Math.max(this.container.clientHeight, 1), MAX_CANVAS_DIMENSION),
+      textureCount: this.textureCache.size,
+      textureBytes: this.textureCache.estimatedBytes
     };
   }
 
@@ -376,9 +414,8 @@ function clampUnit(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-async function initializePixiApplication(container: HTMLElement, options: PixiRuntimeOptions): Promise<Application> {
+async function initializePixiApplication(options: PixiRuntimeOptions): Promise<Application> {
   const rendererOptions = {
-    resizeTo: container,
     antialias: !optionsReducedMotion(options),
     backgroundAlpha: 0
   };

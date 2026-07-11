@@ -3,6 +3,8 @@ import type { AvatarConfig, AvatarManifest, AvatarPoseInput, AvatarState, Avatar
 
 type PixiAvatarRuntime = import("@codex-avatar-studio/runtime-pixi").PixiAvatarRuntime;
 
+const PIXI_INITIALIZATION_TIMEOUT_MS = 8_000;
+
 type PixiAvatarRendererProps = {
   state: AvatarState;
   config: AvatarConfig;
@@ -56,7 +58,8 @@ export function PixiAvatarRenderer({
           maxFps: config.frameRate,
           lowPerformance: intensity === "low" || focusMode,
           particlesEnabled: config.particleEffects && !config.noAnimation,
-          reducedMotion
+          reducedMotion,
+          initializeTimeoutMs: PIXI_INITIALIZATION_TIMEOUT_MS
         });
         runtimeRef.current = runtime;
 

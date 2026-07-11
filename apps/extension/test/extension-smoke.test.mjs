@@ -82,3 +82,10 @@ test("compiled extension registers commands and keeps webview CSP strict", async
   assert.ok(providerSource.includes("assets:manifestLoaded"), "asset reload message is compiled");
   assert.ok(providerSource.includes("asWebviewUri"), "local assets use VS Code webview URIs");
 });
+
+test("extension lifecycle keeps reload cleanup under VS Code subscriptions", async () => {
+  const extensionSource = await readFile(path.join(extensionRoot, "dist", "extension.js"), "utf8");
+
+  assert.match(extensionSource, /context\.subscriptions\.push/);
+  assert.match(extensionSource, /function deactivate\(\)/);
+});

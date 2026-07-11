@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { Texture } from "pixi.js";
 import { PixiTextureCache } from "../src/textureCache.js";
 
-function fakeTexture(id: string): Texture & { id: string; destroyed: boolean } {
+function fakeTexture(id: string, width = 1, height = 1): Texture & { id: string; destroyed: boolean } {
   return {
     id,
+    width,
+    height,
     destroyed: false,
     destroy: vi.fn(function (this: { destroyed: boolean }) {
       this.destroyed = true;
@@ -61,5 +63,37 @@ describe("PixiTextureCache", () => {
     await expect(pending).rejects.toThrow("after the cache was cleared");
     expect(texture.destroyed).toBe(true);
     expect(cache.size).toBe(0);
+  });
+
+  it("evicts the least recently used texture when entry limits are reached", async () => {
+    const first = fakeTexture("first", 2, 2);
+    const second = fakeTexture("second", 2, 2);
+    const third = fakeTexture("third", 2, 2);
+    const textures = [first, second, third];
+    const cache = new PixiTextureCache({
+      maxEntries: 2,
+      maxBytes: 64,
+      load: async () => textures.shift() as Texture
+    });
+
+    await cache.load("first.png");
+    await cache.load("second.png");
+    expect(cache.get("first.png")).toBe(first);
+    await cache.load("third.png");
+
+    expect(second.destroyed).toBe(true);
+    expect(first.destroyed).toBe(false);
+    expect(cache.size).toBe(2);
+    expect(cache.estimatedBytes).toBe(32);
+  });
+
+  it("rejects a texture that exceeds the byte budget", async () => {
+    const oversized = fakeTexture("oversized", 3, 2);
+    const cache = new PixiTextureCache({ maxBytes: 16, load: async () => oversized });
+
+    await expect(cache.load("oversized.png")).rejects.toThrow("cache limit");
+    expect(oversized.destroyed).toBe(true);
+    expect(cache.size).toBe(0);
+    expect(cache.estimatedBytes).toBe(0);
   });
 });

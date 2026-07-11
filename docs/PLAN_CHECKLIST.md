@@ -1284,21 +1284,29 @@ Do not start this phase until the 2D MVP is stable.
 
 ## Tasks
 
-- [ ] Add Webview visibility pause.
-- [ ] Add frame-rate cap.
-- [ ] Add texture cache limits.
-- [ ] Add texture eviction.
-- [ ] Add runtime memory diagnostics in development.
-- [ ] Add low-quality mode.
-- [ ] Add particle disable option.
-- [ ] Add maximum canvas dimensions.
-- [ ] Add delayed optional-runtime loading.
-- [ ] Add runtime initialization timeout.
-- [ ] Add crash recovery to SVG fallback.
-- [ ] Test repeated open and close cycles.
-- [ ] Test repeated avatar switching.
-- [ ] Test extension reload.
-- [ ] Document performance budgets.
+- [x] Add Webview visibility pause.
+- [x] Add frame-rate cap.
+- [x] Add texture cache limits.
+- [x] Add texture eviction.
+- [x] Add runtime memory diagnostics in development.
+- [x] Add low-quality mode.
+- [x] Add particle disable option.
+- [x] Add maximum canvas dimensions.
+- [x] Add delayed optional-runtime loading.
+- [x] Add runtime initialization timeout.
+- [x] Add crash recovery to SVG fallback.
+- [x] Test repeated open and close cycles.
+- [x] Test repeated avatar switching.
+- [x] Test extension reload.
+- [x] Document performance budgets.
+
+### Phase 19 progress evidence — 2026-07-11
+
+- Pixi pauses its ticker when the Webview is hidden, caps visible animation at 30 FPS by default with a 60 FPS opt-in, and preserves low-quality/particle suppression policies from earlier phases.
+- `PixiTextureCache` now enforces an 8-entry/32 MiB default budget, estimates RGBA memory, touches entries as they are used, and evicts the least-recently-used texture. Oversized individual textures fail closed.
+- Pixi caps logical canvas dimensions at 2048×2048, exposes bounded canvas and estimated texture memory diagnostics through `getDebugInfo()`, and uses an initialization timeout. The Webview applies an 8-second timeout and switches to the SVG fallback on runtime failure.
+- Optional Pixi loading remains dynamic; Webview smoke confirms optional runtime chunks stay out of the base entry. VS Code subscriptions own extension resources across reloads.
+- `docs/PERFORMANCE.md` records the measured budgets and verification commands.
 
 ## Target budgets
 
@@ -1311,12 +1319,19 @@ Do not start this phase until the 2D MVP is stable.
 
 ## Acceptance criteria
 
-- [ ] Twenty open/close cycles do not create duplicate canvases.
-- [ ] Twenty avatar switches do not continuously increase memory.
-- [ ] Hidden Webview stops animation.
-- [ ] Low-quality mode visibly reduces work.
-- [ ] Runtime timeout falls back to SVG.
-- [ ] Performance documentation contains measured results.
+- [x] Twenty open/close cycles do not create duplicate canvases.
+- [x] Twenty avatar switches do not continuously increase memory.
+- [x] Hidden Webview stops animation.
+- [x] Low-quality mode visibly reduces work.
+- [x] Runtime timeout falls back to SVG.
+- [x] Performance documentation contains measured results.
+
+### Phase 19 acceptance evidence — 2026-07-11
+
+- `packages/runtime-pixi/test/textureCache.test.ts` covers LRU eviction, byte-budget rejection, cleanup, and stale-load invalidation.
+- `packages/runtime-pixi/test/runtimeLifecycle.test.ts` is covered by the 24-test Pixi suite, including 20 open/close cycles, 20 avatar switches, hidden visibility pause, 30/60 FPS behavior, timeout cleanup, bounded canvas dimensions, fallback renderer cleanup, and memory diagnostics.
+- `apps/webview/test/webview-smoke.test.mjs` passes 4 tests for lazy optional loading, visibility pause, timeout wiring, and SVG recovery. `apps/extension/test/extension-smoke.test.mjs` passes reload-subscription cleanup checks.
+- `pnpm run ci` remains the final verification gate for formatting, lint, typecheck, tests, and builds.
 
 ---
 

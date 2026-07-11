@@ -6,6 +6,7 @@ const pixiState = vi.hoisted(() => ({
     canvas: object;
     destroy: ReturnType<typeof vi.fn>;
     initOptions: unknown;
+    renderer: { resolution: number; resize: ReturnType<typeof vi.fn> };
     stage: { addChild: ReturnType<typeof vi.fn>; visible: boolean };
     ticker: {
       maxFPS: number;
@@ -16,6 +17,7 @@ const pixiState = vi.hoisted(() => ({
     };
   }>,
   nextInitError: null as Error | null,
+  initDelayMs: 0,
   assetTexture: { source: {}, width: 128, height: 64, destroy: vi.fn() }
 }));
 
@@ -23,7 +25,7 @@ vi.mock("pixi.js", () => {
   class MockApplication {
     public readonly canvas = {};
     public readonly stage = { addChild: vi.fn(), visible: true };
-    public readonly renderer = { resolution: 1 };
+    public readonly renderer = { resolution: 1, resize: vi.fn() };
     public readonly ticker = { maxFPS: 0, start: vi.fn(), stop: vi.fn(), add: vi.fn(), remove: vi.fn() };
     public readonly destroy = vi.fn();
     public initOptions: unknown = undefined;
@@ -34,6 +36,9 @@ vi.mock("pixi.js", () => {
 
     public async init(options: unknown): Promise<void> {
       this.initOptions = options;
+      if (pixiState.initDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, pixiState.initDelayMs));
+      }
       if (pixiState.nextInitError) {
         const error = pixiState.nextInitError;
         pixiState.nextInitError = null;
@@ -115,15 +120,15 @@ const manifest = {
 
 let visibilityHandler: (() => void) | undefined;
 
-function createContainer() {
+function createContainer(clientWidth = 320, clientHeight = 180) {
   const pixiChildren: unknown[] = [];
   const replaceChildren = vi.fn((...nextChildren: unknown[]) => {
     pixiChildren.splice(0, pixiChildren.length, ...nextChildren);
   });
 
   return {
-    clientWidth: 320,
-    clientHeight: 180,
+    clientWidth,
+    clientHeight,
     pixiChildren,
     replaceChildren
   } as unknown as HTMLElement & { pixiChildren: unknown[] };
@@ -132,6 +137,7 @@ function createContainer() {
 beforeEach(() => {
   pixiState.applications.length = 0;
   pixiState.nextInitError = null;
+  pixiState.initDelayMs = 0;
   pixiState.assetTexture = { source: {}, width: 128, height: 64, destroy: vi.fn() };
   visibilityHandler = undefined;
   vi.stubGlobal("document", {
@@ -166,6 +172,8 @@ describe("PixiAvatarRuntime lifecycle", () => {
     expect(pixiState.applications).toHaveLength(1);
     expect(container.replaceChildren).toHaveBeenCalledWith(pixiState.applications[0]?.canvas);
     expect(runtime.getDebugInfo()?.renderer).toBe("Object");
+    expect(runtime.getDebugInfo()?.textureCount).toBe(0);
+    expect(runtime.getDebugInfo()?.textureBytes).toBe(0);
 
     await runtime.dispose();
 
@@ -285,6 +293,65 @@ describe("PixiAvatarRuntime lifecycle", () => {
 
     await expect(runtime.initialize(createContainer(), manifest)).rejects.toThrow("WebGL unavailable");
     expect(pixiState.applications[0]?.destroy).toHaveBeenCalled();
+  });
+
+  it("times out a stalled initialization and cleans up when it eventually resolves", async () => {
+    pixiState.initDelayMs = 40;
+    const runtime = new PixiAvatarRuntime({ initializeTimeoutMs: 5 });
+
+    await expect(runtime.initialize(createContainer(), manifest)).rejects.toThrow("initialization timed out");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(pixiState.applications[0]?.destroy).toHaveBeenCalled();
+    expect(runtime.getDebugInfo()).toBeUndefined();
+  });
+
+  it("survives twenty open-close cycles without duplicate canvases or live applications", async () => {
+    const runtime = new PixiAvatarRuntime();
+
+    for (let index = 0; index < 20; index += 1) {
+      const container = createContainer();
+      await runtime.initialize(container, manifest);
+      expect(container.pixiChildren).toHaveLength(1);
+      await runtime.dispose();
+      expect(container.pixiChildren).toHaveLength(0);
+    }
+
+    expect(pixiState.applications).toHaveLength(20);
+    for (const application of pixiState.applications) expect(application.destroy).toHaveBeenCalled();
+  });
+
+  it("switches avatars twenty times while retaining only the active application", async () => {
+    const runtime = new PixiAvatarRuntime();
+    const containers = [];
+
+    for (let index = 0; index < 20; index += 1) {
+      const container = createContainer();
+      containers.push(container);
+      await runtime.initialize(container, { ...manifest, id: `avatar-${index}` });
+      if (index > 0) expect(containers[index - 1]?.pixiChildren).toHaveLength(0);
+      expect(container.pixiChildren).toHaveLength(1);
+    }
+
+    expect(pixiState.applications).toHaveLength(20);
+    for (const application of pixiState.applications.slice(0, 19)) {
+      expect(application.destroy).toHaveBeenCalled();
+    }
+    expect(pixiState.applications[19]?.destroy).not.toHaveBeenCalled();
+    await runtime.dispose();
+    expect(containers[19]?.pixiChildren).toHaveLength(0);
+  });
+
+  it("bounds oversized canvas dimensions and reports runtime memory diagnostics", async () => {
+    const runtime = new PixiAvatarRuntime();
+    const container = createContainer(5000, 6000);
+
+    await runtime.initialize(container, manifest);
+
+    expect(runtime.getDebugInfo()?.canvasWidth).toBe(2048);
+    expect(runtime.getDebugInfo()?.canvasHeight).toBe(2048);
+    expect(pixiState.applications[0]?.renderer.resize).toHaveBeenCalledWith(2048, 2048);
+    await runtime.dispose();
   });
 
   it("loads the local spritesheet contract and advances clips on the ticker", async () => {

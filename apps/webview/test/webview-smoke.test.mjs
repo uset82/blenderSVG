@@ -62,6 +62,18 @@ test("webview source does not call remote network APIs", async () => {
   }
 });
 
+test("webview pauses optional runtimes and recovers to SVG after initialization failure", async () => {
+  const stageSource = await readFile(path.join(webviewRoot, "src", "components", "AvatarStage.tsx"), "utf8");
+  const pixiSource = await readFile(path.join(webviewRoot, "src", "renderers", "PixiAvatarRenderer.tsx"), "utf8");
+  const visibilityHook = await readFile(path.join(webviewRoot, "src", "hooks", "usePageVisibility.ts"), "utf8");
+
+  assert.match(stageSource, /RuntimeBoundary/);
+  assert.match(stageSource, /usePageVisibility/);
+  assert.match(pixiSource, /initializeTimeoutMs/);
+  assert.match(pixiSource, /setVisible\(pageVisible\)/);
+  assert.match(visibilityHook, /visibilitychange/);
+});
+
 async function readSourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
