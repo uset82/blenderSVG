@@ -24,13 +24,24 @@ try {
   console.log(`Clean profile: ${tempRoot}`);
   console.log(`Installing: ${vsixPath}`);
 
-  runCode(["--extensions-dir", extensionsDir, "--user-data-dir", userDataDir, "--install-extension", vsixPath, "--force"]);
+  runCode([
+    "--extensions-dir",
+    extensionsDir,
+    "--user-data-dir",
+    userDataDir,
+    "--install-extension",
+    vsixPath,
+    "--force"
+  ]);
   const listed = runCode(["--extensions-dir", extensionsDir, "--user-data-dir", userDataDir, "--list-extensions"])
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  assert.ok(listed.includes(extensionId), `Expected ${extensionId} in clean profile list. Got: ${listed.join(", ") || "(empty)"}`);
+  assert.ok(
+    listed.includes(extensionId),
+    `Expected ${extensionId} in clean profile list. Got: ${listed.join(", ") || "(empty)"}`
+  );
   console.log(`Clean-profile install OK: ${extensionId}`);
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });

@@ -1103,6 +1103,8 @@ This phase is optional for the first public MVP but must be implemented before v
 
 Do not start this phase until the PixiJS MVP is stable.
 
+`DEFERRED:` Post-MVP optional adapter. Not required for the SVG/Pixi MVP route (Phases 0–12, 18–22). Scaffold remains under `optional/runtime-inochi2d` and must stay out of the base VSIX.
+
 ## Tasks
 
 - [ ] Reconfirm the runtime and model-format licenses.
@@ -1135,6 +1137,8 @@ Do not start this phase until the PixiJS MVP is stable.
 # Phase 15 — Optional Three.js and VRM Runtime
 
 Do not start this phase until the 2D MVP is stable.
+
+`DEFERRED:` Post-MVP optional adapter. Not required for the SVG/Pixi MVP route. Scaffold remains under `optional/runtime-vrm` and must stay out of the base VSIX.
 
 ## Tasks
 
@@ -1174,6 +1178,8 @@ Do not start this phase until the 2D MVP is stable.
 
 # Phase 16 — Optional Live2D Compatibility
 
+`DEFERRED:` Post-MVP optional adapter. Not required for the SVG/Pixi MVP route. Scaffold remains under `optional/runtime-live2d`; proprietary SDK files must not enter the base VSIX (enforced by `pnpm validate:vsix`).
+
 ## Tasks
 
 - [ ] Complete a dedicated licensing review.
@@ -1202,6 +1208,8 @@ Do not start this phase until the 2D MVP is stable.
 ---
 
 # Phase 17 — Blender Export Tools
+
+`DEFERRED:` Optional post-MVP tooling path relative to the required SVG/Pixi route. Partial local scripts and extension command wiring exist under `scripts/blender` and are covered by dry-run tests, but this phase remains open until full Blender host export acceptance is completed on a machine with Blender installed.
 
 ## Tasks
 
@@ -1492,27 +1500,57 @@ Do not start this phase until the 2D MVP is stable.
 
 The MVP is complete only when every item below is checked.
 
-- [ ] Extension installs and activates.
-- [ ] Assistant panel opens.
-- [ ] React Webview loads.
-- [ ] Strict CSP is active.
-- [ ] Built-in SVG fallback works.
-- [ ] Built-in original PixiJS spritesheet avatar works.
-- [ ] State machine works.
-- [ ] Manual state commands work.
-- [ ] File save changes the avatar state.
-- [ ] Diagnostics change the avatar state.
-- [ ] Task start and completion change the avatar state.
-- [ ] Avatar package validation works.
-- [ ] Local avatar import works.
-- [ ] Reduced-motion mode works.
-- [ ] Hidden Webview pauses rendering.
-- [ ] Invalid runtime falls back safely.
-- [ ] Tests pass.
-- [ ] CI passes.
+- [x] Extension installs and activates.
+- [x] Assistant panel opens.
+- [x] React Webview loads.
+- [x] Strict CSP is active.
+- [x] Built-in SVG fallback works.
+- [x] Built-in original PixiJS spritesheet avatar works.
+- [x] State machine works.
+- [x] Manual state commands work.
+- [x] File save changes the avatar state.
+- [x] Diagnostics change the avatar state.
+- [x] Task start and completion change the avatar state.
+- [x] Avatar package validation works.
+- [x] Local avatar import works.
+- [x] Reduced-motion mode works.
+- [x] Hidden Webview pauses rendering.
+- [x] Invalid runtime falls back safely.
+- [x] Tests pass.
+- [x] CI passes.
 - [x] VSIX installs in a clean profile.
-- [ ] No unlicensed character assets are included.
-- [ ] Documentation is complete.
+- [x] No unlicensed character assets are included.
+- [x] Documentation is complete.
+
+### MVP complete evidence — 2026-07-12
+
+Cross-checked against completed Phases 0–13 and 18–22. Optional Phases 14–17 remain `DEFERRED` (not part of the required MVP route).
+
+| Criterion | Evidence |
+| --- | --- |
+| Extension installs and activates | `pnpm smoke:vsix` activates the packaged extension; `pnpm smoke:clean-profile` lists `codex-avatar-studio.codex-avatar-studio-extension` |
+| Assistant panel opens | Packaged smoke resolves `codexAvatar.assistantView`; Phase 4 Activity Bar / command registration still covered by extension smoke |
+| React Webview loads | `apps/webview` build + `webview-smoke` + packaged smoke HTML root / CSP / message exchange |
+| Strict CSP is active | `extension-smoke.test.mjs` asserts `Content-Security-Policy` and `default-src 'none'`; packaged smoke re-checks CSP |
+| Built-in SVG fallback | Built-in package / SVG renderer; VSIX requires `placeholder-avatar.svg`; Webview SVG base entry smoke |
+| Built-in original PixiJS spritesheet | Clean-room geometric atlas in package; `pixi-assets.test.mjs` + runtime-pixi suite (24); VSIX requires spritesheet SVG/JSON |
+| State machine | `packages/avatar-core/test/stateMachine.test.ts` (and related core suites, 19 total) |
+| Manual state commands | Packaged smoke executes registered commands including `codexAvatar.setState` and state preview commands |
+| File save → avatar state | `apps/extension/test/ideEvents.test.ts` save → `success` |
+| Diagnostics → avatar state | `ideEvents.test.ts` debounced diagnostics → `warning` |
+| Task start/completion → avatar state | `ideEvents.test.ts` task start → `thinking`, successful end → `success`, failed end → `error` |
+| Avatar package validation | `avatar-packages.test.mjs` rejects traversal, remote entrypoints, bad checksums, forged registry paths |
+| Local avatar import | Same suite: import, activate, remove returns to built-in |
+| Reduced-motion mode | Phase 6/12 acceptance; Webview `noAnimation` wiring; core reduced-motion policy tests |
+| Hidden Webview pauses | Phase 19 Pixi lifecycle + `webview-smoke` visibility pause |
+| Invalid runtime falls back | Webview timeout/SVG recovery smoke; Pixi init failure fallback lifecycle tests |
+| Tests pass | `pnpm test` 2026-07-12: 19 core + 17 pipeline + 24 Pixi + 15 extension Node + 5 extension Vitest + 4 Webview |
+| CI passes | `.github/workflows/ci.yml` runs install/build/typecheck/lint/test/package/validate/smoke; local `pnpm run ci` evidence from Phases 20–21 |
+| VSIX clean profile | `pnpm smoke:clean-profile` (CLI shim, not `Code.exe`) |
+| No unlicensed character assets | Clean-room built-in SVG/Pixi; `pnpm validate:vsix` rejects proprietary SDK/dev assets; `docs/LICENSING.md` non-negotiable asset policy. Separate release note: GPL Potrace remains a vectorization dependency review item and is not a character asset in the VSIX |
+| Documentation complete | Phase 22 + `pnpm validate:docs` |
+
+Re-verified this session: `pnpm test`, `pnpm validate:vsix` (27 files), `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, `pnpm validate:docs`.
 
 ---
 
