@@ -1061,27 +1061,41 @@ This phase is optional for the first public MVP but must be implemented before v
 
 ## Tasks
 
-- [ ] Create an audio-reactive interface independent of any TTS provider.
-- [ ] Accept normalized amplitude values from `0` to `1`.
-- [ ] Add attack and release smoothing.
-- [ ] Map amplitude to mouth-open levels.
-- [ ] Add silence detection.
-- [ ] Add speaking-start and speaking-stop events.
-- [ ] Add a Web Audio API adapter for local playback.
-- [ ] Avoid microphone permission unless explicitly requested.
-- [ ] Add a mock audio-level generator for testing.
-- [ ] Connect speech level to SVG.
-- [ ] Connect speech level to PixiJS.
-- [ ] Add reduced-motion behavior.
-- [ ] Add unit tests for smoothing.
+- [x] Create an audio-reactive interface independent of any TTS provider.
+- [x] Accept normalized amplitude values from `0` to `1`.
+- [x] Add attack and release smoothing.
+- [x] Map amplitude to mouth-open levels.
+- [x] Add silence detection.
+- [x] Add speaking-start and speaking-stop events.
+- [x] Add a Web Audio API adapter for local playback.
+- [x] Avoid microphone permission unless explicitly requested.
+- [x] Add a mock audio-level generator for testing.
+- [x] Connect speech level to SVG.
+- [x] Connect speech level to PixiJS.
+- [x] Add reduced-motion behavior.
+- [x] Add unit tests for smoothing.
+
+### Phase 13 progress evidence — 2026-07-11
+
+- `packages/avatar-core/src/audio.ts` exposes a TTS-independent normalized amplitude interface with attack/release smoothing, silence thresholding, speaking start/stop callbacks, reset behavior, and a deterministic mock generator.
+- `apps/webview/src/audio/webAudioLevelAdapter.ts` analyzes local media-element playback only. It never calls microphone APIs and provides visibility observation that suspends/resumes processing when the Webview is hidden.
+- `useAvatarBehavior` consumes normalized external audio/speech levels, emits a smoothed mouth level to SVG and Pixi, and preserves text-only behavior as a fallback when no audio level is supplied. No-animation mode closes the mouth.
+- Pixi now renders a dedicated mouth layer and scales it from the smoothed speech level; SVG uses the same `mouthOpen` signal.
+- Verification: avatar-core audio tests pass 19/19; Pixi tests pass 17/17; Webview source smoke rejects microphone/network APIs; full CI is green.
 
 ## Acceptance criteria
 
-- [ ] Mock speech produces visible mouth movement.
-- [ ] Silence closes the mouth.
-- [ ] Audio processing stops when the Webview is hidden.
-- [ ] No microphone permission is requested by default.
-- [ ] Runtime remains functional without audio.
+- [x] Mock speech produces visible mouth movement.
+- [x] Silence closes the mouth.
+- [x] Audio processing stops when the Webview is hidden.
+- [x] No microphone permission is requested by default.
+- [x] Runtime remains functional without audio.
+
+### Phase 13 acceptance evidence — 2026-07-11
+
+- `pnpm --filter @codex-avatar-studio/avatar-core test` covers attack/release smoothing, normalized clamping, speaking transitions, and mock levels.
+- `pnpm --filter @codex-avatar-studio/runtime-pixi test` verifies the Pixi mouth layer responds to speech level without breaking the runtime contract.
+- `pnpm --filter @codex-avatar-studio/webview test` verifies the Webview bundle and rejects microphone/network APIs; `pnpm run ci` passes all stages.
 
 ---
 

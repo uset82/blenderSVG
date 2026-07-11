@@ -49,6 +49,7 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
   private animationController: SpriteAnimationController | undefined;
   private animationElapsedMs = 0;
   private face: Graphics | undefined;
+  private mouth: Graphics | undefined;
   private effects: Graphics | undefined;
   private container: HTMLElement | undefined;
   private observer: ResizeObserver | undefined;
@@ -85,6 +86,7 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
     container.replaceChildren(application.canvas);
     this.avatar = new Graphics().circle(0, 0, 48).fill(0x60a5fa);
     this.face = createFaceGraphics();
+    this.mouth = createMouthGraphics();
     this.effects = new Graphics();
     try {
       const spriteSheet = await loadSpriteSheet(manifest, this.textureCache);
@@ -115,6 +117,7 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
     if (this.sprite) application.stage.addChild(this.sprite);
     application.stage.addChild(this.effects);
     application.stage.addChild(this.face);
+    application.stage.addChild(this.mouth);
     this.sprite?.scale.set(1.5);
     if (this.animationController) {
       application.ticker.add?.(this.animationTickerHandler);
@@ -167,7 +170,9 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
   }
 
   public setSpeechLevel(level: number): void {
-    this.avatar?.scale.set(1 + Math.max(0, Math.min(1, level)) * 0.12);
+    const normalized = Math.max(0, Math.min(1, level));
+    this.avatar?.scale.set(1 + normalized * 0.12);
+    this.mouth?.scale.set(1, 0.65 + normalized * 0.9);
   }
 
   public setPoseInput(input: { cursorX?: number | undefined; cursorY?: number | undefined }): void {
@@ -192,6 +197,7 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
     this.avatar.position.set(width / 2, height / 2);
     this.sprite?.position.set(width / 2, height / 2);
     this.effects?.position.set(width / 2, height / 2);
+    this.mouth?.position.set(width / 2, height / 2);
     this.setPoseInput({});
   }
 
@@ -212,6 +218,7 @@ export class PixiAvatarRuntime implements AvatarRuntimeAdapter {
     this.animationController = undefined;
     this.animationElapsedMs = 0;
     this.face = undefined;
+    this.mouth = undefined;
     this.effects = undefined;
     this.container?.replaceChildren();
     this.container = undefined;
@@ -346,13 +353,11 @@ const particlePositions: readonly [number, number, number][] = [
 ];
 
 function createFaceGraphics(): Graphics {
-  return new Graphics()
-    .circle(-12, -8, 4)
-    .fill(0x111827)
-    .circle(12, -8, 4)
-    .fill(0x111827)
-    .circle(0, 10, 4)
-    .fill(0x111827);
+  return new Graphics().circle(-12, -8, 4).fill(0x111827).circle(12, -8, 4).fill(0x111827);
+}
+
+function createMouthGraphics(): Graphics {
+  return new Graphics().circle(0, 10, 4).fill(0x111827);
 }
 
 function clampUnit(value: number): number {

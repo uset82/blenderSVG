@@ -1,4 +1,5 @@
 export * from "./capabilities.js";
+export * from "./audio.js";
 export * from "./events.js";
 export * from "./gpuSupport.js";
 export * from "./live2d.js";

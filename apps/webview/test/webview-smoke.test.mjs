@@ -45,7 +45,14 @@ test("webview bundle includes asset manager bridge actions", async () => {
 
 test("webview source does not call remote network APIs", async () => {
   const sourceFiles = await readSourceFiles(path.join(webviewRoot, "src"));
-  const bannedTokens = ["fetch(", "new WebSocket", "XMLHttpRequest", "EventSource", "navigator.sendBeacon"];
+  const bannedTokens = [
+    "fetch(",
+    "new WebSocket",
+    "XMLHttpRequest",
+    "EventSource",
+    "navigator.sendBeacon",
+    "getUserMedia"
+  ];
 
   for (const filePath of sourceFiles) {
     const source = await readFile(filePath, "utf8");

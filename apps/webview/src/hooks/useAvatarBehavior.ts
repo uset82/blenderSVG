@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AudioReactiveMouth } from "@codex-avatar-studio/avatar-core";
 import type { AvatarConfig, AvatarPoseInput, AvatarState, AvatarTrigger } from "../bridge/messages";
 
 type AvatarBehaviorOptions = {
@@ -26,6 +27,8 @@ export function useAvatarBehavior(options: AvatarBehaviorOptions): AvatarBehavio
   const [lastActivityAt, setLastActivityAt] = useState(Date.now());
   const [cursorPose, setCursorPose] = useState<AvatarPoseInput>({ cursorX: 0.5, cursorY: 0.5 });
   const [mouthOpen, setMouthOpen] = useState(0);
+  const audioMouth = useRef(new AudioReactiveMouth());
+  const lastAudioAt = useRef(Date.now());
   const lastSpeechBubbleAt = useRef(0);
   const pendingPointerPose = useRef<AvatarPoseInput | null>(null);
   const pointerFrame = useRef<number | null>(null);
@@ -145,8 +148,37 @@ export function useAvatarBehavior(options: AvatarBehaviorOptions): AvatarBehavio
   }, []);
 
   useEffect(() => {
+    if (!options.config.lipSyncEnabled || options.config.noAnimation) {
+      audioMouth.current.reset();
+      setMouthOpen(0);
+      return;
+    }
+
+    const amplitude = options.externalPoseInput.audioLevel ?? options.externalPoseInput.speechLevel;
+    if (amplitude === undefined) return;
+    const now = Date.now();
+    const snapshot = audioMouth.current.update(amplitude, Math.max(1, now - lastAudioAt.current));
+    lastAudioAt.current = now;
+    setMouthOpen(snapshot.mouthOpen);
+  }, [
+    options.config.lipSyncEnabled,
+    options.config.noAnimation,
+    options.externalPoseInput.audioLevel,
+    options.externalPoseInput.speechLevel
+  ]);
+
+  useEffect(() => {
     if (displayState !== "speaking" || options.config.focusMode) {
       setMouthOpen(0);
+      return;
+    }
+
+    if (
+      !options.config.lipSyncEnabled ||
+      options.config.noAnimation ||
+      options.externalPoseInput.audioLevel !== undefined ||
+      options.externalPoseInput.speechLevel !== undefined
+    ) {
       return;
     }
 
@@ -158,7 +190,15 @@ export function useAvatarBehavior(options: AvatarBehaviorOptions): AvatarBehavio
     }, 180);
 
     return () => window.clearInterval(timer);
-  }, [displayMessage, displayState, options.config.focusMode]);
+  }, [
+    displayMessage,
+    displayState,
+    options.config.focusMode,
+    options.config.lipSyncEnabled,
+    options.config.noAnimation,
+    options.externalPoseInput.audioLevel,
+    options.externalPoseInput.speechLevel
+  ]);
 
   return {
     displayState,
@@ -166,7 +206,8 @@ export function useAvatarBehavior(options: AvatarBehaviorOptions): AvatarBehavio
     poseInput: {
       ...cursorPose,
       ...options.externalPoseInput,
-      mouthOpen
+      mouthOpen,
+      speechLevel: mouthOpen
     },
     triggerEvent: options.triggerEvent
   };

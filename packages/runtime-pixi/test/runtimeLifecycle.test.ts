@@ -226,13 +226,18 @@ describe("PixiAvatarRuntime lifecycle", () => {
     const face = application?.stage.addChild.mock.calls[2]?.[0] as {
       position: { set: ReturnType<typeof vi.fn> };
     };
+    const mouth = application?.stage.addChild.mock.calls[3]?.[0] as {
+      scale: { set: ReturnType<typeof vi.fn> };
+    };
     const effects = application?.stage.addChild.mock.calls[1]?.[0] as {
       circle: ReturnType<typeof vi.fn>;
     };
 
     runtime.setPoseInput({ cursorX: 1, cursorY: 0 });
+    runtime.setSpeechLevel(1);
     runtime.setState("thinking");
     expect(face.position.set).toHaveBeenLastCalledWith(167, 85);
+    expect(mouth.scale.set).toHaveBeenLastCalledWith(1, 1.55);
     expect(effects.circle).toHaveBeenCalledTimes(2);
 
     runtime.setState("success");
