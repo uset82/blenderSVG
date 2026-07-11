@@ -20,7 +20,8 @@ export function sanitizeSvg(svg: string): string {
   return svg
     .replace(/<script\b[\s\S]*?<\/script>/gi, "")
     .replace(/<foreignObject\b[\s\S]*?<\/foreignObject>/gi, "")
-    .replace(/\s(?:on[a-z]+|href|xlink:href)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s(?:on[a-z]+)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s(?:href|xlink:href)\s*=\s*(?:"(?!#[^"]*")[^"]*"|'(?!#[^']*')[^']*'|[^\s>"']+)/gi, "")
     .replace(/url\s*\(\s*(?:https?:|data:)/gi, "url(");
 }
 

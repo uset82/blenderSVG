@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import * as path from "node:path";
 import { previewImageToSvg, savePreviewedImageToSvg } from "@codex-avatar-studio/asset-pipeline";
 import { AvatarWebviewProvider } from "./AvatarWebviewProvider.js";
 import { AvatarPackageError, AvatarPackageRegistry } from "./avatarPackages.js";
@@ -21,6 +20,26 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   const blenderOutputChannel = vscode.window.createOutputChannel("Codex Avatar Blender");
   ideEvents.start();
+
+  const deleteImportedAvatar = async (): Promise<void> => {
+    if (!requireWorkspaceTrust("delete an imported avatar")) return;
+    try {
+      const packages = await packageRegistry.listPackages();
+      const selected = await vscode.window.showQuickPick(
+        packages.map((avatarPackage) => ({ label: avatarPackage.manifest.name, description: avatarPackage.id })),
+        { title: "Codex Avatar: Delete Imported Avatar Package" }
+      );
+      if (!selected) return;
+      const wasActive = await packageRegistry.removeAvatar(selected.description);
+      if (wasActive) await updateAvatarConfig({ character: "default" });
+      if (wasActive) void provider.reloadAssets();
+      vscode.window.showInformationMessage(
+        wasActive ? "Avatar deleted. The built-in avatar is active again." : "Avatar package deleted."
+      );
+    } catch (error) {
+      showPackageError(error);
+    }
+  };
 
   context.subscriptions.push(
     ideEvents,
@@ -60,28 +79,32 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.window.showInformationMessage("Codex Avatar debug events are shown in the assistant panel.");
     }),
     registerCommand("codexAvatar.openAssetsFolder", async () => {
+      if (!requireWorkspaceTrust("open avatar assets")) return;
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (!workspaceFolder) {
         vscode.window.showErrorMessage("Open a workspace folder before opening avatar assets.");
         return;
       }
 
-      const config = getAvatarConfig();
-      const assetWorkspacePath = path.isAbsolute(config.assetWorkspace)
-        ? config.assetWorkspace
-        : path.join(workspaceFolder.uri.fsPath, config.assetWorkspace);
+      const assetWorkspacePath = packageRegistry.getAssetRoot();
+      if (!assetWorkspacePath) {
+        vscode.window.showErrorMessage("Avatar assets must be stored inside the current workspace.");
+        return;
+      }
       const assetWorkspaceUri = vscode.Uri.file(assetWorkspacePath);
 
       await vscode.workspace.fs.createDirectory(assetWorkspaceUri);
       await vscode.commands.executeCommand("revealFileInOS", assetWorkspaceUri);
     }),
     registerCommand("codexAvatar.reloadAvatar", () => {
+      if (!requireWorkspaceTrust("reload workspace avatar assets")) return;
       void provider.reloadAssets();
       provider.setState("success");
       provider.trigger("nod");
       vscode.window.showInformationMessage("Codex Avatar assets reloaded.");
     }),
     registerCommand("codexAvatar.importAvatar", async () => {
+      if (!requireWorkspaceTrust("import an avatar package")) return;
       const selected = await vscode.window.showOpenDialog({
         title: "Codex Avatar: Import Avatar Package",
         canSelectFiles: true,
@@ -99,25 +122,10 @@ export function activate(context: vscode.ExtensionContext): void {
         showPackageError(error);
       }
     }),
-    registerCommand("codexAvatar.removeAvatar", async () => {
-      try {
-        const packages = await packageRegistry.listPackages();
-        const selected = await vscode.window.showQuickPick(
-          packages.map((avatarPackage) => ({ label: avatarPackage.manifest.name, description: avatarPackage.id })),
-          { title: "Codex Avatar: Remove Avatar Package" }
-        );
-        if (!selected) return;
-        const wasActive = await packageRegistry.removeAvatar(selected.description);
-        if (wasActive) await updateAvatarConfig({ character: "default" });
-        if (wasActive) void provider.reloadAssets();
-        vscode.window.showInformationMessage(
-          wasActive ? "Avatar removed. The built-in avatar is active again." : "Avatar package removed."
-        );
-      } catch (error) {
-        showPackageError(error);
-      }
-    }),
+    registerCommand("codexAvatar.removeAvatar", deleteImportedAvatar),
+    registerCommand("codexAvatar.deleteImportedAvatar", deleteImportedAvatar),
     registerCommand("codexAvatar.activateAvatar", async () => {
+      if (!requireWorkspaceTrust("activate an avatar package")) return;
       try {
         const packages = await packageRegistry.listPackages();
         const selected = await vscode.window.showQuickPick(
@@ -136,6 +144,17 @@ export function activate(context: vscode.ExtensionContext): void {
         await updateAvatarConfig({ character: selected.id ?? "default" });
         await provider.reloadAssets();
         vscode.window.showInformationMessage(`Active avatar: ${selected.label}.`);
+      } catch (error) {
+        showPackageError(error);
+      }
+    }),
+    registerCommand("codexAvatar.clearCache", async () => {
+      if (!requireWorkspaceTrust("clear generated avatar data")) return;
+      try {
+        await packageRegistry.clearGeneratedCache();
+        vscode.window.showInformationMessage(
+          "Generated avatar cache and previews cleared. Imported avatars and exports were kept."
+        );
       } catch (error) {
         showPackageError(error);
       }
@@ -187,6 +206,7 @@ export function activate(context: vscode.ExtensionContext): void {
       registerCommand(`codexAvatar.trigger.${trigger.replaceAll("-", "")}`, () => provider.trigger(trigger))
     ),
     registerCommand("codexAvatar.vectorizeImage", async () => {
+      if (!requireWorkspaceTrust("vectorize an avatar asset")) return;
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (!workspaceFolder) {
         vscode.window.showErrorMessage("Open a workspace folder before vectorizing avatar assets.");
@@ -244,6 +264,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     registerCommand("codexAvatar.exportBlenderScene", async () => {
+      if (!requireWorkspaceTrust("export Blender avatar assets")) return;
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (!workspaceFolder) {
         vscode.window.showErrorMessage("Open a workspace folder before exporting Blender avatar assets.");
@@ -328,4 +349,10 @@ function showPackageError(error: unknown): void {
   const message =
     error instanceof AvatarPackageError ? error.message : error instanceof Error ? error.message : String(error);
   vscode.window.showErrorMessage(`Avatar package error: ${message}`);
+}
+
+function requireWorkspaceTrust(action: string): boolean {
+  if (vscode.workspace.isTrusted) return true;
+  vscode.window.showWarningMessage(`Codex Avatar cannot ${action} until the workspace is trusted.`);
+  return false;
 }

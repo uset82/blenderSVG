@@ -105,7 +105,8 @@ function spawnProcess(
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
-      windowsHide: true
+      windowsHide: true,
+      shell: false
     });
     let stdout = "";
     let stderr = "";

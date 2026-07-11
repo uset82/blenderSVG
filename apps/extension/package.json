@@ -25,7 +25,9 @@
     "onCommand:codexAvatar.reloadAvatar",
     "onCommand:codexAvatar.importAvatar",
     "onCommand:codexAvatar.removeAvatar",
+    "onCommand:codexAvatar.deleteImportedAvatar",
     "onCommand:codexAvatar.activateAvatar",
+    "onCommand:codexAvatar.clearCache",
     "onCommand:codexAvatar.setState",
     "onCommand:codexAvatar.startThinking",
     "onCommand:codexAvatar.startSpeaking",
@@ -129,8 +131,16 @@
         "title": "Codex Avatar: Remove Avatar Package"
       },
       {
+        "command": "codexAvatar.deleteImportedAvatar",
+        "title": "Codex Avatar: Delete Imported Avatar Package"
+      },
+      {
         "command": "codexAvatar.activateAvatar",
         "title": "Codex Avatar: Activate Avatar Package"
+      },
+      {
+        "command": "codexAvatar.clearCache",
+        "title": "Codex Avatar: Clear Generated Cache"
       },
       {
         "command": "codexAvatar.setState",

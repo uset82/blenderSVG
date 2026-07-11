@@ -1,10 +1,16 @@
 import { createHash } from "node:crypto";
-import { cp, mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, readFile, realpath, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { validateAvatarManifest, type AvatarManifest } from "@codex-avatar-studio/avatar-core";
+import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline";
 
 const REGISTRY_SCHEMA_VERSION = 1;
 const MANIFEST_FILE = "avatar.manifest.json";
+const GENERATED_CACHE_DIRECTORIES = ["cache", "previews"] as const;
+
+export const MAX_AVATAR_PACKAGE_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_AVATAR_PACKAGE_TOTAL_BYTES = 64 * 1024 * 1024;
+export const MAX_AVATAR_PACKAGE_FILES = 128;
 
 export type AvatarPackage = {
   id: string;
@@ -45,7 +51,10 @@ export class AvatarPackageRegistry {
     const workspaceRoot = this.workspaceRootProvider();
     if (!workspaceRoot) return undefined;
     const assetWorkspace = this.assetWorkspaceProvider();
-    return path.resolve(path.isAbsolute(assetWorkspace) ? assetWorkspace : path.join(workspaceRoot, assetWorkspace));
+    const assetRoot = path.resolve(
+      path.isAbsolute(assetWorkspace) ? assetWorkspace : path.join(workspaceRoot, assetWorkspace)
+    );
+    return isPathInside(workspaceRoot, assetRoot) ? assetRoot : undefined;
   }
 
   public async importPackage(sourcePath: string): Promise<AvatarPackage> {
@@ -127,6 +136,26 @@ export class AvatarPackageRegistry {
     return wasActive;
   }
 
+  public async clearGeneratedCache(): Promise<void> {
+    const assetRoot = this.requireAssetRoot();
+    for (const directory of GENERATED_CACHE_DIRECTORIES) {
+      const target = path.join(assetRoot, directory);
+      assertInside(assetRoot, target, `Generated ${directory} directory`);
+      const targetStat = await lstat(target).catch((error: unknown) => {
+        if (isFileNotFound(error)) return undefined;
+        throw error;
+      });
+      if (!targetStat) continue;
+      if (targetStat.isSymbolicLink()) {
+        throw new AvatarPackageError(`Generated ${directory} directory must not be a symbolic link.`);
+      }
+      if (!targetStat.isDirectory()) {
+        throw new AvatarPackageError(`Generated ${directory} path is not a directory.`);
+      }
+      await rm(target, { recursive: true, force: true });
+    }
+  }
+
   private requireAssetRoot(): string {
     const assetRoot = this.getAssetRoot();
     if (!assetRoot) throw new AvatarPackageError("Open a workspace folder before managing avatar packages.");
@@ -168,6 +197,7 @@ export async function validateAvatarPackage(packageRoot: string): Promise<Avatar
   let manifest: AvatarManifest | undefined;
   try {
     const packagePath = await realpath(packageRoot);
+    await validatePackageTree(packagePath, errors);
     const manifestPath = path.join(packagePath, MANIFEST_FILE);
     const parsed: unknown = JSON.parse(await readFile(manifestPath, "utf8"));
     const manifestResult = validateAvatarManifest(parsed);
@@ -251,17 +281,75 @@ async function addReferencedFile(
   }
 
   try {
-    const result = await stat(filePath);
+    const result = await lstat(filePath);
+    if (result.isSymbolicLink()) {
+      throw new AvatarPackageError(`${field} must not reference a symbolic link: "${relativePath}".`);
+    }
     if (!result.isFile()) {
       errors.push(`${field} must reference a file: "${relativePath}".`);
       return;
     }
+    if (result.size > MAX_AVATAR_PACKAGE_FILE_BYTES) {
+      errors.push(`${field} exceeds the ${MAX_AVATAR_PACKAGE_FILE_BYTES}-byte avatar asset limit: "${relativePath}".`);
+      return;
+    }
     const realFilePath = await realpath(filePath);
     assertInside(packageRoot, realFilePath, field);
+    if (path.extname(filePath).toLowerCase() === ".svg") {
+      const source = await readFile(filePath, "utf8");
+      if (sanitizeSvg(source) !== source) {
+        errors.push(`${field} contains executable or remote SVG content: "${relativePath}".`);
+      }
+    }
     referencedFiles.add(filePath);
   } catch (error) {
     errors.push(`${field} is not a safe readable file: "${relativePath}" (${toErrorMessage(error)}).`);
   }
+}
+
+async function validatePackageTree(packageRoot: string, errors: string[]): Promise<void> {
+  let fileCount = 0;
+  let totalBytes = 0;
+
+  async function visit(directory: string): Promise<void> {
+    const entries = await readdir(directory, { withFileTypes: true });
+    for (const entry of entries) {
+      const filePath = path.join(directory, entry.name);
+      const entryStat = await lstat(filePath);
+      if (entryStat.isSymbolicLink()) {
+        errors.push(`Avatar packages must not contain symbolic links: "${path.relative(packageRoot, filePath)}".`);
+        continue;
+      }
+      if (entryStat.isDirectory()) {
+        await visit(filePath);
+        continue;
+      }
+      if (!entryStat.isFile()) {
+        errors.push(
+          `Avatar packages may contain only regular files and directories: "${path.relative(packageRoot, filePath)}".`
+        );
+        continue;
+      }
+
+      fileCount += 1;
+      totalBytes += entryStat.size;
+      if (fileCount > MAX_AVATAR_PACKAGE_FILES) {
+        errors.push(`Avatar package contains more than the ${MAX_AVATAR_PACKAGE_FILES}-file limit.`);
+        return;
+      }
+      if (entryStat.size > MAX_AVATAR_PACKAGE_FILE_BYTES) {
+        errors.push(
+          `Avatar asset exceeds the ${MAX_AVATAR_PACKAGE_FILE_BYTES}-byte file limit: "${path.relative(packageRoot, filePath)}".`
+        );
+      }
+      if (totalBytes > MAX_AVATAR_PACKAGE_TOTAL_BYTES) {
+        errors.push(`Avatar package exceeds the ${MAX_AVATAR_PACKAGE_TOTAL_BYTES}-byte total size limit.`);
+        return;
+      }
+    }
+  }
+
+  await visit(packageRoot);
 }
 
 function assertSafeRelativePath(value: string, field: string): void {
@@ -280,18 +368,52 @@ function assertSafeRelativePath(value: string, field: string): void {
 }
 
 function assertInside(parent: string, child: string, field: string): void {
-  const relative = path.relative(path.resolve(parent), path.resolve(child));
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+  if (!isPathInside(parent, child)) {
     throw new AvatarPackageError(`${field} escapes the approved avatar directory.`);
   }
+}
+
+function isPathInside(parent: string, child: string): boolean {
+  const relative = path.relative(path.resolve(parent), path.resolve(child));
+  return !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 function isRegistryFile(value: unknown): value is RegistryFile {
   if (!value || typeof value !== "object") return false;
   const registry = value as Partial<RegistryFile>;
-  return (
-    registry.schemaVersion === REGISTRY_SCHEMA_VERSION && !!registry.packages && typeof registry.packages === "object"
-  );
+  if (
+    registry.schemaVersion !== REGISTRY_SCHEMA_VERSION ||
+    !registry.packages ||
+    typeof registry.packages !== "object" ||
+    Array.isArray(registry.packages)
+  ) {
+    return false;
+  }
+  if (
+    registry.activeId !== undefined &&
+    (typeof registry.activeId !== "string" || !isValidPackageId(registry.activeId))
+  ) {
+    return false;
+  }
+  for (const [id, relativeRoot] of Object.entries(registry.packages)) {
+    if (!isValidPackageId(id) || typeof relativeRoot !== "string" || !isSafeRelativePath(relativeRoot)) {
+      return false;
+    }
+  }
+  return registry.activeId === undefined || registry.activeId in registry.packages;
+}
+
+function isValidPackageId(value: string): boolean {
+  return /^[a-z0-9][a-z0-9._-]*$/i.test(value);
+}
+
+function isSafeRelativePath(value: string): boolean {
+  try {
+    assertSafeRelativePath(value, "Path");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function isFileNotFound(error: unknown): boolean {

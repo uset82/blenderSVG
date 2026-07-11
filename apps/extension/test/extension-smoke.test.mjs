@@ -22,7 +22,9 @@ test("extension manifest activates every contributed command", async () => {
     "codexAvatar.reloadAvatar",
     "codexAvatar.importAvatar",
     "codexAvatar.removeAvatar",
+    "codexAvatar.deleteImportedAvatar",
     "codexAvatar.activateAvatar",
+    "codexAvatar.clearCache",
     "codexAvatar.setState",
     "codexAvatar.startThinking",
     "codexAvatar.startSpeaking",
@@ -57,7 +59,9 @@ test("compiled extension registers commands and keeps webview CSP strict", async
     "codexAvatar.reloadAvatar",
     "codexAvatar.importAvatar",
     "codexAvatar.removeAvatar",
+    "codexAvatar.deleteImportedAvatar",
     "codexAvatar.activateAvatar",
+    "codexAvatar.clearCache",
     "codexAvatar.setState",
     "codexAvatar.startThinking",
     "codexAvatar.startSpeaking",
@@ -72,6 +76,9 @@ test("compiled extension registers commands and keeps webview CSP strict", async
 
   assert.ok(providerSource.includes("Content-Security-Policy"), "webview has a CSP meta tag");
   assert.ok(providerSource.includes("default-src 'none'"), "webview denies default remote content");
+  assert.ok(providerSource.includes("object-src 'none'"), "webview denies embedded objects");
+  assert.doesNotMatch(providerSource, /script-src[^;]*(?:https?:|unsafe-eval)/i, "webview rejects remote scripts");
+  assert.ok(extensionSource.includes("isTrusted"), "workspace operations are trust-gated");
   assert.ok(providerSource.includes("assets:manifestLoaded"), "asset reload message is compiled");
   assert.ok(providerSource.includes("asWebviewUri"), "local assets use VS Code webview URIs");
 });

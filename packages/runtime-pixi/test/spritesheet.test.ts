@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   clipForState,
   clipForTrigger,
+  MAX_SPRITESHEET_TEXTURE_DIMENSION,
   validateSpriteSheetManifest,
+  validateSpriteSheetTextureDimensions,
   type SpriteSheetManifest
 } from "../src/spritesheet.js";
 
@@ -30,5 +32,19 @@ describe("spritesheet metadata", () => {
     const result = validateSpriteSheetManifest({ ...manifest, frameWidth: 0, clips: { bad: { frames: [-1] } } });
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThan(1);
+  });
+
+  it("rejects remote paths and oversized frame metadata", () => {
+    const result = validateSpriteSheetManifest({
+      ...manifest,
+      image: "https://example.com/avatar.png",
+      clips: { bad: { name: "bad", frames: [MAX_SPRITESHEET_TEXTURE_DIMENSION] } }
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/safe local relative path|bounded/);
+
+    const dimensions = validateSpriteSheetTextureDimensions(MAX_SPRITESHEET_TEXTURE_DIMENSION + 1, 64, 64, 64);
+    expect(dimensions.valid).toBe(false);
+    expect(dimensions.errors.join(" ")).toMatch(/width/);
   });
 });

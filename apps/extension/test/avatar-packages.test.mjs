@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { AvatarPackageRegistry, validateAvatarPackage } from "../dist/avatarPackages.js";
+import { AvatarPackageRegistry, MAX_AVATAR_PACKAGE_FILE_BYTES, validateAvatarPackage } from "../dist/avatarPackages.js";
 
 const extensionRoot = path.join(import.meta.dirname, "..");
 
@@ -52,6 +52,19 @@ test("validates the built-in manifest and imports, activates, then removes a loc
     assert.equal((await registry.listPackages()).length, 1);
     await registry.activateAvatar(imported.id);
     assert.equal((await registry.getActivePackage())?.id, imported.id);
+
+    const assetRoot = path.join(workspace, ".codex-avatar");
+    await mkdir(path.join(assetRoot, "cache"), { recursive: true });
+    await mkdir(path.join(assetRoot, "previews"), { recursive: true });
+    await mkdir(path.join(assetRoot, "exports"), { recursive: true });
+    await writeFile(path.join(assetRoot, "cache", "generated.tmp"), "generated");
+    await writeFile(path.join(assetRoot, "previews", "preview.tmp"), "generated");
+    await writeFile(path.join(assetRoot, "exports", "keep.txt"), "user export");
+    await registry.clearGeneratedCache();
+    await assert.rejects(() => stat(path.join(assetRoot, "cache")));
+    await assert.rejects(() => stat(path.join(assetRoot, "previews")));
+    assert.equal((await stat(path.join(assetRoot, "exports", "keep.txt"))).isFile(), true);
+
     assert.equal(await registry.removeAvatar(imported.id), true);
     assert.equal(await registry.getActivePackage(), undefined);
     assert.equal((await registry.listPackages()).length, 0);
@@ -84,6 +97,37 @@ test("rejects traversal, remote entrypoints, and bad checksums", async () => {
     const checksum = await validateAvatarPackage(root);
     assert.equal(checksum.valid, false);
     assert.match(checksum.errors.join("\n"), /Checksum mismatch/);
+
+    await writeFile(path.join(root, "avatar.svg"), `<svg><script>alert(1)</script></svg>`);
+    await writeFile(path.join(root, "avatar.manifest.json"), JSON.stringify(manifest("avatar.svg")));
+    const unsafeSvg = await validateAvatarPackage(root);
+    assert.equal(unsafeSvg.valid, false);
+    assert.match(unsafeSvg.errors.join("\n"), /executable or remote SVG/);
+
+    await writeFile(path.join(root, "avatar.svg"), Buffer.alloc(MAX_AVATAR_PACKAGE_FILE_BYTES + 1));
+    const oversized = await validateAvatarPackage(root);
+    assert.equal(oversized.valid, false);
+    assert.match(oversized.errors.join("\n"), /file limit/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects a forged registry path", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "codex-avatar-registry-"));
+  const workspace = path.join(root, "workspace");
+  const assetRoot = path.join(workspace, ".codex-avatar");
+  try {
+    await mkdir(assetRoot, { recursive: true });
+    await writeFile(
+      path.join(assetRoot, "avatar-registry.json"),
+      JSON.stringify({ schemaVersion: 1, activeId: "escape", packages: { escape: "../outside" } })
+    );
+    const registry = new AvatarPackageRegistry(
+      () => workspace,
+      () => ".codex-avatar"
+    );
+    await assert.rejects(() => registry.listPackages(), /unsupported format/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

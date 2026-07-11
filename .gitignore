@@ -9,6 +9,7 @@ build/
 .codex-avatar/previews/
 .codex-avatar/imports/
 .codex-avatar/avatars/
+.codex-avatar/avatar-registry.json
 *.blend1
 *.mp4
 *.mov

@@ -33,12 +33,17 @@ export function createBlenderExportPlans(options: BlenderExportPlanOptions): {
   outputDirectory: string;
   exports: BlenderExportPlan[];
 } {
+  const blendPath = path.resolve(options.blendPath);
+  if (!isInsideDirectory(options.workspaceRoot, blendPath)) {
+    throw new Error("Blender input file is outside the workspace.");
+  }
+
   const outputDirectory = path.resolve(options.workspaceRoot, options.assetWorkspace, "exports", "blender");
   if (!isInsideDirectory(options.workspaceRoot, outputDirectory)) {
     throw new Error("Resolved Blender export directory is outside the workspace.");
   }
 
-  const baseName = sanitizeBlenderBaseName(path.parse(options.blendPath).name);
+  const baseName = sanitizeBlenderBaseName(path.parse(blendPath).name);
   const exports = options.modes.map((mode) => {
     const descriptor = blenderScripts[mode];
     const outputPath = path.join(outputDirectory, `${baseName}${descriptor.suffix}`);
@@ -57,7 +62,7 @@ export function createBlenderExportPlans(options: BlenderExportPlanOptions): {
         scriptPath,
         "--",
         "--input",
-        options.blendPath,
+        blendPath,
         "--output",
         outputPath,
         "--manifest",
@@ -80,6 +85,9 @@ export function sanitizeBlenderBaseName(value: string): string {
 }
 
 export function resolveBlenderScriptPath(extensionRoot: string, scriptName: string): string {
+  if (path.basename(scriptName) !== scriptName || path.extname(scriptName).toLowerCase() !== ".py") {
+    throw new Error("Blender script name must be a local Python file name.");
+  }
   const packagedScriptPath = path.resolve(extensionRoot, "media", "blender", scriptName);
   if (existsSync(packagedScriptPath)) {
     return packagedScriptPath;

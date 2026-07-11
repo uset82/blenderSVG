@@ -3,6 +3,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import os from "node:os";
 import {
   createBlenderExportPlans,
@@ -62,6 +63,22 @@ test("rejects Blender export paths outside the workspace", () => {
       }),
     /outside the workspace/
   );
+  assert.throws(
+    () =>
+      createBlenderExportPlans({
+        blendPath: path.join(os.tmpdir(), "outside.blend"),
+        workspaceRoot,
+        assetWorkspace: ".codex-avatar",
+        extensionRoot,
+        modes: ["svg"]
+      }),
+    /input file is outside the workspace/
+  );
+});
+
+test("runs Blender with an argument array and disables shell interpolation", async () => {
+  const source = await readFile(path.join(extensionRoot, "dist", "blenderRunner.js"), "utf8");
+  assert.match(source, /shell:\s*false/);
 });
 
 test("sanitizes Blender output base names", () => {

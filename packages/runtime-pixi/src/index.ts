@@ -7,7 +7,11 @@ import type {
   AvatarTrigger
 } from "@codex-avatar-studio/avatar-core";
 import { SpriteAnimationController } from "./animationController.js";
-import { validateSpriteSheetManifest, type SpriteSheetManifest } from "./spritesheet.js";
+import {
+  validateSpriteSheetManifest,
+  validateSpriteSheetTextureDimensions,
+  type SpriteSheetManifest
+} from "./spritesheet.js";
 export * from "./spritesheet.js";
 export * from "./animationController.js";
 export * from "./textureCache.js";
@@ -317,9 +321,17 @@ async function loadSpriteSheet(
 }
 
 function createSpriteFrames(texture: Texture, manifest: SpriteSheetManifest): Texture[] {
+  const dimensionValidation = validateSpriteSheetTextureDimensions(
+    texture.width,
+    texture.height,
+    manifest.frameWidth,
+    manifest.frameHeight
+  );
+  if (!dimensionValidation.valid) {
+    throw new Error(`Invalid PixiJS spritesheet dimensions: ${dimensionValidation.errors.join(" ")}`);
+  }
   const columns = Math.floor(texture.width / manifest.frameWidth);
   const rows = Math.floor(texture.height / manifest.frameHeight);
-  if (columns <= 0 || rows <= 0) throw new Error("PixiJS spritesheet image is smaller than one frame.");
 
   const frameIndexes = new Set(Object.values(manifest.clips).flatMap((clip) => clip.frames));
   const frames: Texture[] = [];

@@ -1237,31 +1237,46 @@ Do not start this phase until the 2D MVP is stable.
 
 ## Tasks
 
-- [ ] Review all Webview CSP directives.
-- [ ] Reject remote script execution.
-- [ ] Sanitize SVG.
-- [ ] Validate JSON with Zod.
-- [ ] Prevent path traversal.
-- [ ] Restrict file access to approved workspace or extension storage paths.
-- [ ] Add maximum asset sizes.
-- [ ] Add maximum texture dimensions.
-- [ ] Add maximum spritesheet frame counts.
-- [ ] Add safe subprocess argument handling.
-- [ ] Do not use shell interpolation for Blender commands.
-- [ ] Add workspace-trust checks.
-- [ ] Document all local data storage.
-- [ ] Add a clear-cache command.
-- [ ] Add a delete-imported-avatar command.
-- [ ] Add security tests for malformed packages.
+- [x] Review all Webview CSP directives.
+- [x] Reject remote script execution.
+- [x] Sanitize SVG.
+- [x] Validate JSON with Zod.
+- [x] Prevent path traversal.
+- [x] Restrict file access to approved workspace or extension storage paths.
+- [x] Add maximum asset sizes.
+- [x] Add maximum texture dimensions.
+- [x] Add maximum spritesheet frame counts.
+- [x] Add safe subprocess argument handling.
+- [x] Do not use shell interpolation for Blender commands.
+- [x] Add workspace-trust checks.
+- [x] Document all local data storage.
+- [x] Add a clear-cache command.
+- [x] Add a delete-imported-avatar command.
+- [x] Add security tests for malformed packages.
+
+### Phase 18 progress evidence — 2026-07-11
+
+- Webview CSP is nonce-based and local-resource-only: `default-src 'none'`, no remote script sources, no embedded objects, no forms, and only VS Code resource URIs for scripts, styles, images, and connections.
+- Imported packages are bounded to 128 regular files, 10 MiB per file, and 64 MiB total. Symbolic links, unsafe SVG content, traversal, remote paths, forged registry paths, and checksum failures are rejected.
+- Pixi metadata rejects remote image paths, frames beyond 4096, excessive clip references, and textures larger than 4096×4096. Shared avatar manifests continue to use the Zod schema in `packages/avatar-core`.
+- Workspace-mutating commands require `vscode.workspace.isTrusted`. Blender scenes stay inside the workspace, subprocess arguments remain separate, and `shell: false` is explicit.
+- `Codex Avatar: Clear Generated Cache` removes only `.codex-avatar/cache/` and `.codex-avatar/previews/`; `Codex Avatar: Delete Imported Avatar Package` removes selected imported packages. Privacy and storage behavior is documented in `docs/SECURITY_PRIVACY.md`.
+- Verification fixtures cover oversized and unsafe packages, forged registries, workspace boundaries, CSP, command wiring, and non-shell Blender execution.
 
 ## Acceptance criteria
 
-- [ ] Security test fixtures are rejected.
-- [ ] Workspace trust restrictions work.
-- [ ] No remote code is executed.
-- [ ] Asset paths cannot escape approved directories.
-- [ ] Clearing cache removes generated data only.
-- [ ] Privacy documentation matches implementation.
+- [x] Security test fixtures are rejected.
+- [x] Workspace trust restrictions work.
+- [x] No remote code is executed.
+- [x] Asset paths cannot escape approved directories.
+- [x] Clearing cache removes generated data only.
+- [x] Privacy documentation matches implementation.
+
+### Phase 18 acceptance evidence — 2026-07-11
+
+- `apps/extension/test/avatar-packages.test.mjs` rejects traversal, remote entrypoints, unsafe SVG, oversized files, bad checksums, and forged registry paths while proving cache clearing preserves exports.
+- `packages/runtime-pixi/test/spritesheet.test.ts` covers local-only metadata and texture-dimension bounds; `apps/extension/test/blender-plan.test.mjs` covers workspace input boundaries and `shell: false`.
+- `apps/extension/test/extension-smoke.test.mjs` verifies trust-gated commands and strict CSP markers. `pnpm run ci` is the required final verification for formatting, lint, typecheck, tests, and builds.
 
 ---
 
