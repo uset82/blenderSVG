@@ -8,6 +8,15 @@ The first production runtime will use **PixiJS** for 2D WebGL rendering, with a 
 
 The project must not copy the appearance, personality, artwork, voices, models, or proprietary assets of Grok Ani, Rudi, or any other commercial companion. The goal is to create an original coding companion with comparable presence, responsiveness, and animation quality.
 
+## Current status — 2026-07-12
+
+- Required MVP route is **complete** (Phases 0–13 and 18–22). See [Definition of MVP Complete](#6-definition-of-mvp-complete).
+- GPL Potrace tracer migration is **complete** (`imagetracerjs` + `jimp`). Do not re-audit or re-migrate it.
+- Publication notices/asset attestation landed in `c586e83`. Use `pnpm validate:notices`.
+- Open blockers: **none** for the required MVP route.
+- Next unchecked required task: **none**. Optional Phases 14–17 remain `DEFERRED`.
+- If starting a new Codex session, use the **Session reset / post-MVP** prompt in [`docs/CODEX_IDE_PROMPT.md`](CODEX_IDE_PROMPT.md). Do not begin at Phase 0.
+
 ---
 
 # 1. Mandatory Codex Working Rules
@@ -1599,15 +1608,21 @@ docs: complete user and developer guides
 
 # 8. Final Instruction to Codex
 
-Begin with Phase 0.
+The required MVP is complete. Do **not** begin with Phase 0, and do **not** reopen the Potrace/ImageTracer migration.
 
-Do not implement Inochi2D, Live2D, VRM, WebGPU enhancements, voice, or Blender integration before the SVG and PixiJS MVP passes all acceptance criteria.
+Before any new work:
 
-After each completed task:
+1. Read the **Current status** block at the top of this checklist.
+2. Read `AGENTS.md` and `docs/CODEX_IDE_PROMPT.md` (Session reset / post-MVP).
+3. Confirm `git status` is clean or understand existing uncommitted work.
+4. Only start an explicit user-requested task, or an optional deferred phase the user names.
+
+Do not implement Inochi2D, Live2D, VRM, WebGPU enhancements, or Blender expansion unless the user explicitly requests that deferred phase.
+
+When continuing optional work after user approval:
 
 1. Run the relevant verification.
-2. Mark the checkbox `[x]`.
+2. Mark the checkbox `[x]` only after verification succeeds.
 3. Record evidence.
-4. Commit the completed phase.
-5. Continue to the next unchecked task in the same phase.
-6. Move to the next phase only when every acceptance criterion in the current phase is checked.
+4. Commit the completed unit of work when asked.
+5. Do not invent a new “MVP closure” or tracer-migration todo list.

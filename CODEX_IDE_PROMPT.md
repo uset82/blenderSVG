@@ -1,5 +1,43 @@
 # Codex IDE Prompts
 
+## Session reset / post-MVP prompt
+
+Use this when starting a **new** Codex chat after the MVP is closed. Paste the whole block.
+
+```txt
+$qa-release-engineer
+Reset and continue from a clean post-MVP state.
+
+Read first:
+- AGENTS.md
+- docs/PLAN_CHECKLIST.md (Current status block at the top, then section 8)
+- docs/LICENSING.md
+- docs/RELEASE_CHECKLIST.md
+- docs/CODEX_IDE_PROMPT.md
+
+Hard stop rules:
+- Do NOT begin at Phase 0.
+- Do NOT reopen the GPL Potrace / ImageTracer migration.
+- Do NOT create a todo list to audit/migrate the tracer again.
+- Do NOT install ts-webp or add Sharp unless the user explicitly asks.
+- Optional Phases 14–17 stay DEFERRED until the user names one.
+
+Verified already (do not redo):
+- MVP definition checklist is complete.
+- Image-to-SVG uses imagetracerjs + jimp (no potrace).
+- Publication notices/asset attestation committed (validate:notices).
+- Working tree should be clean on main at docs(release): refresh notices… (c586e83) or later.
+
+First actions only:
+1. Run `git status` and `git log -3 --oneline`.
+2. Report current status in the required progress format with:
+   Open blockers: none
+   Next unchecked task: none (MVP complete; await explicit next request)
+3. Stop and wait for the user’s next concrete task.
+
+If the user has not given a new task, end the session after the status report.
+```
+
 ## Phase 0 prompt
 
 ```txt
