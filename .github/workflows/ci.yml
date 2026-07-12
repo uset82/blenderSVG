@@ -41,6 +41,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Validate third-party notices
+        run: pnpm validate:notices
+
       - name: Package VSIX
         run: pnpm package:vsix
 

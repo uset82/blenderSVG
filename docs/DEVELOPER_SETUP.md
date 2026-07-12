@@ -48,6 +48,7 @@ The source-of-truth runtime contract is `packages/avatar-core/src/runtime.ts`. T
 
 ```bash
 pnpm run package:vsix
+pnpm run validate:notices
 pnpm run validate:vsix
 pnpm run smoke:vsix
 pnpm run smoke:clean-profile

@@ -4,7 +4,7 @@
   "name": "Default Coder Orb",
   "version": "0.1.0",
   "author": "Codex Avatar Studio contributors",
-  "license": "Original project placeholder",
+  "license": "UNLICENSED (original project work)",
   "preferredRuntime": "pixi",
   "fallbackRuntime": "svg",
   "entrypoints": {

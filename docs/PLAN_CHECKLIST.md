@@ -1557,6 +1557,12 @@ Cross-checked against completed Phases 0–13 and 18–22. Optional Phases 14–
 
 Re-verified this session: `pnpm test`, `pnpm validate:vsix` (27 files), `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, `pnpm validate:docs`.
 
+### Post-MVP publication review — 2026-07-12
+
+- Regenerated `THIRD_PARTY_NOTICES.md` from the installed workspace manifests: added the live `pixi.js@8.14.0`, `zod@4.4.3`, `svgo@4.0.1`, `vitest@4.1.10`, and `@biomejs/biome@2.5.3` entries; moved uninstalled Rive/Three packages to a deferred section.
+- Attested clean-room built-in SVG/Pixi/icon assets with SHA-256 values and authorship/license metadata in `docs/LICENSING.md` and `apps/extension/media/avatars/avatar.manifest.json`.
+- Added `pnpm validate:notices` (`scripts/validate-notices.mjs`) and wired it into CI plus the release checklist so notices, Potrace absence, and built-in asset hashes stay aligned before packaging.
+
 ---
 
 # 7. Recommended Commit Sequence

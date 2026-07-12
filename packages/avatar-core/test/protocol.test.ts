@@ -40,7 +40,7 @@ const manifest: AvatarManifest = {
   name: "Default Coder Orb",
   version: "0.1.0",
   author: "Codex Avatar Studio contributors",
-  license: "Original project placeholder",
+  license: "UNLICENSED (original project work)",
   preferredRuntime: "svg",
   fallbackRuntime: "svg",
   entrypoints: { svg: "avatars/svg/placeholder-avatar.svg" },

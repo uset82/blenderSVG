@@ -10,3 +10,4 @@
 - Added local avatar package validation, workspace trust controls, cache clearing, and imported-avatar deletion.
 - Added local audio-reactive mouth animation, bounded runtime resources, packaged smoke tests, and privacy documentation.
 - Replaced the GPL-2.0 Potrace tracing path with the permissive ImageTracerJS/Jimp local pipeline and added VSIX bundle validation for the removed runtime.
+- Re-audited direct dependencies and built-in asset provenance, refreshed third-party notices, and added `pnpm validate:notices` for release gating.

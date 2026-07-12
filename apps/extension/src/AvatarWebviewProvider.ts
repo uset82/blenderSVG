@@ -162,7 +162,7 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider {
       id: "default-coder-orb",
       name: "Default Coder Orb",
       author: "Codex Avatar Studio contributors",
-      license: "Original project placeholder",
+      license: "UNLICENSED (original project work)",
       preferredRuntime: "svg",
       fallbackRuntime: "svg",
       entrypoints: {

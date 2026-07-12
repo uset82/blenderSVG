@@ -38,6 +38,7 @@ pnpm lint
 pnpm test
 pnpm smoke:webview
 pnpm package:vsix
+pnpm validate:notices
 pnpm validate:vsix
 pnpm smoke:vsix
 pnpm smoke:clean-profile

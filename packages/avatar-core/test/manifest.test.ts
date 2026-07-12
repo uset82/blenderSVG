@@ -13,7 +13,7 @@ const validManifest = {
   id: "default-coder-orb",
   name: "Default Coder Orb",
   author: "Codex Avatar Studio contributors",
-  license: "Original project placeholder",
+  license: "UNLICENSED (original project work)",
   preferredRuntime: "pixi",
   fallbackRuntime: "svg",
   entrypoints: {
