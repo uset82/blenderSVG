@@ -10,6 +10,11 @@ build/
 .codex-avatar/imports/
 .codex-avatar/avatars/
 .codex-avatar/avatar-registry.json
+# Workspace-specific avatar selection and private/local artwork.
+.vscode/settings.json
+.cursor/mcp.json
+assets/avatars/cholita-live/
+tools/blender-mcp/
 *.blend1
 *.mp4
 *.mov

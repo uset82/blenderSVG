@@ -11,7 +11,7 @@ import {
 test("validates supported image extensions", () => {
   assert.equal(assertSupportedImagePath("avatar.PNG"), ".png");
   assert.equal(assertSupportedImagePath("avatar.jpeg"), ".jpeg");
-  assert.equal(assertSupportedImagePath("avatar.webp"), ".webp");
+  assert.throws(() => assertSupportedImagePath("avatar.webp"), /Select PNG, JPG, or JPEG/);
   assert.throws(() => assertSupportedImagePath("avatar.gif"), /Unsupported image type/);
 });
 

@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import { previewImageToSvg, savePreviewedImageToSvg } from "@codex-avatar-studio/asset-pipeline";
 import { AvatarWebviewProvider } from "./AvatarWebviewProvider.js";
 import { AvatarPackageError, AvatarPackageRegistry } from "./avatarPackages.js";
 import { avatarStates, isAvatarState, isIdeAssistantEvent, type AvatarState } from "./avatarState.js";
-import { findBlenderExecutable, runBlenderExports, type BlenderExportMode } from "./blenderRunner.js";
+import { BlenderIntegrationController } from "./blenderIntegration.js";
+import type { BlenderExportMode } from "./blenderRunner.js";
 import { IdeEventsController } from "./ideEvents.js";
 import { getAvatarConfig, resetAvatarConfig, toggleAssistantEnabled, updateAvatarConfig } from "./settings.js";
 
@@ -15,12 +15,18 @@ export function activate(context: vscode.ExtensionContext): void {
     () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     () => getAvatarConfig().assetWorkspace
   );
-  const provider = new AvatarWebviewProvider(context.extensionUri, packageRegistry);
+  const blenderOutputChannel = vscode.window.createOutputChannel("Codex Avatar Blender");
+  const blenderIntegration = new BlenderIntegrationController({
+    extensionRoot: context.extensionUri.fsPath,
+    outputChannel: blenderOutputChannel,
+    workspaceRootProvider: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+    assetRootProvider: () => packageRegistry.getAssetRoot()
+  });
+  const provider = new AvatarWebviewProvider(context.extensionUri, packageRegistry, undefined, blenderIntegration);
   const ideEvents = new IdeEventsController(provider, {
     defaultIdleDelayMs: initialConfig.idleTimeout * 1000,
     sleepDelayMs: initialConfig.sleepTimeout * 1000
   });
-  const blenderOutputChannel = vscode.window.createOutputChannel("Codex Avatar Blender");
   ideEvents.start();
   activeIdeEvents = ideEvents;
 
@@ -47,6 +53,8 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     ideEvents,
     blenderOutputChannel,
+    blenderIntegration,
+    provider,
     vscode.window.registerWebviewViewProvider(AvatarWebviewProvider.viewType, provider),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("codexAvatar")) {
@@ -178,6 +186,10 @@ export function activate(context: vscode.ExtensionContext): void {
     registerCommand("codexAvatar.startSpeaking", () => {
       ideEvents.setManualState("speaking");
     }),
+    registerCommand("codexAvatar.createFromPicture", async () => {
+      await vscode.commands.executeCommand("workbench.view.extension.codexAvatar");
+      await provider.choosePicture();
+    }),
     registerCommand("codexAvatar.emitEvent", (event?: unknown, payload?: unknown) => {
       if (typeof event !== "string" || !isIdeAssistantEvent(event)) {
         vscode.window.showErrorMessage(`Unsupported Codex Avatar event: ${String(event)}`);
@@ -209,62 +221,7 @@ export function activate(context: vscode.ExtensionContext): void {
       registerCommand(`codexAvatar.trigger.${trigger.replaceAll("-", "")}`, () => provider.trigger(trigger))
     ),
     registerCommand("codexAvatar.vectorizeImage", async () => {
-      if (!requireWorkspaceTrust("vectorize an avatar asset")) return;
-      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-      if (!workspaceFolder) {
-        vscode.window.showErrorMessage("Open a workspace folder before vectorizing avatar assets.");
-        return;
-      }
-
-      const selectedFiles = await vscode.window.showOpenDialog({
-        title: "Codex Avatar: Vectorize Image to SVG",
-        canSelectFiles: true,
-        canSelectFolders: false,
-        canSelectMany: false,
-        filters: {
-          Images: ["png", "jpg", "jpeg", "webp"]
-        }
-      });
-      const selectedFile = selectedFiles?.[0];
-      if (!selectedFile) {
-        return;
-      }
-
-      try {
-        provider.setState("building");
-        const pipelineOptions = {
-          inputPath: selectedFile.fsPath,
-          workspaceRoot: workspaceFolder.uri.fsPath,
-          assetWorkspace: getAvatarConfig().assetWorkspace
-        };
-        const preview = await previewImageToSvg(pipelineOptions);
-        const previewDocument = await vscode.workspace.openTextDocument({
-          content: preview.optimizedSvg,
-          language: "xml"
-        });
-        await vscode.window.showTextDocument(previewDocument, { preview: true });
-        const confirmation = await vscode.window.showInformationMessage(
-          "SVG preview generated. Save the optimized avatar asset?",
-          "Save",
-          "Cancel"
-        );
-        if (confirmation !== "Save") {
-          provider.setState("idle");
-          return;
-        }
-        const result = await savePreviewedImageToSvg(pipelineOptions, preview);
-        provider.setState("success");
-        provider.trigger("celebrate");
-
-        const warningSuffix = result.warnings.length > 0 ? ` ${result.warnings.length} warning(s).` : "";
-        vscode.window.showInformationMessage(`Created optimized SVG: ${result.optimizedSvgPath}.${warningSuffix}`);
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(result.optimizedSvgPath));
-        await vscode.window.showTextDocument(document, { preview: false });
-      } catch (error) {
-        provider.setState("error");
-        provider.trigger("shake");
-        vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
-      }
+      await vscode.commands.executeCommand("codexAvatar.createFromPicture");
     }),
     registerCommand("codexAvatar.exportBlenderScene", async () => {
       if (!requireWorkspaceTrust("export Blender avatar assets")) return;
@@ -274,13 +231,11 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const config = getAvatarConfig();
-      const blenderPath = await findBlenderExecutable(config, blenderOutputChannel);
-      if (!blenderPath) {
+      const connection = await blenderIntegration.refresh();
+      provider.postBlenderStatus(connection);
+      if (!connection.executablePath || connection.support !== "supported") {
         blenderOutputChannel.show(true);
-        vscode.window.showWarningMessage(
-          "Blender was not found. Install Blender, add it to PATH, or set codexAvatar.blenderPath."
-        );
+        vscode.window.showWarningMessage(connection.message);
         return;
       }
 
@@ -318,19 +273,30 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         provider.setState("building");
         blenderOutputChannel.show(true);
-        const results = await runBlenderExports({
-          blenderPath,
-          blendPath: selectedFile.fsPath,
-          workspaceRoot: workspaceFolder.uri.fsPath,
-          assetWorkspace: config.assetWorkspace,
-          extensionRoot: context.extensionUri.fsPath,
-          modes,
-          outputChannel: blenderOutputChannel
-        });
-        provider.setState("success");
-        provider.trigger("celebrate");
-        vscode.window.showInformationMessage(`Blender export complete: ${results.length} file(s) created.`);
+        const exportPromise = blenderIntegration.runExports({ blendPath: selectedFile.fsPath, modes });
+        provider.postBlenderStatus(blenderIntegration.getStatus());
+        const results = await exportPromise;
+        provider.recordBlenderExport(selectedFile.fsPath, results);
+        const succeeded = results.filter((result) => result.status === "success");
+        const failed = results.filter((result) => result.status === "failed");
+        provider.postBlenderStatus(blenderIntegration.getStatus());
+        if (succeeded.length > 0) {
+          provider.setState(failed.length > 0 ? "warning" : "success");
+          provider.trigger(failed.length > 0 ? "nod" : "celebrate");
+          vscode.window.showInformationMessage(
+            failed.length > 0
+              ? `Blender export finished: ${succeeded.length} created, ${failed.length} failed. Open Blender Tools for details.`
+              : `Blender export complete: ${succeeded.length} file(s) created.`
+          );
+        } else {
+          provider.setState("error");
+          provider.trigger("shake");
+          vscode.window.showErrorMessage(
+            `No Blender exports succeeded. ${failed.map((result) => `${result.mode.toUpperCase()}: ${result.message}`).join(" ")}`
+          );
+        }
       } catch (error) {
+        provider.postBlenderStatus(blenderIntegration.getStatus());
         provider.setState("error");
         provider.trigger("shake");
         blenderOutputChannel.show(true);

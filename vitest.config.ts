@@ -5,7 +5,11 @@ export default defineConfig({
     clearMocks: true,
     environment: "node",
     globals: false,
-    include: ["packages/*/test/**/*.test.ts", "apps/extension/test/**/*.test.ts"],
+    include: [
+      "packages/*/test/**/*.test.ts",
+      "apps/extension/test/**/*.test.ts",
+      "apps/webview/test/**/*.test.tsx"
+    ],
     restoreMocks: true
   }
 });

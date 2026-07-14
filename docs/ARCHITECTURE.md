@@ -13,7 +13,9 @@ flowchart LR
   WV --> SELECT["runtime selection and fallback"]
   SELECT --> SVG["SVG renderer"]
   SELECT -->|lazy import| PIXI["PixiJS runtime"]
+  SELECT -->|WebGL2 + local GLB| THREE["Three.js WebGL runtime"]
   PIXI --> ATLAS["local avatar manifest and spritesheet"]
+  THREE --> GLB["validated local GLB + package SVG fallback"]
   IDE --> PKG["secure local package registry"]
   PKG --> ATLAS
   PIPE["asset pipeline and optional Blender exporter"] --> PKG
@@ -38,7 +40,7 @@ scripts/
 1. The extension host listens to IDE events and user commands.
 2. A versioned, schema-validated local bridge sends state, trigger, pose, and visibility messages to the Webview.
 3. The Webview selects a renderer from the avatar manifest and user settings.
-4. SVG renders immediately as the permanent fallback. PixiJS is dynamically imported and initialized only when requested.
+4. SVG renders immediately as the permanent fallback. PixiJS and the Three.js WebGL renderer are dynamically imported only when requested; `GLTFLoader` is deferred until WebGL2 and a local GLB entrypoint are confirmed.
 5. A runtime failure, invalid local asset, or unsupported GPU returns control to SVG without taking down the assistant panel.
 6. Visibility changes pause continuous animation; `dispose` removes canvases, observers, event listeners, and cached textures.
 
@@ -48,6 +50,7 @@ scripts/
 - Webview resources use local VS Code URIs and a strict nonce-based CSP.
 - The bridge accepts only known message schemas and bounded values.
 - Blender is an optional trusted-workspace process launched with argument arrays and `shell: false`.
+- Blender export modes validate and publish independently. A validated GLB is selectable only beside a package-local sanitized SVG fallback; otherwise the package stays SVG-only. The reverse handoff accepts only the current sanitized workspace SVG and creates a new staged `.blend` curve scene before returning to the export flow.
 - No remote runtime downloads, telemetry, cloud asset service, or microphone permission is required.
 
 See [SECURITY_PRIVACY.md](SECURITY_PRIVACY.md) and [AVATAR_PACKAGE_SPEC.md](AVATAR_PACKAGE_SPEC.md) for the enforceable details.
@@ -60,8 +63,8 @@ The default animation cap is 30 FPS; 60 FPS is opt-in. The Pixi runtime bounds c
 
 The extension owns VS Code APIs, settings, package import, filesystem policy, IDE event mapping, and process launch. The Webview owns presentation and renderer lifecycle. Shared types prevent renderer-specific state names from leaking into the IDE event bridge.
 
-The optional Rive, Live2D, WebGL/WebGPU, Inochi2D, and VRM work remains isolated or deferred. It must not become a prerequisite for the SVG/Pixi MVP.
+The optional WebGL path is isolated behind feature detection and local package validation. Rive, Live2D, WebGPU, Inochi2D, and VRM remain deferred and must not become prerequisites for SVG or Pixi.
 
 ## Historical audit
 
-The initial Phase 0 audit is preserved in Git history and in `docs/PLAN_CHECKLIST_LEGACY.md`. It described the pre-Pixi baseline; this document describes the implemented architecture after Phases 0–13 and 18–22.
+Earlier greenfield and runtime-first plans are preserved in Git history. The current repository state and remaining product connections are tracked only in [`PLAN_CHECKLIST.md`](PLAN_CHECKLIST.md).

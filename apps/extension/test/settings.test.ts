@@ -15,24 +15,26 @@ const fakeVscode = vi.hoisted(() => {
     values,
     updates,
     api: {
-      workspace: { getConfiguration: vi.fn(() => configuration) },
-      ConfigurationTarget: { Global: "global" }
+      workspace: { getConfiguration: vi.fn(() => configuration), workspaceFolders: undefined as unknown[] | undefined },
+      ConfigurationTarget: { Global: "global", Workspace: "workspace" }
     }
   };
 });
 
 vi.mock("vscode", () => fakeVscode.api);
 
-import { defaultAvatarConfig, getAvatarConfig, updateAvatarConfig } from "../src/settings.js";
+import { defaultAvatarConfig, getAvatarConfig, resetAvatarConfig, updateAvatarConfig } from "../src/settings.js";
 
 beforeEach(() => {
   for (const key of Object.keys(fakeVscode.values)) delete fakeVscode.values[key];
   fakeVscode.updates.length = 0;
+  fakeVscode.api.workspace.workspaceFolders = undefined;
 });
 
 describe("avatar settings", () => {
   it("falls back safely for invalid persisted values", () => {
     Object.assign(fakeVscode.values, {
+      runtime: "webgl",
       frameRate: 120,
       particleEffects: "yes",
       idleTimeout: -2,
@@ -42,12 +44,26 @@ describe("avatar settings", () => {
     });
 
     const config = getAvatarConfig();
+    expect(config.runtime).toBe("webgl");
     expect(config.frameRate).toBe(defaultAvatarConfig.frameRate);
     expect(config.particleEffects).toBe(defaultAvatarConfig.particleEffects);
     expect(config.idleTimeout).toBe(defaultAvatarConfig.idleTimeout);
     expect(config.sleepTimeout).toBe(defaultAvatarConfig.sleepTimeout);
     expect(config.noAnimation).toBe(defaultAvatarConfig.noAnimation);
     expect(config.character).toBe(defaultAvatarConfig.character);
+  });
+
+  it("persists only runtimes that are connected to AvatarStage", async () => {
+    await updateAvatarConfig({ runtime: "webgpu" });
+    expect(fakeVscode.updates).not.toContainEqual(["runtime", "webgpu", "global"]);
+
+    await updateAvatarConfig({ runtime: "pixi" });
+    expect(fakeVscode.updates).toContainEqual(["runtime", "pixi", "global"]);
+
+    fakeVscode.api.workspace.workspaceFolders = [{}];
+    await updateAvatarConfig({ runtime: "webgl", character: "cholita-3d" });
+    expect(fakeVscode.updates).toContainEqual(["runtime", "webgl", "workspace"]);
+    expect(fakeVscode.updates).toContainEqual(["character", "cholita-3d", "workspace"]);
   });
 
   it("sanitizes persisted updates and keeps timing bounded", async () => {
@@ -63,5 +79,12 @@ describe("avatar settings", () => {
     expect(fakeVscode.updates).toContainEqual(["idleTimeout", 86_400, "global"]);
     expect(fakeVscode.updates).toContainEqual(["sleepTimeout", 20, "global"]);
     expect(fakeVscode.updates).toContainEqual(["character", "local-avatar", "global"]);
+  });
+
+  it("resets the extension-only Blender timeout with the shared settings", async () => {
+    fakeVscode.values.blenderTimeoutSeconds = 240;
+    await resetAvatarConfig();
+
+    expect(fakeVscode.updates).toContainEqual(["blenderTimeoutSeconds", undefined, "global"]);
   });
 });

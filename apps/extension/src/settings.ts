@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
 import type { AvatarConfigPatch, AvatarExtensionConfig } from "./avatarState.js";
-import { isAvatarRuntime } from "./avatarState.js";
 
 export const defaultAvatarConfig: AvatarExtensionConfig = {
   enabled: true,
@@ -24,6 +23,8 @@ export const defaultAvatarConfig: AvatarExtensionConfig = {
 };
 
 const avatarConfigKeys = Object.keys(defaultAvatarConfig) as Array<keyof AvatarExtensionConfig>;
+const extensionOnlyConfigKeys = ["blenderTimeoutSeconds"] as const;
+export const selectableAvatarRuntimes = ["svg", "pixi", "webgl"] as const;
 const positions = ["activity-bar-view", "side-panel", "bottom-right", "bottom-left"] as const;
 const animationIntensities = ["low", "medium", "high"] as const;
 
@@ -38,7 +39,7 @@ export function getAvatarConfig(): AvatarExtensionConfig {
 
   return {
     enabled: readBoolean(config.get("enabled", defaultAvatarConfig.enabled), defaultAvatarConfig.enabled),
-    runtime: isAvatarRuntime(runtime) ? runtime : defaultAvatarConfig.runtime,
+    runtime: isSelectableAvatarRuntime(runtime) ? runtime : defaultAvatarConfig.runtime,
     position: isPosition(position) ? position : defaultAvatarConfig.position,
     character: readNonEmptyString(
       config.get("character", defaultAvatarConfig.character),
@@ -80,13 +81,31 @@ export async function updateAvatarConfig(nextConfig: AvatarConfigPatch): Promise
     AvatarExtensionConfig[keyof AvatarExtensionConfig]
   ][];
 
-  await Promise.all(entries.map(([key, value]) => config.update(key, value, vscode.ConfigurationTarget.Global)));
+  await Promise.all(
+    entries.map(([key, value]) =>
+      config.update(
+        key,
+        value,
+        (key === "character" || key === "runtime") && vscode.workspace.workspaceFolders?.length
+          ? vscode.ConfigurationTarget.Workspace
+          : vscode.ConfigurationTarget.Global
+      )
+    )
+  );
 }
 
 export async function resetAvatarConfig(): Promise<void> {
   const config = vscode.workspace.getConfiguration("codexAvatar");
 
-  await Promise.all(avatarConfigKeys.map((key) => config.update(key, undefined, vscode.ConfigurationTarget.Global)));
+  await Promise.all(
+    [...avatarConfigKeys, ...extensionOnlyConfigKeys].flatMap((key) => {
+      const resets = [config.update(key, undefined, vscode.ConfigurationTarget.Global)];
+      if ((key === "character" || key === "runtime") && vscode.workspace.workspaceFolders?.length) {
+        resets.push(config.update(key, undefined, vscode.ConfigurationTarget.Workspace));
+      }
+      return resets;
+    })
+  );
 }
 
 function sanitizeAvatarConfigPatch(nextConfig: AvatarConfigPatch): AvatarConfigPatch {
@@ -95,7 +114,7 @@ function sanitizeAvatarConfigPatch(nextConfig: AvatarConfigPatch): AvatarConfigP
   if (typeof nextConfig.enabled === "boolean") {
     sanitized.enabled = nextConfig.enabled;
   }
-  if (typeof nextConfig.runtime === "string" && isAvatarRuntime(nextConfig.runtime)) {
+  if (typeof nextConfig.runtime === "string" && isSelectableAvatarRuntime(nextConfig.runtime)) {
     sanitized.runtime = nextConfig.runtime;
   }
   if (typeof nextConfig.position === "string" && isPosition(nextConfig.position)) {
@@ -148,6 +167,10 @@ function sanitizeAvatarConfigPatch(nextConfig: AvatarConfigPatch): AvatarConfigP
 
 function isPosition(value: string): value is AvatarExtensionConfig["position"] {
   return (positions as readonly string[]).includes(value);
+}
+
+function isSelectableAvatarRuntime(value: string): value is (typeof selectableAvatarRuntimes)[number] {
+  return (selectableAvatarRuntimes as readonly string[]).includes(value);
 }
 
 function isAnimationIntensity(value: string): value is AvatarExtensionConfig["animationIntensity"] {

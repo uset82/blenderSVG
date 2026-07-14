@@ -31,12 +31,17 @@ test("extension manifest activates every contributed command", async () => {
     "codexAvatar.emitEvent",
     "codexAvatar.markSuccess",
     "codexAvatar.markError",
+    "codexAvatar.createFromPicture",
     "codexAvatar.vectorizeImage",
     "codexAvatar.exportBlenderScene"
   ];
 
   assert.ok(activationEvents.has("onView:codexAvatar.assistantView"));
   assert.equal(manifest.contributes.views.codexAvatar[0].id, "codexAvatar.assistantView");
+  assert.equal(manifest.contributes.views.codexAvatar[0].type, "webview", "assistant view is contributed as a Webview");
+  assert.deepEqual(manifest.contributes.configuration.properties["codexAvatar.runtime"].enum, ["svg", "pixi", "webgl"]);
+  assert.equal(manifest.contributes.configuration.properties["codexAvatar.blenderPath"].restricted, true);
+  assert.equal(manifest.contributes.configuration.properties["codexAvatar.blenderTimeoutSeconds"].default, 120);
 
   for (const command of requiredCommands) {
     assert.ok(contributedCommands.includes(command), `${command} is contributed`);
@@ -50,6 +55,9 @@ test("extension manifest activates every contributed command", async () => {
 test("compiled extension registers commands and keeps webview CSP strict", async () => {
   const extensionSource = await readFile(path.join(extensionRoot, "dist", "extension.js"), "utf8");
   const providerSource = await readFile(path.join(extensionRoot, "dist", "AvatarWebviewProvider.js"), "utf8");
+  const blenderPlanSource = await readFile(path.join(extensionRoot, "dist", "blenderPlan.js"), "utf8");
+  const blenderRunnerSource = await readFile(path.join(extensionRoot, "dist", "blenderRunner.js"), "utf8");
+  const blenderProbeSource = await readFile(path.join(extensionRoot, "dist", "blenderProbe.js"), "utf8");
 
   for (const command of [
     "codexAvatar.openAssistant",
@@ -68,6 +76,7 @@ test("compiled extension registers commands and keeps webview CSP strict", async
     "codexAvatar.emitEvent",
     "codexAvatar.markSuccess",
     "codexAvatar.markError",
+    "codexAvatar.createFromPicture",
     "codexAvatar.vectorizeImage",
     "codexAvatar.exportBlenderScene"
   ]) {
@@ -81,6 +90,11 @@ test("compiled extension registers commands and keeps webview CSP strict", async
   assert.ok(extensionSource.includes("isTrusted"), "workspace operations are trust-gated");
   assert.ok(providerSource.includes("assets:manifestLoaded"), "asset reload message is compiled");
   assert.ok(providerSource.includes("asWebviewUri"), "local assets use VS Code webview URIs");
+  assert.ok(providerSource.includes("codexAvatarAssetRevision"), "asset reload URIs are cache-versioned");
+  assert.ok(providerSource.includes("blender:status"), "typed Blender status is compiled into the provider");
+  assert.ok(blenderPlanSource.includes("--disable-autoexec"), "Blender disables scene auto-execution");
+  assert.ok(blenderRunnerSource.includes("taskkill.exe"), "Windows Blender process-tree cleanup is compiled");
+  assert.ok(blenderProbeSource.includes("BLENDER_PATH"), "Blender environment discovery is compiled");
 });
 
 test("extension lifecycle keeps reload cleanup under VS Code subscriptions", async () => {

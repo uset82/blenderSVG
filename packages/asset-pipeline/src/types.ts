@@ -1,4 +1,4 @@
-export const supportedImageExtensions = [".png", ".jpg", ".jpeg", ".webp"] as const;
+export const supportedImageExtensions = [".png", ".jpg", ".jpeg"] as const;
 
 export type SupportedImageExtension = (typeof supportedImageExtensions)[number];
 
@@ -6,12 +6,16 @@ export type VectorizeImageOptions = {
   inputPath: string;
   workspaceRoot: string;
   assetWorkspace?: string;
+  outputBaseName?: string;
   threshold?: number;
   signal?: AbortSignal;
+  onProgress?: (stage: VectorizeStage) => void;
   maxSvgBytes?: number;
   maxSvgPaths?: number;
   preprocessing?: RasterPreprocessingOptions;
 };
+
+export type VectorizeStage = "validating" | "decoding" | "preprocessing" | "tracing" | "optimizing";
 
 export type RasterPreprocessingOptions = {
   grayscale?: boolean;
@@ -19,6 +23,7 @@ export type RasterPreprocessingOptions = {
   quantizationLevels?: 2 | 4 | 8 | 16;
   removeBackground?: boolean;
   noiseReduction?: number;
+  detail?: "low" | "balanced" | "high";
 };
 
 export type VectorizePreview = {
@@ -29,6 +34,8 @@ export type VectorizePreview = {
   manifestPath: string;
   rawSvg: string;
   optimizedSvg: string;
+  rawValidation: SvgValidationResult;
+  optimizedValidation: SvgValidationResult;
   warnings: string[];
 };
 
@@ -54,7 +61,7 @@ export type SvgValidationResult = {
   byteLength: number;
 };
 
-export type SvgLayerProfile = "reference" | "humanoid" | "orb";
+export type SvgLayerProfile = "reference" | "humanoid" | "orb" | "mascot";
 
 export type SvgValidationOptions = {
   profile?: SvgLayerProfile;

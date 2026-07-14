@@ -1,6 +1,6 @@
 # Licensing and Provenance Policy
 
-> Re-audited from installed workspace manifests — 2026-07-12
+> Re-audited from installed workspace manifests — 2026-07-14
 
 This file records the implementation license gate for Codex Avatar Studio. It is an engineering compliance record, not legal advice.
 
@@ -19,7 +19,7 @@ The repository's `LICENSE` file currently marks the project **UNLICENSED / all r
 
 ## Current direct dependency audit
 
-Exact installed versions were read from `pnpm list -r --depth 0 --json` and their installed `package.json` license fields on 2026-07-12. `pnpm validate:notices` keeps `THIRD_PARTY_NOTICES.md` aligned with these manifests.
+Exact installed versions were read from `pnpm list -r --depth 0 --json` and their installed `package.json` license fields on 2026-07-14. `pnpm validate:notices` keeps `THIRD_PARTY_NOTICES.md` aligned with these manifests.
 
 | Dependency | Version | SPDX/license | Disposition |
 | --- | ---: | --- | --- |
@@ -33,11 +33,12 @@ Exact installed versions were read from `pnpm list -r --depth 0 --json` and thei
 | `pixi.js` | 8.14.0 | MIT | Approved required 2D runtime |
 | `react` / `react-dom` | 19.2.7 | MIT | Approved Webview dependencies |
 | `svgo` | 4.0.1 | MIT | Approved conservative SVG optimization |
+| `three` | 0.185.1 | MIT | Approved lazy WebGL2 renderer for validated local GLB packages |
 | `typescript` | 5.9.3 | Apache-2.0 | Approved build-time dependency |
 | `vite` | 7.3.6 | MIT | Approved Webview build dependency |
 | `vitest` | 4.1.10 | MIT | Approved unit-test runner |
 | `zod` | 4.4.3 | MIT | Approved runtime schema validation |
-| `@types/node`, `@types/react`, `@types/react-dom`, `@types/vscode` | lockfile versions | MIT | Approved development-only type packages |
+| `@types/node`, `@types/react`, `@types/react-dom`, `@types/three`, `@types/vscode` | lockfile versions | MIT | Approved development-only type packages |
 
 ### Tracer migration and current release status
 
@@ -46,7 +47,7 @@ The asset pipeline no longer imports or declares `potrace@2.1.8`. It uses `image
 Publication gate status after the 2026-07-12 re-audit:
 
 - Direct dependency inventory matches the installed manifests and `THIRD_PARTY_NOTICES.md`.
-- Optional Rive/Three packages are not installed and are listed only as deferred.
+- Rive remains uninstalled; Three.js is installed only for the lazy local WebGL path and is listed in the current notices.
 - Built-in SVG/Pixi assets carry authorship, license metadata, and SHA-256 attestation below.
 - Re-run `pnpm validate:notices`, `pnpm validate:vsix`, and the release checklist before every release candidate.
 
@@ -57,7 +58,6 @@ These packages are reviewed but not installed in the current lockfile:
 | Dependency | Audit version | SPDX/license | Restriction |
 | --- | ---: | --- | --- |
 | `@rive-app/react-webgl2` | 4.29.4 | MIT | Deferred optional runtime; must remain out of the base MVP bundle |
-| `three` | 0.185.1 | MIT | Deferred optional 3D dependency; must remain out of the base MVP bundle |
 | `sharp` | 0.35.3 | Apache-2.0 | Optional local preprocessing only; review native-binary packaging before use |
 | `motion` | 12.42.2 | MIT | Optional interface transitions only; do not add unless the Webview needs it |
 | `@pixiv/three-vrm` | 3.5.5 | MIT | Deferred post-MVP 3D adapter only |

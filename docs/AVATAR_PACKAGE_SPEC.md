@@ -55,11 +55,17 @@ The requested runtime is selected when its capability and local entrypoint are a
 
 ## Commands
 
+- `Codex Avatar: Create Avatar from Picture` builds, validates, installs, and activates a local SVG package through **Save & Use**.
 - `Codex Avatar: Import Avatar Package` copies and validates a local package.
 - `Codex Avatar: Activate Avatar Package` selects an imported package or returns to the built-in avatar.
 - `Codex Avatar: Remove Avatar Package` removes an imported package; removing the active package returns to the built-in avatar.
+- **Export Avatar** in the Webview revalidates a non-built-in package and writes a local `<id>-<version>.codex-avatar.zip` after an explicit rights confirmation.
 
 The Webview displays the package name, author, license, runtime paths, and validation status. Imported packages remain local to the workspace and are never uploaded by this feature.
+
+Generated picture packages also include `metadata/source.json` with the safe source filename, dimensions, format, and transparency status. Both that metadata file and `svg/avatar.svg` are covered by SHA-256 checksums. The original raster is preserved outside the package.
+
+Blender-created avatar packages follow the same permanent-fallback rule. A successful sanitized Blender SVG becomes `svg/avatar.svg`, a validated PNG may become `preview/avatar.png`, and a validated GLB becomes `webgl/avatar.glb`. A package may advertise `preferredRuntime: "webgl"`, `entrypoints.webgl`, and `runtimePriority: ["webgl", "svg"]` only when both the GLB and package-local SVG validate. Packages without that pair remain SVG-only. Schema version 1 already defines these fields, so no migration is required.
 
 ## Creation and import checklist
 
@@ -72,3 +78,9 @@ The Webview displays the package name, author, license, runtime paths, and valid
 7. Activate it, reload the avatar, and test reduced motion, a state change, and a missing optional runtime.
 
 The extension enforces 128 files maximum, 10 MiB maximum per file, 64 MiB maximum total size, and local-only paths. Deleting an imported package does not delete exports or the built-in avatar.
+
+## Portable ZIP export
+
+An exported ZIP stores the complete package without compression under one top-level `<id>/` directory. Unzip it before importing; ZIP files are not accepted directly by **Import Avatar**. Archive entries use UTF-8 relative names and preserve the same manifest and assets that passed package validation. The exporter rejects invalid packages, symbolic links, unsafe paths, package limits, and destinations inside the installed package.
+
+Export is a local packaging operation, not a license grant. Restricted or unclear rights statements receive a local-backup warning, and the recipient remains responsible for following the author and license fields in `avatar.manifest.json`.

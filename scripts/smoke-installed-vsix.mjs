@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const vsixPath = path.resolve(process.env.VSIX_PATH ?? path.join(root, "dist", "codex-avatar-studio-0.1.0.vsix"));
@@ -16,6 +17,39 @@ if (!existsSync(vsixPath)) {
 const tempRoot = mkdtempSync(path.join(os.tmpdir(), "codex-avatar-vsix-smoke-"));
 extractVsix(vsixPath, tempRoot);
 const installedExtensionDir = path.join(tempRoot, "extension");
+const bundledWorkerPath = path.join(installedExtensionDir, "dist", "vectorizeWorker.js");
+assert.equal(existsSync(bundledWorkerPath), true, "installed VSIX contains the vectorization worker");
+const workerWorkspace = path.join(tempRoot, "worker-workspace");
+const workerInput = path.join(workerWorkspace, "fixture.png");
+mkdirSync(workerWorkspace, { recursive: true });
+writeFileSync(
+  workerInput,
+  Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR42mP4TyJgoKMGQQl1PGhUw/DRMGgSHwDUb/F8/RCeSQAAAABJRU5ErkJggg==",
+    "base64"
+  )
+);
+const installedWorkerPreview = await runBundledVectorPreview(bundledWorkerPath, {
+  inputPath: workerInput,
+  workspaceRoot: workerWorkspace,
+  outputBaseName: "fixture",
+  preprocessing: {
+    grayscale: false,
+    quantizationLevels: 16,
+    removeBackground: true,
+    noiseReduction: 10,
+    detail: "balanced"
+  },
+  maxSvgBytes: 1_000_000,
+  maxSvgPaths: 20_000
+});
+assert.match(installedWorkerPreview.optimizedSvg, /<svg/i, "installed worker decodes and traces a real PNG");
+assert.ok(installedWorkerPreview.optimizedValidation.pathCount > 0, "installed worker returns SVG metrics");
+assert.equal(
+  existsSync(path.join(workerWorkspace, ".codex-avatar", "exports")),
+  false,
+  "worker preview writes no committed export"
+);
 const vscodeMockDir = path.join(installedExtensionDir, "node_modules", "vscode");
 mkdirSync(vscodeMockDir, { recursive: true });
 writeFileSync(path.join(vscodeMockDir, "index.js"), createVscodeMockSource(), "utf8");
@@ -23,6 +57,9 @@ writeFileSync(path.join(vscodeMockDir, "index.js"), createVscodeMockSource(), "u
 const requireInstalled = createRequire(path.join(installedExtensionDir, "dist", "extension.js"));
 const extension = requireInstalled(path.join(installedExtensionDir, "dist", "extension.js"));
 const vscode = requireInstalled("vscode");
+const activationWorkspace = path.join(tempRoot, "activation-workspace");
+mkdirSync(activationWorkspace, { recursive: true });
+vscode.__workspaceRoot = activationWorkspace;
 const context = {
   extensionUri: { fsPath: installedExtensionDir },
   subscriptions: []
@@ -46,6 +83,7 @@ const requiredCommands = [
   "codexAvatar.startSpeaking",
   "codexAvatar.markSuccess",
   "codexAvatar.markError",
+  "codexAvatar.createFromPicture",
   "codexAvatar.vectorizeImage",
   "codexAvatar.exportBlenderScene"
 ];
@@ -59,7 +97,7 @@ assert.equal(provider?.constructor.name, "AvatarWebviewProvider");
 assert.ok(context.subscriptions.length >= requiredCommands.length, "activation adds disposables");
 
 const webviewSmoke = createWebviewSmoke();
-provider.resolveWebviewView({ webview: webviewSmoke.webview });
+provider.resolveWebviewView(webviewSmoke.view);
 
 assert.equal(webviewSmoke.webview.options.enableScripts, true, "webview scripts are enabled for bundled UI");
 assert.match(webviewSmoke.webview.html, /Content-Security-Policy/, "webview HTML includes CSP");
@@ -68,7 +106,12 @@ assert.match(webviewSmoke.webview.html, /<div id="root"><\/div>/, "webview conta
 assert.ok(webviewSmoke.handlers.length > 0, "webview receive handler is registered");
 
 await webviewSmoke.handlers[0]({ protocolVersion: 1, type: "webview:ready" });
-await new Promise((resolve) => setTimeout(resolve, 25));
+await Promise.all([
+  waitForMessage(webviewSmoke.messages, "settings:update"),
+  waitForMessage(webviewSmoke.messages, "avatar:setState"),
+  waitForMessage(webviewSmoke.messages, "blender:status"),
+  waitForMessage(webviewSmoke.messages, "assets:manifestLoaded")
+]);
 assert.ok(
   webviewSmoke.messages.some((message) => message.type === "settings:update"),
   "webview ready posts settings"
@@ -79,20 +122,88 @@ assert.ok(
 );
 assert.ok(
   webviewSmoke.messages.some(
+    (message) => message.type === "blender:status" && message.availability === "missing" && message.busy === false
+  ),
+  "webview ready posts the optional Blender connection state"
+);
+assert.ok(
+  webviewSmoke.messages.some(
     (message) =>
       message.type === "assets:manifestLoaded" && message.manifest.entrypoints.svg.includes("placeholder-avatar.svg")
   ),
   "webview ready receives the placeholder SVG fallback manifest"
 );
+const initialManifest = webviewSmoke.messages.find((message) => message.type === "assets:manifestLoaded")?.manifest;
+assert.match(initialManifest?.entrypoints.svg ?? "", /codexAvatarAssetRevision=\d+/, "SVG URI is cache-versioned");
 
 await webviewSmoke.handlers[0]({
   protocolVersion: 1,
   type: "settings:update",
-  config: { runtime: "webgl", showSpeechBubble: false }
+  config: { runtime: "pixi", showSpeechBubble: false }
 });
 await new Promise((resolve) => setTimeout(resolve, 25));
-assert.equal(vscode.__configStore.get("runtime"), "webgl");
+assert.equal(vscode.__configStore.get("runtime"), "pixi");
 assert.equal(vscode.__configStore.get("showSpeechBubble"), false);
+
+const studioWorkspace = path.join(tempRoot, "studio-workspace");
+const studioSource = path.join(tempRoot, "studio-source.png");
+const studioSourceBytes = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR42mP4TyJgoKMGQQl1PGhUw/DRMGgSHwDUb/F8/RCeSQAAAABJRU5ErkJggg==",
+  "base64"
+);
+mkdirSync(studioWorkspace, { recursive: true });
+writeFileSync(studioSource, studioSourceBytes);
+vscode.__workspaceRoot = studioWorkspace;
+vscode.__openDialogValue = [{ fsPath: studioSource }];
+await webviewSmoke.handlers[0]({ protocolVersion: 1, type: "studio:chooseImage" });
+const selectedPicture = await waitForMessage(webviewSmoke.messages, "studio:imageSelected");
+await webviewSmoke.handlers[0]({
+  protocolVersion: 1,
+  type: "studio:vectorizeImage",
+  jobId: selectedPicture.selection.jobId,
+  revision: 1,
+  options: {
+    preset: "color-illustration",
+    grayscale: false,
+    colorCount: 16,
+    threshold: null,
+    removeNearWhite: true,
+    noiseReduction: 10,
+    detail: "balanced"
+  }
+});
+await waitForMessage(webviewSmoke.messages, "studio:vectorPreview");
+await webviewSmoke.handlers[0]({
+  protocolVersion: 1,
+  type: "studio:saveAvatar",
+  jobId: selectedPicture.selection.jobId,
+  revision: 1,
+  metadata: {
+    id: "installed-studio-avatar",
+    name: "Installed Studio Avatar",
+    author: "VSIX Smoke",
+    version: "1.0.0",
+    license: "UNLICENSED"
+  },
+  collisionAction: "reject"
+});
+await waitForMessage(webviewSmoke.messages, "studio:packageSaved");
+await waitForMessage(
+  webviewSmoke.messages,
+  "assets:manifestLoaded",
+  (message) => message.manifest.id === "installed-studio-avatar"
+);
+const installedAvatarRoot = path.join(studioWorkspace, ".codex-avatar", "avatars", "installed-studio-avatar");
+assert.equal(
+  existsSync(path.join(installedAvatarRoot, "avatar.manifest.json")),
+  true,
+  "installed Studio saves manifest"
+);
+assert.equal(existsSync(path.join(installedAvatarRoot, "svg", "avatar.svg")), true, "installed Studio saves SVG");
+assert.deepEqual(readFileSync(studioSource), studioSourceBytes, "installed Studio preserves the selected source");
+assert.equal(vscode.__configStore.get("character"), "installed-studio-avatar", "installed Studio activates avatar id");
+assert.equal(vscode.__configStore.get("runtime"), "svg", "installed Studio activates SVG runtime");
+vscode.__openDialogValue = undefined;
 
 vscode.__quickPickValue = "thinking";
 await vscode.commands.executeCommand("codexAvatar.openAssistant");
@@ -105,9 +216,14 @@ await vscode.commands.executeCommand("codexAvatar.startThinking");
 await vscode.commands.executeCommand("codexAvatar.startSpeaking");
 await vscode.commands.executeCommand("codexAvatar.markSuccess");
 await vscode.commands.executeCommand("codexAvatar.markError");
+await vscode.commands.executeCommand("codexAvatar.createFromPicture");
 await vscode.commands.executeCommand("codexAvatar.vectorizeImage");
 vscode.__configStore.set("blenderPath", process.execPath);
 await vscode.commands.executeCommand("codexAvatar.exportBlenderScene");
+assert.ok(
+  webviewSmoke.messages.filter((message) => message.type === "blender:status").length >= 2,
+  "installed export command reports a typed Blender probe result"
+);
 
 assert.ok(
   vscode.__executedCommands.has("workbench.view.extension.codexAvatar"),
@@ -118,6 +234,13 @@ assert.ok(vscode.__createdDirectories.length > 0, "open assets folder creates lo
 assert.ok(
   webviewSmoke.messages.some((message) => message.type === "assets:manifestLoaded"),
   "reload posts manifest"
+);
+const manifestMessages = webviewSmoke.messages.filter((message) => message.type === "assets:manifestLoaded");
+assert.ok(manifestMessages.length >= 2, "reload posts a fresh manifest");
+assert.notEqual(
+  manifestMessages.at(-1).manifest.entrypoints.svg,
+  initialManifest.entrypoints.svg,
+  "reload changes the SVG cache revision"
 );
 assert.ok(
   webviewSmoke.messages.some((message) => message.type === "avatar:trigger"),
@@ -130,6 +253,35 @@ console.log(`VSIX package, activation, command, and webview smoke passed: ${inst
 
 function extractVsix(vsixFile, outputDirectory) {
   execFileSync("tar", ["-xf", vsixFile, "-C", outputDirectory], { stdio: "inherit" });
+}
+
+function runBundledVectorPreview(workerPath, workerData) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(workerPath, { execArgv: ["--no-deprecation"], workerData });
+    worker.on("message", (message) => {
+      if (message.type === "result") {
+        void worker.terminate();
+        resolve(message.preview);
+      } else if (message.type === "error") {
+        void worker.terminate();
+        reject(new Error(message.message));
+      }
+    });
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
+      if (code !== 0) reject(new Error(`Installed vectorization worker exited with code ${code}.`));
+    });
+  });
+}
+
+async function waitForMessage(messages, type, predicate = () => true) {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const message = messages.find((candidate) => candidate.type === type && predicate(candidate));
+    if (message) return message;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for installed Webview message: ${type}`);
 }
 
 function createVscodeMockSource() {
@@ -155,7 +307,9 @@ module.exports = {
   __executedCommands: executedCommands,
   __createdDirectories: createdDirectories,
   __configStore: configStore,
+  __openDialogValue: undefined,
   __quickPickValue: undefined,
+  __workspaceRoot: process.cwd(),
   ConfigurationTarget: { Global: 1 },
   DiagnosticSeverity: { Error: 0, Warning: 1 },
   Uri,
@@ -172,6 +326,9 @@ module.exports = {
   debug: {
     onDidStartDebugSession: () => disposable(),
     onDidTerminateDebugSession: () => disposable()
+  },
+  env: {
+    clipboard: { writeText: async () => undefined }
   },
   languages: {
     getDiagnostics: () => [],
@@ -197,7 +354,7 @@ module.exports = {
     },
     showErrorMessage: () => undefined,
     showInformationMessage: () => undefined,
-    showOpenDialog: async () => undefined,
+    showOpenDialog: async () => module.exports.__openDialogValue,
     showQuickPick: async () => module.exports.__quickPickValue,
     showTextDocument: async () => undefined,
     showWarningMessage: () => undefined
@@ -224,7 +381,9 @@ module.exports = {
     onDidSaveTextDocument: () => disposable(),
     onDidGrantWorkspaceTrust: () => disposable(),
     openTextDocument: async uri => ({ uri }),
-    workspaceFolders: [{ uri: { fsPath: process.cwd() } }]
+    get workspaceFolders() {
+      return [{ uri: { fsPath: module.exports.__workspaceRoot } }];
+    }
   }
 };
 `;
@@ -254,5 +413,10 @@ function createWebviewSmoke() {
     }
   };
 
-  return { handlers, messages, webview };
+  const view = {
+    webview,
+    onDidDispose: () => ({ dispose() {} })
+  };
+
+  return { handlers, messages, view, webview };
 }

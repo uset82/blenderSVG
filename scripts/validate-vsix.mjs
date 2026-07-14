@@ -20,9 +20,12 @@ for (const required of [
   "extension.vsixmanifest",
   "extension/package.json",
   "extension/dist/extension.js",
+  "extension/dist/vectorizeWorker.js",
   "extension/media/webview/index.html",
   "extension/media/webview/index.js",
   "extension/media/webview/index.css",
+  "extension/media/webview/WebGLAvatarRenderer.js",
+  "extension/media/webview/GLTFLoader.js",
   "extension/media/avatars/avatar.manifest.json",
   "extension/media/avatars/svg/placeholder-avatar.svg",
   "extension/media/avatars/pixi/placeholder-spritesheet.svg",
@@ -39,6 +42,9 @@ const forbiddenPatterns = [
   /(^|\/)test\//i,
   /(^|\/)node_modules\//i,
   /(^|\/)AGENTS\.md$/i,
+  /(^|\/)\.codex-avatar\//i,
+  /cholita/i,
+  /\.(?:blend|blend1|glb)$/i,
   /\.(?:ts|tsx|map|tsbuildinfo)$/i,
   /(^|\/)(?:research|fixtures|optional-sdk)\//i,
   /\.(?:moc3|model3\.json|cubism)$/i
@@ -56,6 +62,10 @@ assert.ok(
   "VSIX contains the clean-room SVG fallback"
 );
 assert.ok(
+  entries.some((entry) => entry.endsWith("/import_svg_scene.py")),
+  "VSIX contains the SVG curve handoff script"
+);
+assert.ok(
   entries.some((entry) => entry.endsWith("/placeholder-spritesheet.svg")),
   "VSIX contains the clean-room Pixi avatar"
 );
@@ -65,5 +75,32 @@ const extensionBundle = execFileSync("tar", ["-xOf", vsixPath, "extension/dist/e
   maxBuffer: 8 * 1024 * 1024
 });
 assert.doesNotMatch(extensionBundle, /potrace/i, "VSIX does not contain the removed GPL-2.0 Potrace runtime");
+for (const requiredBlenderFeature of [
+  "--disable-autoexec",
+  "taskkill.exe",
+  "BLENDER_PATH",
+  "blender:status",
+  "blender:handoffStatus",
+  "Blender version probe timed out"
+]) {
+  assert.ok(
+    extensionBundle.includes(requiredBlenderFeature),
+    `VSIX includes Blender safety feature: ${requiredBlenderFeature}`
+  );
+}
+
+const webviewBundle = execFileSync("tar", ["-xOf", vsixPath, "extension/media/webview/index.js"], {
+  encoding: "utf8",
+  maxBuffer: 2 * 1024 * 1024
+});
+for (const label of [
+  "Blender Tools",
+  "Auto-detect",
+  "Test Connection",
+  "Open Output Folder",
+  "Create Blender Scene from SVG"
+]) {
+  assert.ok(webviewBundle.includes(label), `VSIX Webview includes ${label}`);
+}
 
 console.log(`VSIX contents validated: ${path.basename(vsixPath)} (${entries.length} files)`);

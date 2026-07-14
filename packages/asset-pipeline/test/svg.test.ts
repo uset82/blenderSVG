@@ -18,9 +18,18 @@ test("optimizes SVG while keeping viewBox", () => {
 
 test("sanitizes executable and external SVG content", () => {
   const sanitized = sanitizeSvg(
-    `<svg onload="alert(1)"><script>alert(1)</script><image href="https://example.com/a.png"/><foreignObject><div>bad</div></foreignObject></svg>`
+    `<!DOCTYPE svg [<!ENTITY leak SYSTEM "file:///secret">]>
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" onload="alert(1)">
+      <script/><svg:script>alert(1)</svg:script>
+      <style>@import url(//evil.example/a.css); path { fill: url(file:///secret); }</style>
+      <image href="https://evil.example/a.png"/><foreignObject><div>bad</div></foreignObject>
+      <use href="#safe"/><path fill="url(#paint)" filter="url(blob:bad)" style="background:url(data:text/html,bad)"/>
+      <a href="javascript:alert(1)"><path d="M0 0h1"/></a>
+    </svg>`
   );
-  assert.doesNotMatch(sanitized, /script|foreignObject|onload|https?:/i);
+  assert.doesNotMatch(sanitized, /script|foreignObject|onload|@import|evil\.example|file:|blob:|data:|javascript:/i);
+  assert.match(sanitized, /href="#safe"/);
+  assert.match(sanitized, /fill="url\(#paint\)"/);
 });
 
 test("reports layer warnings for unstructured traces", () => {
@@ -81,6 +90,54 @@ test("reports missing humanoid moving parts", () => {
   assert.ok(result.missingLayers.includes("avatar/body"));
   assert.ok(result.missingLayers.includes("avatar/eyes/right"));
   assert.match(result.warnings.join("\n"), /Missing humanoid/);
+});
+
+test("accepts a complete mascot layer profile including data-layer attributes", () => {
+  const layers = [
+    "avatar/root",
+    "avatar/shadow",
+    "avatar/body",
+    "avatar/feet",
+    "avatar/skirt",
+    "avatar/cape",
+    "avatar/hands",
+    "avatar/scarf",
+    "avatar/medallion",
+    "avatar/head",
+    "avatar/hair/back",
+    "avatar/face",
+    "avatar/hair/front",
+    "avatar/eyebrows",
+    "avatar/eyes/left",
+    "avatar/eyes/right",
+    "avatar/eyelids",
+    "avatar/cheeks",
+    "avatar/mouth",
+    "avatar/hat",
+    "avatar/reactions"
+  ];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg">${layers
+    .map((layer, index) =>
+      index % 2 === 0
+        ? `<g id="${layer}"><path d="M${index} ${index}h20v20h-20z"/></g>`
+        : `<g data-layer="${layer}"><path d="M${index} ${index}h20v20h-20z"/></g>`
+    )
+    .join("")}</svg>`;
+
+  const result = validateSvgLayers(svg, { profile: "mascot" });
+
+  assert.equal(result.valid, true);
+  assert.equal(result.profile, "mascot");
+  assert.equal(result.missingLayers.length, 0);
+});
+
+test("reports missing mascot animation layers", () => {
+  const result = validateSvgLayers(layeredSvg, { profile: "mascot" });
+
+  assert.equal(result.profile, "mascot");
+  assert.ok(result.missingLayers.includes("avatar/skirt"));
+  assert.ok(result.missingLayers.includes("avatar/hat"));
+  assert.match(result.warnings.join("\n"), /Missing mascot/);
 });
 
 test("warns on unnamed groups and tiny path noise", () => {

@@ -41,6 +41,30 @@ export const svgLayerProfiles: Record<SvgLayerProfile, readonly string[]> = {
     "avatar/antenna",
     "avatar/accessories",
     "avatar/shadow"
+  ],
+  /** Front-facing chibi/mascot layers used by LayeredMascotRenderer and authored 2D Cholita SVGs. */
+  mascot: [
+    "avatar/root",
+    "avatar/shadow",
+    "avatar/body",
+    "avatar/feet",
+    "avatar/skirt",
+    "avatar/cape",
+    "avatar/hands",
+    "avatar/scarf",
+    "avatar/medallion",
+    "avatar/head",
+    "avatar/hair/back",
+    "avatar/face",
+    "avatar/hair/front",
+    "avatar/eyebrows",
+    "avatar/eyes/left",
+    "avatar/eyes/right",
+    "avatar/eyelids",
+    "avatar/cheeks",
+    "avatar/mouth",
+    "avatar/hat",
+    "avatar/reactions"
   ]
 };
 
@@ -142,7 +166,7 @@ function walkSvgNode(node: unknown, stats: SvgStats, tinyPathDataLength: number)
     if (key === "g" && isSvgElementOrElementList(value)) {
       for (const group of toElementList(value)) {
         stats.groupCount += 1;
-        const id = readAttribute(group, "id");
+        const id = readAttribute(group, "id") ?? readAttribute(group, "data-layer");
         if (id) {
           stats.layerIds.add(id);
         } else {

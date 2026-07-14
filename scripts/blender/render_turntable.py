@@ -25,6 +25,10 @@ def main():
     import bpy
 
     bpy.ops.wm.open_mainfile(filepath=args.input)
+    export_objects, collection_name = collect_export_objects(bpy)
+    if not export_objects:
+        raise RuntimeError("The Export/Avatar collection does not contain renderable objects.")
+    apply_render_scope(bpy, export_objects)
     ensure_camera(bpy)
 
     scene = bpy.context.scene
@@ -35,7 +39,7 @@ def main():
     frames = max(1, args.frames)
     for frame_index in range(frames):
         if frames > 1:
-            rotate_avatar_collection(bpy, (math.tau / frames) * frame_index)
+            rotate_export_objects(export_objects, (math.tau / frames) * frame_index)
             output_path = frame_path(args.output, frame_index)
         else:
             output_path = args.output
@@ -45,7 +49,7 @@ def main():
         print("PNG preview frame complete: {}".format(output_path))
 
     if args.manifest:
-        write_manifest(args.manifest, args.input, args.output, "png-preview")
+        write_export_report(args.manifest, args.input, args.output, "png", collection_name, export_objects)
 
 
 def ensure_camera(bpy):
@@ -60,9 +64,34 @@ def ensure_camera(bpy):
     camera.data.ortho_scale = 4.0
 
 
-def rotate_avatar_collection(bpy, angle):
-    collection = bpy.data.collections.get("Avatar") or bpy.context.scene.collection
-    for obj in collection.objects:
+def collect_export_objects(bpy):
+    source = bpy.data.collections.get("Export") or bpy.data.collections.get("Avatar") or bpy.context.scene.collection
+    objects = []
+    seen = set()
+
+    def visit(collection):
+        if collection.name in {"Guides", "Ignore"}:
+            return
+        for obj in collection.objects:
+            if obj.name not in seen and obj.type not in {"CAMERA", "LIGHT"}:
+                seen.add(obj.name)
+                objects.append(obj)
+        for child in collection.children:
+            visit(child)
+
+    visit(source)
+    return objects, source.name
+
+
+def apply_render_scope(bpy, export_objects):
+    included = {obj.name for obj in export_objects}
+    for obj in bpy.context.scene.objects:
+        if obj.type not in {"CAMERA", "LIGHT"}:
+            obj.hide_render = obj.name not in included
+
+
+def rotate_export_objects(export_objects, angle):
+    for obj in export_objects:
         if obj.type in {"MESH", "CURVE", "GPENCIL", "EMPTY"}:
             obj.rotation_euler[2] = angle
 
@@ -72,15 +101,17 @@ def frame_path(output_path, frame_index):
     return "{}_{:03d}{}".format(root, frame_index + 1, extension or ".png")
 
 
-def write_manifest(manifest_path, input_path, output_path, export_type):
+def write_export_report(manifest_path, input_path, output_path, mode, collection_name, export_objects):
     os.makedirs(os.path.dirname(os.path.abspath(manifest_path)), exist_ok=True)
     with open(manifest_path, "w", encoding="utf-8") as file:
         json.dump(
             {
-                "version": "0.1.0",
-                "source": input_path,
-                "exportType": export_type,
-                "output": output_path,
+                "schemaVersion": 1,
+                "mode": mode,
+                "sourceFile": os.path.basename(input_path),
+                "outputFile": os.path.basename(output_path),
+                "collection": collection_name,
+                "objectCount": len(export_objects),
                 "guidance": "Use PNG previews for review and thumbnails. Keep generated renders local.",
             },
             file,

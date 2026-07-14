@@ -24,15 +24,17 @@ def main():
 
     bpy.ops.wm.open_mainfile(filepath=args.input)
     ensure_orthographic_camera(bpy)
+    export_objects, collection_name = collect_export_objects(bpy)
 
-    if try_grease_pencil_svg_export(bpy, args.output):
+    if try_grease_pencil_svg_export(bpy, args.output, export_objects):
         if args.manifest:
-            write_manifest(args.manifest, args.input, args.output, "svg-line-art")
+            write_export_report(args.manifest, args.input, args.output, "svg", collection_name, export_objects)
         print("SVG line-art export complete: {}".format(args.output))
         return
 
     raise RuntimeError(
-        "No supported SVG exporter was found. Use Blender's Grease Pencil SVG export or install/enable a Freestyle SVG export workflow."
+        "SVG line-art export requires Grease Pencil objects and Blender's Grease Pencil SVG exporter. "
+        "It does not vectorize arbitrary meshes or pictures."
     )
 
 
@@ -49,11 +51,30 @@ def ensure_orthographic_camera(bpy):
     scene.render.use_freestyle = True
 
 
-def try_grease_pencil_svg_export(bpy, output_path):
+def collect_export_objects(bpy):
+    source = bpy.data.collections.get("Export") or bpy.data.collections.get("Avatar") or bpy.context.scene.collection
+    objects = []
+    seen = set()
+
+    def visit(collection):
+        if collection.name in {"Guides", "Ignore"}:
+            return
+        for obj in collection.objects:
+            if obj.name not in seen:
+                seen.add(obj.name)
+                objects.append(obj)
+        for child in collection.children:
+            visit(child)
+
+    visit(source)
+    return objects, source.name
+
+
+def try_grease_pencil_svg_export(bpy, output_path, export_objects):
     if not hasattr(bpy.ops.wm, "grease_pencil_export_svg"):
         return False
 
-    grease_pencil_objects = [obj for obj in bpy.context.scene.objects if obj.type in {"GPENCIL", "GREASEPENCIL"}]
+    grease_pencil_objects = [obj for obj in export_objects if obj.type in {"GPENCIL", "GREASEPENCIL"}]
     if not grease_pencil_objects:
         return False
 
@@ -67,16 +88,18 @@ def try_grease_pencil_svg_export(bpy, output_path):
     return os.path.exists(output_path)
 
 
-def write_manifest(manifest_path, input_path, output_path, export_type):
+def write_export_report(manifest_path, input_path, output_path, mode, collection_name, export_objects):
     os.makedirs(os.path.dirname(os.path.abspath(manifest_path)), exist_ok=True)
     with open(manifest_path, "w", encoding="utf-8") as file:
         json.dump(
             {
-                "version": "0.1.0",
-                "source": input_path,
-                "exportType": export_type,
-                "output": output_path,
-                "guidance": "Use Blender SVG export for line art and references. Rive/Live2D characters still need clean named layers.",
+                "schemaVersion": 1,
+                "mode": mode,
+                "sourceFile": os.path.basename(input_path),
+                "outputFile": os.path.basename(output_path),
+                "collection": collection_name,
+                "objectCount": len(export_objects),
+                "guidance": "Blender SVG export is capability-dependent Grease Pencil line art, not automatic bitmap or mesh vectorization.",
             },
             file,
             indent=2,

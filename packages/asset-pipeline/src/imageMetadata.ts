@@ -1,11 +1,24 @@
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
+
+export const MAX_TRACEABLE_IMAGE_BYTES = 32 * 1024 * 1024;
 
 export type ImageMetadata = {
   width: number;
   height: number;
   format: "png" | "jpg" | "webp";
+  hasAlpha: boolean | null;
 };
+
+export async function assertTraceableImageFile(inputPath: string): Promise<void> {
+  const sourceStat = await lstat(inputPath);
+  if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) {
+    throw new Error("Choose a regular local picture file, not a folder or shortcut.");
+  }
+  if (sourceStat.size <= 0 || sourceStat.size > MAX_TRACEABLE_IMAGE_BYTES) {
+    throw new Error(`Picture size must be between 1 byte and ${MAX_TRACEABLE_IMAGE_BYTES / (1024 * 1024)} MiB.`);
+  }
+}
 
 export async function readImageMetadata(inputPath: string): Promise<ImageMetadata> {
   const buffer = await readFile(inputPath);
@@ -42,14 +55,17 @@ export function assertTraceableImageMetadata(metadata: ImageMetadata): void {
 
 function readPngMetadata(buffer: Buffer): ImageMetadata {
   const pngSignature = "89504e470d0a1a0a";
-  if (buffer.subarray(0, 8).toString("hex") !== pngSignature) {
+  if (buffer.length < 24 || buffer.subarray(0, 8).toString("hex") !== pngSignature) {
     throw new Error("Selected file is not a valid PNG.");
   }
+
+  const colorType = buffer[25];
 
   return {
     width: buffer.readUInt32BE(16),
     height: buffer.readUInt32BE(20),
-    format: "png"
+    format: "png",
+    hasAlpha: colorType === 4 || colorType === 6 || buffer.indexOf(Buffer.from("tRNS")) >= 0
   };
 }
 
@@ -75,7 +91,8 @@ function readJpegMetadata(buffer: Buffer): ImageMetadata {
       return {
         height: buffer.readUInt16BE(offset + 5),
         width: buffer.readUInt16BE(offset + 7),
-        format: "jpg"
+        format: "jpg",
+        hasAlpha: false
       };
     }
 
@@ -95,7 +112,8 @@ function readWebpMetadata(buffer: Buffer): ImageMetadata {
     return {
       width: 1 + readUInt24LE(buffer, 24),
       height: 1 + readUInt24LE(buffer, 27),
-      format: "webp"
+      format: "webp",
+      hasAlpha: Boolean((buffer[20] ?? 0) & 0x10)
     };
   }
 
@@ -103,7 +121,8 @@ function readWebpMetadata(buffer: Buffer): ImageMetadata {
     return {
       width: buffer.readUInt16LE(26) & 0x3fff,
       height: buffer.readUInt16LE(28) & 0x3fff,
-      format: "webp"
+      format: "webp",
+      hasAlpha: false
     };
   }
 
@@ -112,7 +131,8 @@ function readWebpMetadata(buffer: Buffer): ImageMetadata {
     return {
       width: (bits & 0x3fff) + 1,
       height: ((bits >> 14) & 0x3fff) + 1,
-      format: "webp"
+      format: "webp",
+      hasAlpha: null
     };
   }
 

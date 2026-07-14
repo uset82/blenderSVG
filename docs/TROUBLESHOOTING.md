@@ -20,13 +20,23 @@ Check these common causes:
 
 Open the manifest as JSON, fix the reported path, and import again. Remove a broken copy with `Codex Avatar: Delete Imported Avatar Package` before retrying the same id.
 
+## Export Avatar is disabled or fails
+
+Export is available only for a non-built-in package that currently shows **Ready** in a trusted workspace. Select **Validate**, repair any manifest, checksum, SVG, path, or size errors, and try again. Choose a writable ZIP destination outside `.codex-avatar/avatars/<id>/`.
+
+If the rights dialog offers **Export Local Backup**, the manifest contains a restricted or unclear statement such as “no redistribution,” “rights not asserted,” “all rights reserved,” or `UNLICENSED`. The archive can still be created for backup, but do not publish or redistribute it unless you own the artwork or have permission. Recipients must unzip the archive before selecting **Import Avatar**.
+
 ## Generated SVG is missing or looks too complex
 
-Use `Codex Avatar: Vectorize Image to SVG` with a local PNG, JPG, JPEG, or WEBP. Confirm the preview before saving. The trace is monochrome and intended for reference shapes; clean the output into named layers for animation. See [ASSET_PIPELINE.md](ASSET_PIPELINE.md).
+Use `Codex Avatar: Create Avatar from Picture` with a local PNG, JPG, or JPEG in a trusted workspace. Start with Color Illustration, reduce Detail or increase Noise cleanup when the path count is high, and use High-Contrast Silhouette only when monochrome output is intended. WebP is not enabled because the packaged decoder cannot read it yet. Cancelled previews are disposable and do not create exports or packages. Clean a finished trace into named layers when part-by-part animation is needed. See [ASSET_PIPELINE.md](ASSET_PIPELINE.md).
 
 ## Blender export fails
 
-Blender is optional. Set `codexAvatar.blenderPath`, put `blender` on `PATH`, or set `BLENDER_PATH`, then verify `blender --version`. The workspace must be trusted. Export is written to `.codex-avatar/exports/blender/` and never replaces the source `.blend` file. See [BLENDER_PIPELINE.md](BLENDER_PIPELINE.md).
+Blender is optional. Open **Blender Tools**, select **Auto-detect** or **Browse**, then use **Test Connection**. The panel distinguishes a bad saved path, missing Blender, an unsupported version, and a connection error while showing any valid fallback installation it found. Use **Open Log** for prefixed stdout/stderr.
+
+If only SVG fails, the scene probably has no Grease Pencil line art or the Blender build lacks its SVG exporter. GLB and PNG successes are retained. Blender does not convert arbitrary meshes or pictures into SVG. Put intended content in `Export` (or `Avatar`), keep helpers in `Guides`/`Ignore`, then re-export. Reports use `.export-report.json`; they are not installable avatar manifests.
+
+The workspace must be trusted and the source must be a regular `.blend` file inside it. Export is staged locally, uses a single process, and never replaces the source scene or an existing output. If a process stalls, select Cancel or increase `codexAvatar.blenderTimeoutSeconds` up to 600 seconds. See [BLENDER_PIPELINE.md](BLENDER_PIPELINE.md).
 
 ## Tests fail locally
 

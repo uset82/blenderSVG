@@ -20,5 +20,6 @@ test("reads PNG dimensions without invoking tracing", async () => {
   assert.equal(metadata.format, "png");
   assert.equal(metadata.width, 2);
   assert.equal(metadata.height, 2);
+  assert.equal(metadata.hasAlpha, false);
   assert.throws(() => assertTraceableImageMetadata(metadata), /too small/);
 });

@@ -18,7 +18,7 @@ mkdirSync(destination, { recursive: true });
 cpSync(source, destination, { dereference: true, recursive: true });
 
 const forbiddenChunks = collectFiles(destination).filter((filePath) =>
-  /rive|live2d|gltf|three|WebGLAvatarRenderer|WebGPUAvatarRenderer/i.test(path.basename(filePath))
+  /rive|live2d|WebGPUAvatarRenderer/i.test(path.basename(filePath))
 );
 if (forbiddenChunks.length > 0) {
   const relativeChunks = forbiddenChunks.map((filePath) => path.relative(root, filePath)).join(", ");

@@ -1,1628 +1,500 @@
-# Codex Avatar Studio — Detailed Sequential Implementation Plan
+# Codex Avatar Studio — Final Implementation Plan
 
-## 0. Mission
+> This is the only authoritative implementation plan for the repository. It supersedes the three former root plans and the legacy checklist. Their history remains available in Git.
 
-Build a local-first animated AI companion for a VS Code-compatible IDE. The assistant must live inside an IDE Webview and react to development activity through a typed avatar state machine.
+**Updated:** 2026-07-14
 
-The first production runtime will use **PixiJS** for 2D WebGL rendering, with a static SVG fallback. The architecture must support optional adapters for **Inochi2D**, **Live2D**, and **VRM/Three.js** without making any of them mandatory for the MVP.
+**Current state:** Phases 0–11 and their release gates are complete. Phase 12 is now the active required phase: add the restricted project Blender MCP workflow, productize the optional WebGL runtime, and create the local-only professional 3D Cholita package without redistributing its assets.
 
-The project must not copy the appearance, personality, artwork, voices, models, or proprietary assets of Grok Ani, Rudi, or any other commercial companion. The goal is to create an original coding companion with comparable presence, responsiveness, and animation quality.
+**Next required phase:** Phase 12. Do not start another deferred runtime until its checklist and evidence are complete.
 
-## Current status — 2026-07-12
+## 1. Product outcome
 
-- Required MVP route is **complete** (Phases 0–13 and 18–22). See [Definition of MVP Complete](#6-definition-of-mvp-complete).
-- GPL Potrace tracer migration is **complete** (`imagetracerjs` + `jimp`). Do not re-audit or re-migrate it.
-- Publication notices/asset attestation landed in `c586e83`. Use `pnpm validate:notices`.
-- Open blockers: **none** for the required MVP route.
-- Next unchecked required task: **none**. Optional Phases 14–17 remain `DEFERRED`.
-- If starting a new Codex session, use the **Session reset / post-MVP** prompt in [`docs/CODEX_IDE_PROMPT.md`](CODEX_IDE_PROMPT.md). Do not begin at Phase 0.
+Codex Avatar Studio must let a user choose a local picture, convert it to a safe SVG, save it as a valid avatar package, and immediately see it as the active IDE avatar. Blender must be a connected but optional local production tool for SVG line art, GLB, and PNG previews.
 
----
+The required user journeys are:
 
-# 1. Mandatory Codex Working Rules
+1. **Picture → SVG avatar:** choose a picture, preview it, vectorize it locally, save it as an avatar, activate it, and keep it active after reload.
+2. **Blender → avatar assets:** detect or configure Blender, export a `.blend` scene, validate the results, package supported output, and optionally activate it.
+3. **Manage avatars:** import, select, validate, reload, reveal, export, and remove local avatar packages from the Webview without relying on hidden commands.
 
-Codex must follow these rules before editing any source code.
+“Upload” means choosing a local file. No picture, model, SVG, or Blender file is sent to a server.
 
-- [ ] Copy this entire plan into `docs/PLAN_CHECKLIST.md`.
-- [ ] Read the complete plan before implementing Phase 0.
-- [ ] Work strictly in numerical phase order on the required MVP path, subject only to the explicit post-MVP deferral rule below.
-- [ ] Do not jump to a later phase while the current phase has incomplete acceptance criteria.
-- [ ] Mark a task `[x]` only after the implementation and its verification command both succeed.
-- [ ] Never mark an acceptance criterion complete based only on code inspection.
-- [ ] Add a short evidence note under each completed acceptance section, including the command or test used.
-- [ ] If blocked, leave the task unchecked and add `BLOCKED:` with the exact reason.
-- [ ] Do not delete or replace existing user code unless required and documented.
-- [ ] Prefer small, reviewable commits organized by phase.
-- [ ] Do not introduce remote API calls in the animation runtime.
-- [ ] Keep avatar assets and processing local by default.
-- [ ] Do not add third-party artwork, models, voices, or textures without a verified redistribution license.
-- [ ] Do not make WebGPU, Live2D, Inochi2D, Blender, or VRM mandatory for the base extension.
-- [ ] Preserve a functional SVG fallback at every stage.
-- [ ] Respect `prefers-reduced-motion`.
-- [ ] Pause or throttle animation when the Webview is hidden.
-- [ ] Run formatting, type-checking, tests, and builds before closing each phase.
-- [ ] Update this checklist immediately after completing each verified task.
-- [ ] Finish one phase completely before continuing to the next phase.
+## 2. Decisions that are now locked
 
-## Required progress format
+- Preserve the working extension, Webview, SVG/Pixi foundation, state machine, package registry, and tests. This is not a greenfield rebuild.
+- SVG is the permanent fallback and the first custom-asset runtime to complete.
+- PixiJS remains the existing rich 2D runtime. Rive, Live2D, Inochi2D, VRM, WebGPU, and voice work cannot block the picture-to-SVG or Blender journeys.
+- The extension host owns file pickers, filesystem access, package installation, Blender processes, and local URI conversion. The Webview owns presentation and sends only typed requests.
+- Use the current versioned bridge, `AvatarManifest`, state names, and trigger names as the source of truth. Change them only through an explicit schema migration.
+- Generated and imported assets remain local under the configured `.codex-avatar` workspace directory.
+- Preserve source pictures and `.blend` files. Write through a staging directory and never leave a partial package registered as valid.
+- Auto-tracing creates a useful static SVG, not a rigged character. Named layers may add richer motion later, but missing layers must not prevent a basic avatar from working.
+- Blender is optional. Missing or broken Blender tooling must never prevent the extension or SVG fallback from loading.
+- A feature is complete only when its user-visible journey works in the Webview and installed VSIX. Internal helpers or command registration alone are not completion.
 
-At the end of every implementation session, Codex must report:
+## 3. Verified baseline and real gaps
+
+| Area | What already works | What is still disconnected |
+| --- | --- | --- |
+| IDE assistant | Extension activation, React Webview, state changes, settings, built-in SVG/Pixi assets | The panel is settings-heavy, actions are duplicated, and unsupported choices are exposed |
+| SVG rendering | A built-in animated orb is always available | `SvgAvatarRenderer` hardcodes the orb and ignores the active manifest SVG |
+| Vectorization | PNG/JPG/JPEG/WebP contract, local Jimp/ImageTracer tracing, SVGO optimization, sanitization, limits, and tests | The “preview” is XML text; save creates export files and a conversion record, not an active `AvatarManifest` package |
+| Avatar packages | Secure import, validation, registry, activation, and fallback code exist | The Webview lacks Import/Activate controls, generated SVGs never enter the registry, and the free-text Avatar field is not registry activation |
+| Blender | Setting, runner, output channel, dry-run tests, and SVG/GLB/PNG Python scripts exist | Detection misses the installed Blender, exports are existence-checked only, and no result is packaged, activated, or rendered |
+| Optional renderers | Rive, Live2D, and WebGL source prototypes exist | `AvatarStage` currently routes only Pixi or the hardcoded orb; the prototypes are not product capabilities |
+| QA | Unit, smoke, package, and clean-profile scripts exist | There is no end-to-end picture → package → visible avatar test or real Blender host acceptance test |
+
+Important audit findings:
+
+- The vectorizer writes `.codex-avatar/exports/svg/<name>.raw-trace.svg`, `<name>.optimized.svg`, and `<name>.manifest.json`. That last file is an export record, not `avatar.manifest.json`.
+- Saving a trace does not register it, activate it, update the selected character/runtime, reload the package, or display it.
+- Even a correctly imported SVG package still shows the built-in orb because the SVG renderer never reads `manifest.entrypoints.svg`.
+- Blender 4.5.3 is installed locally under `C:\Program Files\Blender Foundation\Blender 4.5\blender.exe`, while the current Windows probe stops at Blender 4.4.
+- A Blender export record is not an avatar package. GLB also cannot be advertised as active until the WebGL renderer is genuinely routed, built, tested, and protected by SVG fallback.
+
+## 4. Target experience and architecture
+
+```mermaid
+flowchart LR
+  P["Choose local picture"] --> V["Visual source + SVG preview"]
+  V --> S["Save valid avatar package"]
+  S --> A["Register and activate"]
+  A --> R["Visible avatar stage"]
+  B["Choose .blend scene"] --> H["Probe Blender + capabilities"]
+  H --> E["Export SVG / GLB / PNG"]
+  E --> Q["Validate and package"]
+  Q --> A
+  V -. "optional later" .-> I["Create Blender scene from SVG"]
+  I --> B
+```
+
+Blender is not required to turn a picture into SVG. The primary path is picture → SVG → active avatar. Blender is a separate optional path for authored scenes, line art, 3D assets, and previews.
+
+### 4.1 Webview layout
+
+Use one compact Studio surface:
+
+1. Avatar stage, current state, current avatar, and health status.
+2. Primary actions: **Create from Picture**, **Import Avatar**, and **Blender Tools**.
+3. Studio workspace for source preview, conversion controls, output preview, warnings, progress, Cancel, and **Save & Use**.
+4. Avatar library with active-package selection and package actions.
+5. Behavior preferences grouped separately from Advanced/Debug settings.
+
+Remove duplicate top/asset-manager actions. Do not show raw `vscode-resource` URLs in the normal view; show readable filenames, status badges, and Reveal/Open actions.
+
+### 4.2 File layout
+
+```text
+.codex-avatar/
+├── avatar-registry.json
+├── avatars/
+│   └── <avatar-id>/
+│       ├── avatar.manifest.json
+│       ├── svg/avatar.svg
+│       ├── preview.png              # optional
+│       └── webgl/avatar.glb         # optional
+├── cache/
+│   └── jobs/<job-id>/               # disposable previews/staging
+└── exports/
+    ├── svg/                          # retained raw/optimized exports
+    └── blender/                      # retained Blender exports/reports
+```
+
+Only `avatars/<avatar-id>/avatar.manifest.json` is an installable avatar manifest. Conversion and Blender reports must be named `conversion-report.json` or `export-report.json` so they cannot be mistaken for packages.
+
+### 4.3 Studio job bridge
+
+Add a typed, versioned job protocol. The exact names may follow repository conventions, but it must cover:
+
+- choose image or `.blend` source;
+- start, progress, cancellation, completion, and structured failure;
+- source metadata and safe Webview preview URIs;
+- vectorization options and preview result;
+- Blender status, selected modes, and per-mode result;
+- save/package/activate result;
+- reveal output and open logs.
+
+Every message must pass runtime schema validation. The Webview must never receive an unrestricted filesystem operation or construct arbitrary local paths.
+
+## 5. Ordered implementation phases
+
+### Phase 0 — Consolidate truth and preserve the live baseline · complete
+
+- [x] Compare the three former plans against the current repository.
+- [x] Treat the existing live extension as the starting point.
+- [x] Identify the actual image, package, renderer, and Blender disconnects.
+- [x] Replace the conflicting plans with this single checklist.
+- [x] Keep historical detail in Git instead of a second active plan.
+
+**Acceptance:** there is one canonical plan, its next task is unambiguous, and it does not ask Codex to recreate completed foundation work.
+
+**Evidence — 2026-07-12:** `pnpm validate:docs` passed for 25 Markdown files; `git diff --check` passed; and all three former root plans plus `docs/PLAN_CHECKLIST_LEGACY.md` are absent from the working tree.
+
+### Phase 1 — Render the active package SVG · complete
+
+**Goal:** make an imported or generated SVG capable of replacing the built-in orb.
+
+- [x] Pass the resolved manifest SVG URI into the SVG renderer.
+- [x] Render `entrypoints.svg` (or the compatibility `assets.svg`) without executing SVG scripts or remote content.
+- [x] Keep the built-in orb as the load-error and missing-asset fallback.
+- [x] Apply whole-avatar state effects—idle, thinking, speaking, success, warning, error, and sleeping—to any static SVG.
+- [x] Treat named eye/mouth/body layers as optional enhancement data, not a basic-rendering requirement.
+- [x] Add cache busting or a version key so Reload and re-export visibly refresh the asset.
+- [x] Hide runtime options that are not actually routed through `AvatarStage`.
+- [x] Add renderer tests for custom SVG, missing SVG, corrupt SVG, reload, and fallback.
+
+**Done when:** activating a minimal valid SVG package changes the visible avatar immediately, remains selected after reload, responds with whole-avatar state effects, and returns safely to the orb on failure.
+
+**Evidence — 2026-07-12:**
+
+- `SvgAvatarRenderer` uses a local `<img>` resolved from `entrypoints.svg` with `assets.svg` compatibility, keeps the inline orb while loading/after error, and never injects SVG markup. `AvatarStage` routes the manifest URI and falls directly to SVG when Pixi has no asset.
+- `AvatarWebviewProvider` appends an incrementing `codexAvatarAssetRevision` to mapped asset URIs. Provider tests verify an active custom package maps to a Webview URI, reload changes the revision, registry failure restores the built-in manifest, and registry tests verify the active package survives recreation.
+- Webview renderer tests pass 11/11 for entrypoint priority, compatibility paths, flat SVGs without named layers, missing assets, failure/retry state, fallback markup, and required whole-avatar states. Extension Vitest passes 8/8 and extension Node tests pass 15/15.
+- `pnpm smoke:webview` exercised a real Edge render: a custom SVG replaced the orb, thinking motion applied, missing/corrupt SVGs returned to the orb, and a revised valid URI retried successfully.
+- `pnpm run ci` passed formatting, lint, typecheck, all 98 workspace tests, and builds. `pnpm package:vsix`, `pnpm validate:vsix`, `pnpm smoke:vsix`, and `pnpm smoke:clean-profile` passed with a 27-file VSIX.
+
+### Phase 2 — Build the Create from Picture Studio flow · complete
+
+**Goal:** replace the vague Vectorize button with an obvious local picture workflow.
+
+- [x] Add one primary **Create from Picture** action in the Webview and retain the Command Palette entry.
+- [x] Open the native file picker from the extension host.
+- [x] Support only formats that the packaged decoder proves it can read; PNG/JPG/JPEG are required, and WebP is advertised only after a real decode test passes.
+- [x] Copy an explicitly selected external picture to a disposable job cache only when needed for Webview preview; never modify the source.
+- [x] Show source thumbnail, filename, dimensions, file size, and alpha/background status.
+- [x] Add clear Continue, Back, Cancel, and retry states.
+- [x] Add typed progress and structured errors instead of relying on transient VS Code notifications.
+- [x] Require a trusted workspace and explain how to open one when none is available.
+- [x] Ensure cancellation or closing the panel removes disposable job data.
+
+**Done when:** a user can choose and visually preview a local picture from the panel, cancel without writing a package/export, and understand every failure without opening developer tools.
+
+**Evidence — 2026-07-12:**
+
+- The extension contributes **Codex Avatar: Create Avatar from Picture**, opens a native PNG/JPG/JPEG picker, requires a trusted workspace, validates image metadata and a 32 MiB limit, and copies only the selected source into a UUID-scoped `.codex-avatar/cache/jobs/` preview directory.
+- The versioned bridge now carries selecting/validating/copying progress, source metadata, cancellation reasons, and structured recoverable errors. The Webview shows a visual preview, safe filename, dimensions, size, format, transparency/background status, Continue, Back, choose-again, retry, and Cancel states without exposing the source path.
+- Extension tests verify external-source preservation, replacement behavior, unsupported-format rejection, picker cancellation, safe Webview URI mapping, workspace guidance, and cleanup when a job or panel is closed. Webview tests verify progress, preview metadata, and accessible errors.
+- `pnpm smoke:webview` passed in real headless Edge for picture progress, preview loading, metadata, Continue/Back, structured error, and cancellation. The smoke now waits for the initial assistant render instead of racing React effects.
+- `pnpm run ci` passed formatting, lint, typecheck, all 106 workspace tests, and production builds. `pnpm package:vsix`, `pnpm validate:vsix`, `pnpm smoke:vsix`, and `pnpm smoke:clean-profile` passed with the 27-file VSIX; documentation and third-party notice validation also passed.
+
+### Phase 3 — Produce and preview a useful SVG · complete
+
+**Goal:** connect the existing local tracer to a visual, adjustable preview.
+
+- [x] Reuse the existing validate → preprocess → trace → optimize → sanitize → complexity-check pipeline.
+- [x] Show source and optimized SVG side by side in the Webview instead of opening raw XML as the primary preview.
+- [x] Add simple presets: Color Illustration, Clean Icon, and High-Contrast Silhouette.
+- [x] Expose bounded controls for color count, grayscale, threshold, near-white background removal, noise cleanup, and detail/path count.
+- [x] Preserve color by default for character art; do not silently reduce every image to a two-color grayscale trace.
+- [x] Show SVG byte size, path count, missing named-layer guidance, and any safety warnings before save.
+- [x] Wire a real `AbortController` to the visible Cancel action.
+- [x] Keep raw trace and optimized export naming deterministic without overwriting an unrelated prior result.
+- [x] Add fixtures for transparent PNG, color PNG, JPEG, explicit WebP decoder rejection, oversized input, path explosion, cancellation, and malicious content. WebP remains unavailable until a packaged decoder passes a real decode-and-trace test.
+
+**Done when:** a selected picture becomes a visual, safe SVG preview locally; Cancel writes no committed result; the source is unchanged; limits and sanitization remain enforced; and no network request occurs.
+
+**Evidence — 2026-07-12:**
+
+- Picture Studio now sends bounded preset/options through the versioned bridge and displays source plus optimized SVG through local `<img>` URIs. It shows raw/optimized byte size, path/group counts, optional named-layer guidance, warnings, progress, retry, Back, conversion Cancel, and overall Cancel without injecting SVG markup.
+- The existing local pipeline now defaults to a bounded 16-color trace, separates cleanup from low/balanced/high path detail, reports validation metrics, enforces regular-file/32-MiB/raster/SVG/path limits, and sanitizes executable elements, CSS, event handlers, doctypes/entities, external protocols, and non-fragment references.
+- CPU-bound tracing runs in a separately packaged worker. A visible Cancel aborts the active controller, terminates the worker during its tracing stage, removes the job’s vector cache, and prevents a late preview or committed export. The legacy Vectorize command now opens this same Studio flow instead of an XML editor.
+- Pipeline and provider tests cover saturated color, transparency, baseline JPEG, honest WebP rejection, oversized headers/files, forced path explosion, appended malicious content, source hashes, worker termination, stale/late result prevention, cache cleanup, and collision-safe exclusive export names.
+- `pnpm run ci` passed formatting, lint, typecheck, all 114 workspace tests, and production builds. Real Edge smoke passed the source → controls → SVG preview → metrics → cancellation/error journey. The 28-file VSIX packaged the worker; validation, a real installed-worker decode/trace, activation smoke, and clean-profile installation all passed with documentation/notices validation.
+
+### Phase 4 — Save, package, activate, and persist · complete
+
+**Goal:** make **Save & Use** finish the journey instead of leaving an orphan export.
+
+- [x] Collect/confirm avatar name, safe id, author, version, and license. Never invent a redistribution license for user artwork.
+- [x] Generate the repository’s full schema-v1 `avatar.manifest.json`, not an `AssetManifestEntry` conversion record.
+- [x] Create a staged package containing `svg/avatar.svg`, preview metadata, state mappings, capabilities, and SHA-256 checksums.
+- [x] Validate the staged package through the same package validator used for imports.
+- [x] Atomically install/register it at `.codex-avatar/avatars/<id>/`.
+- [x] Handle id collisions with explicit Replace, Create Copy, or Cancel choices.
+- [x] Activate the package, update the selected character and runtime to SVG, call `reloadAssets()`, and return a typed completion message.
+- [x] Roll back files and registry changes together when validation, installation, activation, or reload fails.
+- [x] Provide **Save & Use**, **Open Folder**, and **Copy Path** on the completed generated package; the former orphan-export workflow is no longer the primary Studio path.
+- [x] Add an integration test for choose → preview → save → validate → register → activate → manifest message.
+
+**Done when:** picture → SVG → **Save & Use** visibly replaces the orb without manual commands, updates `avatar-registry.json`, survives an IDE reload, and never registers a partial or invalid package.
+
+**Evidence — 2026-07-12:**
+
+- The Studio requires name, safe lowercase id, author, semantic version, and an explicit license/rights statement; author and license start blank. Save & Use produces `svg/avatar.svg`, checksummed `metadata/source.json`, and a full schema-v1 `avatar.manifest.json` with SVG runtime/state mappings and no source-raster copy.
+- Generated staging runs through the same package/tree/path/SVG/checksum validator as imports. The registry installs from workspace-local staging with exclusive transaction directories and recoverable registry writes, selects the new package, sets character/runtime to the generated id/SVG, and posts the cache-revised active manifest immediately.
+- Existing ids return typed Replace, Create Copy, and Cancel choices. Successful completion exposes Open Folder and Copy Path without sending raw paths to the Webview. A generated package remains active when a new registry instance simulates IDE reload.
+- Transaction tests cover new install, deterministic copy id, replacement commit, replacement rollback, source preservation, and cleanup. A simulated active-manifest reload failure restores the former package files, registry, character, and runtime and never sends a false success.
+- `pnpm run ci` passed formatting, lint, typecheck, all 120 workspace tests, and builds. Real Edge smoke passed package progress, collision, failure, and success UI. The 28-file VSIX passed validation, clean-profile install, and a real installed choose → worker trace → Save & Use → active manifest journey.
+
+### Phase 5 — Make the Studio panel calm and useful · complete
+
+**Goal:** fix the long, technical layout shown in the current screenshots.
+
+- [x] Keep the stage and primary creation actions above the fold.
+- [x] Replace the free-text Avatar field with the real avatar-library selector.
+- [x] Consolidate Import, Activate, Validate, Reload, Reveal, and Remove in the avatar library.
+- [x] Make Validate run actual package/SVG checks and display structured results; remove the timestamp-only behavior.
+- [x] Group everyday behavior controls separately from Advanced/Debug settings and collapse the latter by default.
+- [x] Hide raw asset URIs and duplicate action rows.
+- [x] Disable unavailable actions with a short reason and setup action.
+- [x] Use VS Code theme tokens, clear hierarchy, consistent button labels, aligned controls, and responsive narrow-panel spacing.
+- [x] Preserve keyboard navigation, visible focus, screen-reader labels, high contrast, reduced motion, and no-animation behavior.
+- [x] Add useful empty, loading, success, partial-success, and failure states.
+- [x] Capture manual screenshots at narrow and wide widths in dark, light, and high-contrast themes.
+
+**Done when:** a new user can identify how to create, select, and manage an avatar without scrolling through technical settings or reading raw paths.
+
+**Evidence — 2026-07-12:**
+
+- The visible panel now keeps the stage and exactly three primary actions—Create from Picture, Import Avatar, and Blender Tools—before the real avatar library. Behavior stays compact; runtime, timing, effects, and diagnostics are inside a collapsed, keyboard-accessible Advanced behavior section. The free-text avatar id, raw asset URIs, timestamp-only validation, and duplicate Toggle/Vectorize/action rows are gone.
+- The versioned bridge now carries bounded library refresh/status/validation data and typed import, activate, validate, reload, reveal, remove, and workspace-setup requests. The extension host performs real package/manifest/SVG/checksum validation, redacts known local paths, refuses registered-root/symlink escapes, falls back to the built-in SVG in untrusted workspaces, and rolls settings, registry state, files, and active rendering back on failed activation/removal. Windows package moves use bounded retry without weakening transactional rollback.
+- The library exposes readable metadata and Active, Ready, Needs repair, built-in, and partial-success note badges; structured error/warning lists; loading, empty, working, success, and failure feedback; two-step destructive confirmation; and disabled-action reasons with Open Folder or Manage Trust setup actions.
+- `pnpm run ci` passed formatting, lint, strict typecheck, builds, and all 128 tests: avatar core 19, asset pipeline 21, Pixi runtime 24, extension Node 18, extension Vitest 20, Webview Vitest 21, and Webview Node 5. Three concurrent provider stress runs also passed after exercising Windows removal transactions.
+- Real Edge smoke passed the renderer, picture Studio, package states, avatar selector, structured validation, and raw-URI privacy checks. Six inspected screenshots were captured under `.codex-avatar/previews/phase5/` at 340×900 and 760×900 in dark, light, and high-contrast themes; the stage, main actions, and library remained identifiable above technical settings in every variant.
+- The 28-file, 1.48 MB VSIX passed package validation, third-party notice validation, installed-package activation/Webview smoke, and a clean-profile VS Code installation.
+
+### Phase 6 — Establish a real Blender connection · complete
+
+**Goal:** make Blender detection and setup trustworthy while keeping it optional.
+
+- [x] Introduce a typed Blender probe result containing path, discovery source, parsed Blender version, support state, and available export capabilities.
+- [x] Reject a non-Blender executable even when it exits successfully with `--version`.
+- [x] Probe the configured setting, `BLENDER_PATH`, `PATH`, and dynamic platform install locations without a fixed version ceiling.
+- [x] Continue probing after an invalid configured path and report the invalid preference separately.
+- [x] Add **Browse**, **Auto-detect**, and **Test Connection** controls in Blender Tools.
+- [x] Display detected version, executable path, supported modes, and actionable setup help.
+- [x] Keep `shell: false`; add `--disable-autoexec`, input/script validation, single-flight locking, bounded logging, configurable timeout, cancellation, and process-tree cleanup.
+- [x] Stage output per job and move only validated artifacts into `.codex-avatar/exports/blender/`.
+- [x] Prefix stdout/stderr logs and provide Open Log/Open Output Folder actions.
+- [x] Add unit tests for valid Blender identity, fake executable rejection, invalid-setting fallback, cancellation, timeout, collision, and missing Blender.
+
+**Done when:** this Windows machine auto-detects its installed Blender 4.5.3, a bad path produces a repairable status, cancellation stops the process, and a machine without Blender still runs the avatar normally.
+
+**Evidence — 2026-07-12:**
+
+- The typed probe checks the restricted `codexAvatar.blenderPath` setting, `BLENDER_PATH`, system `PATH`, and dynamically enumerated Windows/macOS/Linux install locations. It requires anchored Blender identity output, supports Blender 3.6+ without a maximum-version ceiling, retains a separate invalid-preference result while continuing fallback discovery, and reports version, source, support, attempts, and SVG/GLB/PNG production capabilities.
+- A real host probe found `C:\Program Files\Blender Foundation\Blender 4.5\blender.exe` as a platform installation and parsed Blender 4.5.3 as supported. A second real probe used Node as the configured executable, rejected its successful `v22` output as non-Blender, preserved that repairable preference error, and still found Blender 4.5.3.
+- The collapsible Blender Tools panel now exposes Browse, Auto-detect, Test Connection, Cancel, Open Log, and Open Output Folder through the versioned bridge. It shows friendly missing/invalid/unsupported/working/success/failure states, version, executable, discovery source, support, and capability badges while explaining that picture-to-SVG does not require Blender. Narrow dark, wide light, and narrow high-contrast browser captures under `.codex-avatar/previews/phase6/` were inspected successfully.
+- Blender processes use `shell: false`, `--disable-autoexec`, trusted regular-file/real-path checks, one active job, bounded prefixed stdout/stderr, a configurable 10–600 second timeout, abort propagation, and Windows/POSIX process-tree termination. Jobs stage under `.codex-avatar/cache/jobs/blender-<uuid>/`; only nonempty artifacts with valid JSON reports publish collision-safely, and failure/cancel/timeout/collision removes staging without changing the source scene or existing output.
+- `pnpm run ci` passed formatting, lint, strict typecheck, all builds, and all 156 tests: avatar core 19, asset pipeline 21, Pixi runtime 24, extension Node 38, extension Vitest 22, Webview Vitest 27, and Webview Node 5. Tests cover identity/fake tools, invalid fallback, cross-platform discovery, missing/unsupported Blender, probe cancellation, command timeout/cancellation and process-tree cleanup, logging bounds, path escapes, staging, validation, late collision, and single-flight release.
+- Real Edge smoke passed the connected Blender Tools states and cancellation UI. The 28-file, 1.49 MB VSIX included the Blender safety strings and UI controls, passed installed activation/Webview smoke and third-party validation, and installed successfully in a clean VS Code profile.
+
+### Phase 7 — Export Blender assets and connect supported output · P1
+
+**Goal:** turn a Blender job into validated assets and a usable avatar package.
+
+- [x] Allow an explicitly selected `.blend` source while always writing output inside the trusted workspace.
+- [x] Preserve the source scene; scripts must never save over it.
+- [x] Define and enforce `Export` collection preference, `Avatar` fallback, and `Guides`/`Ignore` exclusion.
+- [x] Export selected SVG line art, GLB, and PNG preview modes independently and report partial success per mode.
+- [x] Treat SVG as capability-dependent line art. Do not claim that Blender automatically vectorizes arbitrary pictures or meshes.
+- [x] Optimize and sanitize Blender SVG through the same SVG safety pipeline used by picture tracing.
+- [x] Validate nonempty SVG, GLB structure/size, PNG signature/dimensions, and portable relative report paths—not file existence alone.
+- [x] Rename per-mode metadata to `export-report.json` and keep it separate from `avatar.manifest.json`.
+- [x] Build a valid avatar package with a package-local SVG fallback, optional GLB, and optional PNG preview.
+- [x] Validate, register, optionally activate, and reload the package through the same atomic path as Phase 4.
+- [x] Allow **Use as Avatar** immediately for a valid SVG result.
+- [x] Label GLB as export-only until the lazy WebGL renderer is included in dependencies, typecheck/build, routed by `AvatarStage`, and verified with SVG fallback.
+- [x] If GLB activation is implemented, require a package SVG fallback and test GPU/asset failure recovery. GLB activation is intentionally not implemented in this phase, so the guard remains satisfied by keeping SVG as the only entrypoint/runtime priority.
+- [x] Run a real Blender host fixture covering at least one supported SVG or GLB/PNG scene.
+
+**Done when:** a real `.blend` fixture produces validated local output, Blender-created SVG can become the visible avatar, re-export refreshes it, and unsupported GLB/runtime combinations are never presented as active.
+
+**Phase 7 evidence (2026-07-12):**
+
+- `blenderPlan.ts`, `blenderRunner.ts`, and `blenderArtifacts.ts` now accept only explicitly selected external regular `.blend` files, keep staging/output inside the trusted asset workspace, publish modes independently, sanitize/optimize SVG, validate glTF 2 GLB and PNG structure/limits, enforce portable reports, and use `<scene>.<mode>.export-report.json`.
+- Blender scripts prefer `Export`, fall back to `Avatar`, recursively exclude `Guides`/`Ignore`, never save the source scene, and describe SVG accurately as authored Grease Pencil line art rather than automatic vectorization.
+- `blenderAvatarPackage.ts` creates a validated SVG-first package with optional GLB/PNG, an SVG-only entrypoint/runtime priority, checksums, and source metadata. The provider installs, activates, reloads, commits, or rolls back through the existing transaction path. Re-export plus same-id replace refreshes the visible avatar.
+- Typed protocol/Webview states expose per-mode success/failure, package metadata, collision choices, and **Use SVG as Avatar**. GLB is visibly labelled export-only and cannot be selected as the active runtime.
+- `pnpm smoke:blender` passed against Blender 4.5.3 LTS using a disposable external `.blend`: one `Export` object produced validated GLB and 1024×1024 PNG output while the `Ignore` object was excluded and portable reports recorded `collection: "Export"`, `objectCount: 1`. The source and temporary workspaces were removed afterward.
+- `pnpm run ci` passed formatting, lint, strict typecheck, all builds, and all 162 tests: avatar core 19, asset pipeline 21, Pixi runtime 24, extension Node 40, extension Vitest 25, Webview Vitest 28, and Webview Node 5. Focused coverage includes external-source safety, partial success, structural artifact rejection, path privacy, SVG-first package validation, and typed UI results.
+- Real Edge Webview smoke passed Blender connection, partial results, export-only GLB guidance, and avatar-save success; the inspected Phase 7 screenshot is under `.codex-avatar/previews/phase7/`. Documentation/notices validation passed. The 28-file, 1.50 MB VSIX passed content validation, installed activation/Webview smoke, and a clean-profile install.
+
+### Phase 8 — Optional SVG-to-Blender handoff · P2
+
+**Goal:** provide a clear bridge for users who want to refine a vectorized result in Blender.
+
+- [x] Add **Create Blender Scene from SVG** after a successful vector preview/package.
+- [x] Import the sanitized SVG as curves into a new scene under the `Avatar` collection.
+- [x] Add an orthographic camera, neutral lighting, simple materials, and `Export`, `Guides`, and `Ignore` collections.
+- [x] Save a new `.blend` working copy under `.codex-avatar/exports/blender/`; never modify the SVG or an existing scene.
+- [x] Explain that imported curves are not an automatic rig or 3D character.
+- [x] Return the scene to the Phase 7 flow for user editing and export.
+
+**Done when:** a user can turn the generated SVG into a safe editable Blender starting scene and then use the normal Blender export workflow. This phase does not block the core SVG or Blender-export releases.
+
+**Phase 8 evidence (2026-07-12):**
+
+- `import_svg_scene.py` imports only a sanitized SVG into editable curves inside `Avatar/Export`, creates `Guides` and `Ignore`, adds an orthographic camera, neutral area light, transparent background, and small curve depth, and saves a brand-new working copy plus portable report.
+- `blenderHandoff.ts` confines input to the avatar workspace, rejects unsafe/symlink/oversized SVG, verifies the extension-owned script, uses disposable staging and exclusive publication, validates the `.blend` header/size and report, and never modifies the SVG or an existing scene.
+- Typed provider/Webview messages show working/success/error states without exposing raw paths. **Create Blender Scene from SVG** appears after preview and after package success; the result offers **Open Scene Folder** and **Export Blender Scene** and explicitly says curves are not an automatic rig or 3D character.
+- The real Blender 4.5.3 host smoke imported a sanitized SVG as curve geometry, produced a valid working `.blend` with `Export` conventions, and successfully sent that scene back through the normal validated GLB export flow.
+- `pnpm run ci` passed formatting, lint, strict typecheck, all builds, and all 165 tests. Real Edge Webview smoke passed the handoff working/success states and return actions; the Phase 8 screenshot is under `.codex-avatar/previews/phase8/`.
+
+### Phase 9 — End-to-end quality, documentation, and release · required
+
+**Goal:** prove the actual user journeys in the packaged extension.
+
+- [x] Add Webview tests proving a manifest SVG URI—not the hardcoded orb—is rendered.
+- [x] Add mocked VS Code integration tests for picture selection, job progress/cancel, package installation, activation, reload, and rollback.
+- [x] Add package tests for id collisions, checksums, malicious SVG, source outside the workspace, atomic failure, and cache cleanup.
+- [x] Replace the Node-as-Blender version test with a controlled fake that emits Blender-shaped output.
+- [x] Add Blender runner tests for identity, cancellation, timeout, process cleanup, partial success, validation, registration, and reload.
+- [x] Add an opt-in real-Blender test for the supported host matrix.
+- [x] Manually verify dark, light, high contrast, reduced motion, no animation, narrow panel, and keyboard-only use.
+- [x] Update the user guide, asset pipeline, package specification, Blender guide, troubleshooting, architecture, privacy, and release checklist.
+- [x] Verify the built VSIX contains required Webview assets, Blender scripts, and no prohibited remote runtime.
+- [x] Run `pnpm run ci`, `pnpm smoke:webview`, `pnpm package:vsix`, `pnpm validate:vsix`, `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, `pnpm validate:docs`, and `pnpm validate:notices`.
+
+**Done when:** both required journeys pass from a clean installed VSIX, no external network service is needed, generated sources remain local, and all fallbacks are verified rather than assumed.
+
+**Phase 9 evidence (2026-07-12):**
+
+- Manifest-driven SVG renderer tests prove custom cache-versioned URIs are attempted, flat SVG works without named layers, failed/corrupt URIs return to the built-in orb, and a revised URI retries instead of staying on a hardcoded asset.
+- Mocked provider/registry tests cover external picture copying, typed progress, worker cancellation, local vector preview, package collisions/copies, validation, checksums, malicious SVG and path rejection, atomic install/activation/reload, persisted selection, rollback, removal rollback, and cache cleanup.
+- Blender tests use a controlled runner that emits anchored Blender-shaped identity output and cover fake-tool rejection, discovery, timeout, cancellation/process-tree cleanup, staging, source preservation, external selection, structural validation, late collisions, partial success, SVG-first package registration/reload, and SVG handoff safety.
+- `pnpm smoke:blender` is opt-in on hosts without Blender and passed here with Blender 4.5.3 LTS for real GLB, PNG, SVG curve handoff, and handoff-scene re-export.
+- Real Edge smoke passed dark, light, high-contrast, 360 px narrow layout, system reduced motion, no-animation mode, keyboard Tab/Enter traversal, manifest asset load/failure/reload, picture/vector/package flows, Blender partial results, and SVG handoff. Phase 5–8 screenshots remain under `.codex-avatar/previews/`.
+- User, pipeline, package, Blender, troubleshooting, architecture, privacy, QA, performance, README, and changelog documentation describe the implemented local-only behavior and its non-rigging/non-vectorization boundaries.
+- Final release matrix passed: `pnpm run ci` (165 tests and all builds), `pnpm smoke:webview`, `pnpm smoke:blender`, `pnpm package:vsix`, `pnpm validate:vsix`, `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, `pnpm validate:docs`, and `pnpm validate:notices`.
+- The 29-file, 1.50 MB VSIX contains the Webview, SVG/Pixi fallback assets, four production Blender scripts including `import_svg_scene.py`, typed Blender safety/UI strings, and no prohibited remote runtime. Installed activation/Webview smoke and clean-profile installation passed.
+
+### Phase 10 — Layered animated mascot prototype · complete
+
+**Goal:** use the supplied Skjermbilde illustration as the visual reference for a responsive local website-ready mascot, rather than stopping at the static picture trace.
+
+- [x] Recreate the character as code-native named SVG layers for the body, head, hat, hair, eyes, irises, eyelids, eyebrows, cheeks, mouth, scarf, cape, hands, skirt, feet, and reactions.
+- [x] Add idle breathing, natural randomized blinking, restrained head motion, pointer-following gaze, thinking, speaking, success, warning, error, and sleeping behavior.
+- [x] Connect existing pose and trigger inputs for local text/audio-level mouth movement, blink, gaze, nod, shake, celebrate, point, and particles.
+- [x] Route the `skjermbilde-character` package through the layered renderer without changing the schema contract for unrelated packages.
+- [x] Keep the traced package SVG as the runtime-boundary fallback and the built-in orb as the final missing/corrupt-asset fallback.
+- [x] Preserve strict CSP, no SVG markup injection, local-only operation, page-visibility pause, focus mode, and reduced-motion expressions.
+- [x] Document React website integration and a plain static-image fallback.
+- [x] Add focused renderer tests, real Edge state/input smoke, VSIX activation/install checks, and installed VS Code visual verification.
+
+**Done when:** the supplied character is visibly active in the installed extension, has independent moving facial/body/reaction layers, supports the required states and gaze/mouth inputs, remains usable without GPU or network services, and can be reused as a documented website component with static SVG fallback.
+
+**Phase 10 evidence (2026-07-13):**
+
+- `LayeredMascotRenderer.tsx` and its isolated stylesheet reconstruct the recognizable bowler hat, black hair and dress, large glossy eyes, woven collar, medallion, red cape, cheeks, hands, and shoes as named code-native SVG layers. `AvatarStage` selects it only for `skjermbilde-character` and wraps it in the existing `RuntimeBoundary` with the package trace as fallback.
+- State CSS and local React behavior implement breathing, randomized blink, gaze/head tracking, text/audio-level mouth movement, idle, thinking, speaking, success, warning, error, sleeping, and supported one-shot reactions. Reduced motion removes continuous animation without removing state meaning.
+- `pnpm run ci` passed formatting, lint, strict typecheck, all builds, and all 174 tests: avatar core 19, asset pipeline 21, Pixi runtime 24, extension Node 42, extension Vitest 25, Webview Vitest 38, and Webview Node 5.
+- `pnpm smoke:webview` passed in real headless Edge for named layers, non-image rendering, speaking mouth animation, success body animation, error reaction, nod trigger, pointer gaze, generic SVG fallback, and corrupt/missing fallback. The inspected success capture is under `.codex-avatar/previews/phase10/`.
+- The 30-file, 1.61 MB VSIX passed content validation, installed activation/Webview smoke, third-party notice validation, documentation validation, and clean-profile installation. Computer Use reloaded the installed VSIX in the live Blender workspace and visibly confirmed the repaired local package as **Active**, **Ready**, and rendered by the layered mascot.
+- [LAYERED_MASCOT_PROTOTYPE.md](LAYERED_MASCOT_PROTOTYPE.md) documents the authored-2D boundary, component props, normalized pointer and mouth inputs, React/Vite reuse, and plain SVG fallback. No remote service, microphone permission, WebGL, or WebGPU is required.
+
+### Phase 11 — Portable avatar package export · complete
+
+**Goal:** let a user create a shareable local artifact from a ready avatar without manually locating and copying its installed package files.
+
+- [x] Add **Export Avatar** to non-built-in, valid packages in the Webview avatar library.
+- [x] Send export through the typed, versioned bridge and require an open, trusted workspace.
+- [x] Revalidate the registered package immediately before export and preserve package file-count and byte limits.
+- [x] Write an atomic local `.codex-avatar.zip` containing one portable top-level `<id>/` package folder with UTF-8 relative paths.
+- [x] Reject symbolic links, unsafe paths, non-regular files, destinations inside the installed package, and invalid packages.
+- [x] Show author/license confirmation before writing and strengthen the warning for unclear or restricted redistribution statements.
+- [x] Reveal the completed ZIP, explain that it must be unzipped before import, and document static SVG versus authored layered-renderer reuse.
+- [x] Add protocol, ZIP structure, provider, Webview, browser smoke, packaged-VSIX, and clean-install coverage.
+
+**Done when:** a ready custom avatar exports from the visible library as a validated local ZIP, unclear rights cannot be overlooked, the archive can be extracted into an importable package folder, and invalid/built-in packages cannot be accidentally exported through the UI.
+
+**Phase 11 evidence (2026-07-13):**
+
+- `avatarPackageExport.ts` builds dependency-free stored ZIP records with CRC-32, UTF-8 entry names, one `<id>/` root, package limits, symbolic-link/path checks, package-internal destination rejection, and temporary-file publication. `AvatarWebviewProvider` revalidates, confirms rights, opens the native save dialog, writes locally, and reveals the result.
+- `AssetManagerPanel` exposes **Export Avatar** only for non-built-in packages and disables it when validation has failed. The shared protocol accepts `library:export` and reports export progress/success/failure through the existing bounded library status channel.
+- Focused ZIP tests passed for archive structure/content, invalid-package rejection, internal-destination rejection, safe naming, and restrictive-rights detection. Provider coverage exported a real generated package through the typed bridge and verified the stronger all-rights-reserved warning; Webview coverage verified the visible action and typed wiring.
+- `pnpm run ci` passed formatting, lint, strict typecheck, all builds, and all 177 tests. `pnpm smoke:webview` passed in real headless Edge and verified the export action in the rendered library. `pnpm validate:docs` and `pnpm validate:notices` passed.
+- `pnpm package:vsix` produced a validated 30-file, 1.61 MB VSIX. `pnpm smoke:vsix` passed activation, command, Webview, and worker checks from an isolated temporary workspace, and `pnpm smoke:clean-profile` installed the VSIX successfully without reading or changing the user's active avatar workspace.
+
+### Phase 12 — Blender MCP and professional 3D avatar · required
+
+**Goal:** connect Codex to local Blender through a restricted project MCP, author a professional local-only 3D Cholita, and make validated GLB packages usable through the optional WebGL runtime while preserving SVG/orb fallback.
+
+- [x] Add pinned project Blender MCP configuration, an idempotent checksum-verifying add-on setup command, localhost-only operation, telemetry disablement, a four-tool allowlist, and approval for arbitrary Blender Python.
+- [x] Install the seven audited Blender modeling/material/animation/export/rigging/inspection skills at fixed commits and record their licenses and source pins.
+- [x] Add `webgl` to settings, typed bridge validation, library reporting, workspace-scoped avatar activation, and Blender package generation without changing manifest schema version 1.
+- [x] Lazy-load Three.js and GLTFLoader, play mapped glTF actions through AnimationMixer, drive morph-based blink/mouth plus gaze, and dispose all GPU resources.
+- [x] Preserve reduced motion, page-visibility pause, strict CSP, local paths, WebGL context-loss recovery, and the GLB → package SVG → built-in orb fallback chain.
+- [x] Create `.codex-avatar/avatars/cholita-3d/source/cholita.blend` as a stylized authored model with ≤60k triangles, ≤50 deform bones, four influences per vertex, required facial shape keys, and the complete state/trigger clip set.
+- [x] Export and validate the local-only GLB, SVG fallback, preview, contact sheet/turntable, manifest, and rig/export report; activate `cholita-3d` only in this workspace and retain the Phase 10 package.
+- [ ] Run focused MCP, package, renderer, Blender, performance, privacy, installed-extension, fallback, CI, VSIX, and visual acceptance checks; prove Cholita assets are absent from Git and the VSIX.
+
+**Done when:** the current workspace visibly uses the animated 3D Cholita through WebGL, every supported state and trigger has verified behavior, Blender/MCP/GPU failures remain harmless, and redistributable builds still contain only the approved coder-orb assets.
+
+**Phase 12 evidence (2026-07-14):**
+
+- `.codex/config.toml` pins `uvx --python 3.11 blender-mcp==1.6.4`, `localhost:9876`, telemetry-off environment values, the four approved tools, automatic read-tool approval, and prompt approval for `execute_blender_code`. `pnpm setup:blender-mcp` followed by `pnpm verify:blender-mcp` passed idempotently with add-on commit `6641189231caf3752302ae20591bc87fda85fc4e`, SHA-256 `bba60831f5f89a74deda0294b131668a086cf46eb35a6a01abbd0d21d9e92630`, enabled status, Blender 4.5.3, and `uvx 0.11.28`; `codex mcp list` reports the project server enabled.
+- The seven reviewed project skills are installed under `.agents/skills` at the requested commits. `skills.md` catalogs them and `THIRD_PARTY_NOTICES.md` records their complete source pins plus MIT/Apache-2.0 notices. No remote-generation, unlicensed, or duplicate search result was installed.
+- The local `cholita-3d` package contains the authored `.blend`, GLB, SVG fallback, PNG preview, turntable/contact sheets, manifest, and machine-readable audits. The Blender audit passed at 17,004 triangles, 31 deform bones, one normalized influence per vertex, applied mesh transforms, a root at the origin, seven required facial shape keys, ten seamless loops, and all 22 required actions. The independent GLB audit passed at 1,031,388 bytes with one skin, seven morphs, all 22 clips, and no root-translation channels.
+- The workspace registry retains `skjermbilde-character`, adds and activates `cholita-3d`, and `.vscode/settings.json` selects `cholita-3d` with `webgl`. A real local browser run rendered one Three.js canvas, visually checked all thirteen semantic states and all eleven supported triggers at narrow and wide widths, verified stable focus/no-animation frames, survived three reloads without duplicate canvases or console errors, and recovered to the package SVG after both context loss and an invalid GLB.
+- `pnpm run ci` passed formatting, lint, strict typecheck, all builds, and all 182 tests. `pnpm smoke:blender`, `pnpm smoke:webview`, `pnpm validate:docs`, and `pnpm validate:notices` passed. `pnpm package:vsix` produced a validated 33-file, 1.77 MB VSIX; `pnpm smoke:vsix` and `pnpm smoke:clean-profile` passed. `scripts/validate-vsix.mjs` now requires the lazy WebGL/GLTF chunks and rejects `.codex-avatar`, Cholita, `.blend`, and `.glb` entries. `git status -- .codex-avatar` is empty and `git check-ignore` confirms the local `.blend`, GLB, SVG, and preview are ignored.
+- **BLOCKED:** the first live MCP tool smoke is intentionally restart-gated. Restart Blender and start a new Codex task, then verify `get_scene_info`, `get_object_info`, `get_viewport_screenshot`, and one explicitly approved harmless `execute_blender_code` call. Keep the final acceptance checkbox unchecked until that post-restart evidence is recorded.
+
+## 6. Release gates
+
+### 6.1 Core Studio gate
+
+- [x] A user can choose and preview a local picture from the Webview.
+- [x] The image converts locally into a visible optimized SVG preview.
+- [x] **Save & Use** creates a valid package and immediately changes the avatar.
+- [x] The selected custom avatar survives reload.
+- [x] Static SVGs react to states without requiring named layers.
+- [x] Invalid/corrupt SVG returns to the built-in orb without a crash.
+- [x] Avatar library actions and settings reflect the real active package.
+- [x] A valid custom package exports as a portable local ZIP with explicit rights confirmation.
+- [x] The UI is compact, theme-aware, keyboard-usable, and reduced-motion safe.
+
+### 6.2 Blender connection gate
+
+- [x] Blender can be browsed, auto-detected, and identity/version tested.
+- [x] Missing Blender provides useful setup help and does not affect the base avatar.
+- [x] Cancellation/timeout terminates the Blender job cleanly.
+- [x] A real fixture produces validated output without changing the source `.blend`.
+- [x] A Blender SVG result can be packaged and shown as the active avatar.
+- [x] GLB is either visibly rendered through a verified lazy adapter with SVG fallback or clearly marked export-only.
+
+### 6.3 Privacy and integrity gate
+
+- [x] No source or generated asset is uploaded or fetched remotely.
+- [x] Webview messages, paths, manifests, SVG, GLB, PNG, and package sizes are validated.
+- [x] Generated packages use atomic staging and rollback.
+- [x] Licenses and authorship are user-confirmed and visible.
+- [x] Package export stays local, revalidates before writing, and warns on restricted or unclear redistribution rights.
+- [x] Workspace trust gates filesystem mutation and Blender execution.
+
+## 7. Deferred backlog
+
+These are intentionally outside the active delivery path:
+
+- automatic character segmentation or rigging from one picture;
+- advanced named-layer SVG editor;
+- automatic Pixi spritesheet generation;
+- production Rive authoring workflow;
+- Live2D, Inochi2D, VRM, or WebGPU productization;
+- voice, microphone capture, visemes, and cloud speech;
+- remote avatar marketplace or cloud storage;
+- GitHub Project board automation beyond normal issues/PRs;
+- Blender turntables, full animation retargeting, or automatic 2D-to-3D conversion.
+
+## 8. Execution rules
+
+- Work in phase order. Phase 8 may be deferred, but Phases 1–7 and 9 are the requested delivery path.
+- Before editing a work area, read its scoped `AGENTS.md` and use the matching repository skill.
+- Preserve unrelated user changes and local assets. Never clean or overwrite a dirty worktree to make a phase easier.
+- Keep each phase reviewable and update this checklist only after implementation plus verification.
+- A checked item needs evidence: command/manual procedure, observed result, environment, and affected files.
+- If blocked, leave the item unchecked and add `BLOCKED:` with the exact condition and a safe next action.
+- Maintain local-only processing, strict CSP, path containment, SVG sanitization, workspace trust, `shell: false`, reduced motion, and SVG fallback throughout.
+- Prefer one focused pull request per phase. GitHub labels/boards are project-management aids, not implementation prerequisites.
+
+Use this progress format after every implementation session:
 
 ```text
 Completed phase:
 Completed tasks:
-Verification commands:
+Verification commands and observed results:
 Files changed:
 Open blockers:
 Next unchecked task:
 ```
-
-## 1.1 Implementation Clarifications
-
-These clarifications are part of this plan and take precedence over an older checklist or prior implementation claims.
-
-### Authoritative checklist and existing-code migration
-
-- This plan is the authoritative checklist for the PixiJS-first MVP. Before it replaces an older `docs/PLAN_CHECKLIST.md`, preserve the older checklist as `docs/PLAN_CHECKLIST_LEGACY.md`.
-- Audit and preserve existing user code. Existing Rive, WebGL, Live2D, Blender, SVG, and asset-pipeline work may be retained as reference or future optional work, but does not satisfy a task in this plan until it is migrated where needed and verified against this plan's acceptance criteria.
-- Do not expand an optional runtime before the SVG and PixiJS MVP is complete. Keep retained optional-runtime code outside the MVP bundle.
-
-### MVP delivery route and optional phases
-
-- The required non-voice MVP route is Phase 0 through Phase 12, followed by Phase 18 through Phase 22.
-- Phase 13 is optional unless voice functionality is introduced. Phases 14 through 17 are post-MVP optional adapters and tools.
-- A deferred optional phase must remain unchecked and be listed as `DEFERRED:` in the final session report with its reason. Deferral is not completion and does not permit the deferred code to enter the base extension bundle.
-- "Strict numerical phase order" means numerical order within the selected required route: complete Phases 0–12 before Phase 18, then complete Phases 18–22 in order. Do not begin a later required phase while an earlier required phase has incomplete acceptance criteria.
-
-### Git prerequisite
-
-- A backup branch is required before structural source changes. If the selected workspace is not a Git repository, leave that task and its acceptance criterion unchecked and record `BLOCKED: No Git repository is available at the selected workspace root.`
-- Documentation-only auditing may continue while that prerequisite is blocked. Do not run `git init`, create commits, or create a branch without explicit user authorization or a confirmed repository root.
-
-### Phase 0 decision lock
-
-- Before closing Phase 0, `docs/ARCHITECTURE.md` must record the supported IDE/version floor, Node and pnpm policy, formatter/linter choice, unit and extension-integration test choices, vectorization dependency choice, and whether AITuber OnAir is reference-only or contains specifically attributed adapted code.
-
-### Verification evidence standard
-
-- Each completed task must cite the exact command or a reproducible manual-test procedure, the observed result, the environment where it ran, and the affected files.
-- Manual acceptance checks must state their setup, steps, and observed result. Code inspection alone is not evidence.
-
-### Webview bootstrap rule
-
-- "Prevent inline scripts" means prevent executable inline scripts, including bootstrap code. The extension must send initialization data through the versioned typed bridge after `webview:ready`; a CSP nonce must not be used to exempt executable bootstrap code.
-
----
-
-# 2. Product Scope
-
-## 2.1 MVP
-
-The MVP must provide:
-
-- A VS Code-compatible extension.
-- A React and Vite Webview.
-- A dockable animated assistant panel.
-- A static SVG fallback avatar.
-- A PixiJS animated spritesheet avatar.
-- Typed IDE-to-avatar events.
-- Typed avatar states and triggers.
-- Manual commands for testing all avatar states.
-- Basic IDE event reactions.
-- Local avatar packages and manifests.
-- User settings and workspace persistence.
-- Reduced-motion and low-performance modes.
-- Automated unit and integration tests.
-- No required cloud services.
-
-## 2.2 Optional post-MVP runtimes
-
-These must be isolated behind lazy-loaded adapters:
-
-- Inochi2D puppet runtime.
-- Live2D compatibility runtime.
-- Three.js and VRM 3D runtime.
-- WebGPU enhancements.
-- Blender export automation.
-- Audio-driven lip synchronization.
-- Voice and viseme integration.
-
-## 2.3 Explicit non-goals for the MVP
-
-- Full autonomous emotional relationship simulation.
-- Adult companion mechanics.
-- Hidden psychological engagement loops.
-- Remote avatar asset marketplace.
-- Automatic professional Live2D rig generation.
-- Direct access to private Codex extension internals.
-- Mandatory Blender installation.
-- Mandatory GPU acceleration.
-- Copying another product’s character design.
-
----
-
-# 3. Architecture
-
-```text
-VS Code / Compatible IDE
-│
-├── Extension Host
-│   ├── Commands
-│   ├── Public IDE event listeners
-│   ├── Settings
-│   ├── Workspace persistence
-│   ├── Asset validation
-│   └── Webview message bridge
-│
-├── React/Vite Webview
-│   ├── Avatar stage
-│   ├── Assistant message bubble
-│   ├── Settings panel
-│   ├── Runtime debug panel
-│   └── Accessibility controls
-│
-├── Avatar Core
-│   ├── State machine
-│   ├── Event mapping
-│   ├── Runtime interface
-│   ├── Manifest schema
-│   ├── Capability negotiation
-│   └── Reduced-motion policy
-│
-├── Runtime Adapters
-│   ├── SVG fallback
-│   ├── PixiJS spritesheet
-│   ├── Inochi2D optional
-│   ├── Live2D optional
-│   └── VRM/Three.js optional
-│
-└── Asset Pipelines
-    ├── Image to SVG
-    ├── SVG optimization
-    ├── Spritesheet validation
-    ├── Blender to GLB
-    ├── Blender to SVG line art
-    └── Avatar package validation
-```
-
----
-
-# 4. Approved Technical Stack
-
-## Base stack
-
-- TypeScript with strict mode.
-- pnpm workspaces.
-- VS Code Extension API.
-- React.
-- Vite.
-- PixiJS v8.
-- Zod for runtime schema validation.
-- Vitest for unit tests.
-- Playwright or `@vscode/test-electron` for extension integration tests.
-- ESLint or Biome.
-- Prettier if Biome is not used.
-
-## Optional stack
-
-- Motion for React interface transitions only.
-- Three.js and `@pixiv/three-vrm` for 3D.
-- Inochi2D runtime for open puppet support.
-- Live2D Cubism Web adapter only after licensing review.
-- Sharp, Potrace, or ImageTracerJS for image-to-SVG.
-- SVGO for SVG optimization.
-- Python and Blender Python API for export scripts.
-
-## Upstream references
-
-Use these as references, not as sources of unverified character assets:
-
-```text
-AITuber OnAir:
-https://github.com/shinshin86/aituber-onair
-
-PixiJS:
-https://github.com/pixijs/pixijs
-
-PixiJS skills for coding agents:
-https://github.com/pixijs/pixijs-skills
-
-Inochi2D:
-https://github.com/Inochi2D/inochi2d
-
-Inochi Creator:
-https://github.com/Inochi2D/inochi-creator
-
-Project AIRI:
-https://github.com/moeru-ai/airi
-
-TalkingHead:
-https://github.com/met4citizen/TalkingHead
-
-Three VRM:
-https://github.com/pixiv/three-vrm
-```
-
----
-
-# 5. Required Repository Structure
-
-```text
-codex-avatar-studio/
-├── package.json
-├── pnpm-workspace.yaml
-├── tsconfig.base.json
-├── biome.json
-├── README.md
-├── LICENSE
-├── THIRD_PARTY_NOTICES.md
-├── docs/
-│   ├── PLAN_CHECKLIST.md
-│   ├── ARCHITECTURE.md
-│   ├── EVENT_PROTOCOL.md
-│   ├── AVATAR_PACKAGE_SPEC.md
-│   ├── ASSET_PIPELINE.md
-│   ├── PERFORMANCE.md
-│   ├── PRIVACY_AND_SAFETY.md
-│   ├── LICENSING.md
-│   └── TROUBLESHOOTING.md
-├── apps/
-│   ├── extension/
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── src/
-│   │   │   ├── extension.ts
-│   │   │   ├── AvatarWebviewProvider.ts
-│   │   │   ├── commands.ts
-│   │   │   ├── ideEvents.ts
-│   │   │   ├── settings.ts
-│   │   │   ├── workspaceStorage.ts
-│   │   │   ├── assetRegistry.ts
-│   │   │   ├── security.ts
-│   │   │   └── messages.ts
-│   │   ├── media/
-│   │   │   ├── webview/
-│   │   │   └── avatars/
-│   │   │       └── builtin/
-│   │   └── test/
-│   └── webview/
-│       ├── package.json
-│       ├── vite.config.ts
-│       ├── index.html
-│       └── src/
-│           ├── main.tsx
-│           ├── App.tsx
-│           ├── styles/
-│           ├── bridge/
-│           ├── components/
-│           ├── hooks/
-│           ├── state/
-│           └── renderers/
-├── packages/
-│   ├── avatar-core/
-│   │   ├── src/
-│   │   │   ├── types.ts
-│   │   │   ├── states.ts
-│   │   │   ├── events.ts
-│   │   │   ├── stateMachine.ts
-│   │   │   ├── runtime.ts
-│   │   │   ├── manifest.ts
-│   │   │   ├── capabilities.ts
-│   │   │   ├── reducedMotion.ts
-│   │   │   └── gpuSupport.ts
-│   │   └── test/
-│   ├── asset-pipeline/
-│   │   ├── src/
-│   │   │   ├── imageToSvg.ts
-│   │   │   ├── optimizeSvg.ts
-│   │   │   ├── validateSvg.ts
-│   │   │   ├── validateSpritesheet.ts
-│   │   │   ├── validateManifest.ts
-│   │   │   └── cli.ts
-│   │   └── test/
-│   └── runtime-pixi/
-│       ├── src/
-│       │   ├── PixiAvatarRuntime.ts
-│       │   ├── PixiStage.ts
-│       │   ├── SpriteAnimator.ts
-│       │   ├── EffectLayer.ts
-│       │   └── textureCache.ts
-│       └── test/
-├── optional/
-│   ├── runtime-inochi2d/
-│   ├── runtime-live2d/
-│   ├── runtime-vrm/
-│   └── blender-tools/
-└── scripts/
-    ├── copy-webview-build.mjs
-    ├── validate-assets.mjs
-    ├── package-extension.mjs
-    └── blender/
-        ├── export_svg.py
-        ├── export_glb.py
-        └── render_preview.py
-```
-
----
-
-# Phase 0 — Preflight, Repository Audit, and License Gate
-
-## Tasks
-
-- [x] Detect whether the repository is empty, an existing extension, a web application, or a monorepo.
-- [x] Record the existing architecture in `docs/ARCHITECTURE.md`.
-- [x] Record the current package manager, Node version, TypeScript version, and build commands.
-- [x] Preserve the previous `docs/PLAN_CHECKLIST.md` as `docs/PLAN_CHECKLIST_LEGACY.md` before replacing it with this plan.
-- [x] Create a backup branch before structural source changes. If no Git repository is available, leave this unchecked and record the exact blocker.
-- [x] Create `docs/PLAN_CHECKLIST.md`.
-- [x] Create `THIRD_PARTY_NOTICES.md`.
-- [x] Create `docs/LICENSING.md`.
-- [x] Verify the license of every planned code dependency.
-- [x] Verify that no upstream character assets will be copied.
-- [x] Record upstream repository URLs, license names, and exact commit SHAs.
-- [x] Decide whether AITuber OnAir will be used only as a reference or whether specific MIT-licensed modules will be adapted.
-- [x] If code is adapted, document each source file and attribution. (Not applicable: AITuber OnAir is reference-only and no upstream source was adapted.)
-- [x] Record the Phase 0 decision lock values in `docs/ARCHITECTURE.md`.
-- [x] Add an explicit rule that artwork and model licenses are reviewed separately from code licenses.
-- [x] Add `.gitignore` entries for generated previews, caches, Blender exports, and local avatar packages.
-- [x] Confirm that the current codebase still builds before modifications.
-
-Git prerequisite resolved: the user authorized repository initialization. `git init -b main` created the repository, commit `5bad6a2` captured the pre-migration baseline, and branch `backup/pre-pixi-migration-20260710` preserves it before Phase 1 structural work.
-
-## Acceptance criteria
-
-- [x] Baseline build succeeds.
-- [x] Baseline tests succeed or existing failures are documented.
-- [x] License records exist.
-- [x] No unlicensed avatar assets have been added.
-- [x] Backup branch exists.
-- [x] Existing user code has not been deleted.
-
-### Phase 0 evidence — 2026-07-10
-
-- Environment: Windows workspace `D:\Proyectos\Blender`; Node `v22.22.0`; pnpm `11.7.0`; TypeScript `5.9.3`.
-- Architecture/tooling audit: `node --version`, `pnpm --version`, `pnpm exec tsc --version`, `pnpm list -r --depth 0 --json`, and source/package inspection. Result recorded in `docs/ARCHITECTURE.md`.
-- Baseline build: `pnpm build` passed. Vite reported non-blocking WebGL chunk warnings (`three.webgpu.js` and `WebGLAvatarRenderer.js` over 500 kB); no build failure.
-- Baseline static checks: `pnpm typecheck` and `pnpm lint` passed. The audit records that lint is currently a TypeScript no-emit alias rather than a real linter.
-- Baseline tests: `pnpm test` passed all 36 tests with 0 failures, skips, cancellations, or todos.
-- Final Phase 0 gate: `pnpm ci` completed a clean frozen-lockfile install, then `pnpm run ci` passed build, typecheck, lint, and all 36 tests. The known optional WebGL chunk-size warnings remained non-blocking and are recorded for later isolation/performance work.
-- Checklist copy: line-by-line `Compare-Object` verification returned `PLAN_CHECKLIST_CONTENT_MATCHES` immediately after the authoritative plan was copied; this live checklist then began recording progress.
-- Preservation/document check: the PowerShell required-path and `.gitignore` assertion returned `PHASE_0_DOCUMENT_AND_PRESERVATION_CHECK_PASSED`. The older checklist remains at `docs/PLAN_CHECKLIST_LEGACY.md`.
-- License verification: installed manifest metadata, registry metadata, GitHub repository metadata, and `git ls-remote <repository> HEAD` were recorded in `docs/LICENSING.md` and `THIRD_PARTY_NOTICES.md`. AITuber OnAir is reference-only. The initial Potrace GPL-2.0 risk was removed during the Phase 11 tracer migration.
-- Asset audit: no new avatar art was added. The active source inventory contains only the existing simple orb SVG/icon; their SHA-256 values and pending final clean-room attestation are recorded in `docs/LICENSING.md`. No upstream character asset, `.riv`, `.glb`, `.vrm`, Live2D model, spritesheet, texture set, or voice asset was added.
-- Git safety gate: with user authorization, `git init -b main` succeeded, `git commit -m "chore: capture pre-migration baseline"` created commit `5bad6a2`, and `git branch backup/pre-pixi-migration-20260710` created the required immutable pre-Phase-1 reference.
-
----
-
-# Phase 1 — Workspace and Tooling Foundation
-
-## Tasks
-
-- [x] Initialize or normalize a pnpm workspace.
-- [x] Create the required app and package directories.
-- [x] Enable TypeScript strict mode.
-- [x] Configure path aliases.
-- [x] Configure a single formatter.
-- [x] Configure linting.
-- [x] Configure Vitest.
-- [x] Add root scripts for `dev`, `build`, `typecheck`, `lint`, `test`, and `package`.
-- [x] Add a Node engine constraint.
-- [x] Add lockfile policy.
-- [x] Add workspace dependency boundaries.
-- [x] Prevent optional runtimes from entering the base bundle.
-- [x] Add a script that copies the Webview build into the extension media folder.
-- [x] Add a clean script that does not delete user-created avatar assets.
-
-## Required root scripts
-
-```json
-{
-  "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
-    "package": "node scripts/package-extension.mjs"
-  }
-}
-```
-
-## Acceptance criteria
-
-- [x] `pnpm install` succeeds.
-- [x] `pnpm typecheck` succeeds.
-- [x] `pnpm lint` succeeds.
-- [x] `pnpm test` succeeds.
-- [x] `pnpm build` succeeds.
-- [x] Optional runtime packages are not included in the MVP bundle.
-
-### Phase 1 evidence — 2026-07-10
-
-- Workspace/toolchain: `package.json` now pins the Node 22/pnpm 11.7.0 policy, defines the required root scripts, and adds Biome 2.5.3 plus Vitest 4.1.10. `.npmrc` records strict engines, exact dependency saves, and one shared workspace lockfile.
-- Structure/boundaries: `packages/runtime-pixi` is a TypeScript-only Phase 1 boundary with no PixiJS dependency yet. `optional/*` contains documentation-only deferred adapter directories and is excluded from the pnpm workspace. Existing optional renderer source remains preserved but excluded from the active Webview TypeScript/build graph.
-- TypeScript and aliases: strict mode remains enabled in `tsconfig.base.json`; the Webview has a tested `@/*` source alias in both TypeScript and Vite. Clean-checkout typechecking was verified with `pnpm clean` followed by `pnpm typecheck`.
-- Formatting/linting: `pnpm format` mechanically applied Biome to the configured source set; `pnpm format:check` and `pnpm lint` pass.
-- Tests: `pnpm test` passes 37 tests: 25 Vitest unit tests (core, asset pipeline, and Pixi package scaffold) plus 12 existing extension/Webview smoke tests.
-- Build/copy: `pnpm build` writes the Webview to `apps/webview/dist` and `scripts/copy-webview-build.mjs` safely replaces only `apps/extension/media/webview`. The SVG MVP build contains `index.js` (212.76 kB), `index.css`, `index.html`, and a Vite manifest; it contains no Rive, Live2D, Three, WebGL, WebGPU, or GLTF chunks. The Webview smoke test asserts this boundary.
-- Clean safety: `pnpm clean` removed only generated directories and returned `CLEAN_PRESERVED_AVATAR_ASSETS` after matching the placeholder avatar SHA-256 before and after cleanup.
-- Final quality gate: from a clean workspace, `pnpm run ci` passed formatting, linting, typechecking, all tests, and build. `pnpm run package` also produced `dist/codex-avatar-studio-0.1.0.vsix` with the Webview restricted to the SVG MVP files and `THIRD_PARTY_NOTICES.md` included.
-
----
-
-# Phase 2 — Avatar Core Types and Protocol
-
-## Tasks
-
-- [x] Create/migrate the `avatar-core` package.
-- [x] Define `AvatarRuntimeKind`.
-- [x] Define `AvatarState`.
-- [x] Define `AvatarTrigger`.
-- [x] Define `IdeAssistantEvent`.
-- [x] Define `AvatarCapability`.
-- [x] Define `AvatarManifest`.
-- [x] Define `AvatarRuntimeAdapter`.
-- [x] Define typed extension-to-Webview messages.
-- [x] Define typed Webview-to-extension messages.
-- [x] Add Zod schemas for every message received at runtime.
-- [x] Reject unknown message types safely.
-- [x] Add protocol versioning.
-- [x] Add unit tests for valid and invalid messages.
-- [x] Document the protocol in `docs/EVENT_PROTOCOL.md`.
-
-## Required states
-
-```typescript
-export type AvatarState =
-  | "idle"
-  | "welcome"
-  | "listening"
-  | "thinking"
-  | "speaking"
-  | "coding"
-  | "reviewing"
-  | "debugging"
-  | "building"
-  | "success"
-  | "warning"
-  | "error"
-  | "sleeping";
-```
-
-## Required triggers
-
-```typescript
-export type AvatarTrigger =
-  | "blink"
-  | "look-left"
-  | "look-right"
-  | "nod"
-  | "shake"
-  | "celebrate"
-  | "point"
-  | "start-speaking"
-  | "stop-speaking"
-  | "show-particles"
-  | "clear-effects";
-```
-
-## Runtime adapter contract
-
-```typescript
-export interface AvatarRuntimeAdapter {
-  readonly kind: AvatarRuntimeKind;
-  readonly capabilities: ReadonlySet<AvatarCapability>;
-
-  initialize(container: HTMLElement, manifest: AvatarManifest): Promise<void>;
-  setState(state: AvatarState): Promise<void> | void;
-  trigger(trigger: AvatarTrigger): Promise<void> | void;
-  setSpeechLevel(level: number): void;
-  setVisible(visible: boolean): void;
-  resize(width: number, height: number, devicePixelRatio: number): void;
-  dispose(): Promise<void> | void;
-}
-```
-
-## Acceptance criteria
-
-- [x] Every message type is serializable.
-- [x] Invalid messages are rejected without crashing.
-- [x] State and trigger types are shared by the extension and Webview.
-- [x] Protocol tests cover all message variants.
-- [x] No browser API is called during Node-only unit tests.
-
-### Phase 2 evidence — 2026-07-10
-
-- `packages/avatar-core` now owns versioned runtime kinds, states, triggers, capabilities, manifests, adapters, and the extension/Webview protocol. Compatibility aliases preserve the legacy manifest shape while migration is in progress.
-- Zod parsers validate every inbound message and reject unknown types, unsupported protocol versions, malformed payloads, and non-serializable values without throwing across the bridge.
-- `docs/EVENT_PROTOCOL.md` documents the message tables, state/trigger vocabulary, parser behavior, and constructor examples.
-- Verification: `pnpm format:check`, `pnpm typecheck`, `pnpm lint`, `pnpm test` (40 tests), and `pnpm build` all pass. Protocol coverage includes all outbound/inbound variants, serialization, invalid-version/type rejection, and malformed pose input.
-
----
-
-# Phase 3 — Avatar State Machine
-
-## Tasks
-
-- [x] Implement a deterministic avatar state machine.
-- [x] Define allowed state transitions.
-- [x] Define state priorities.
-- [x] Add temporary state durations.
-- [x] Add automatic return to idle/previous state.
-- [x] Prevent low-priority events from interrupting critical states.
-- [x] Allow explicit manual overrides for debugging.
-- [x] Add a reduced-motion policy.
-- [x] Add a low-performance policy.
-- [x] Add unit tests for transitions and interruption rules.
-- [x] Add a development-only transition log.
-
-## Required priority example
-
-```text
-error > warning > speaking > debugging > building > thinking > coding > idle
-```
-
-## Required transition behavior
-
-- `success` returns to `idle` after a configurable duration.
-- `error` remains visible longer than `success`.
-- `speaking` may interrupt `thinking`.
-- `building` must not be interrupted by a simple editor-focus event.
-- `sleeping` exits when the user interacts with the IDE.
-- repeated diagnostics must be debounced.
-
-## Acceptance criteria
-
-- [x] All states are reachable through typed states/events or explicit manual overrides.
-- [x] Invalid transitions do not crash.
-- [x] Temporary states return to the correct previous or idle state.
-- [x] Priority tests pass.
-- [x] Debounce tests pass.
-- [x] Reduced-motion mode does not change state semantics.
-
-### Phase 3 evidence — 2026-07-10
-
-- `packages/avatar-core/src/stateMachine.ts` provides deterministic transitions, priority protection, configurable expirations, timeout return, manual/debug overrides, reduced-motion and low-performance policies, sleeping wake-up, and diagnostic debouncing.
-- Transition logging is injected through a development-only callback and remains absent unless configured.
-- Verification: avatar-core tests pass 17 tests; full typecheck and lint pass. Tests cover priority interruption, building protection, temporary-state return, sleeping wake-up, diagnostic debounce, and reduced-motion expiry behavior.
-
----
-
-# Phase 4 — VS Code Extension Shell
-
-## Tasks
-
-- [x] Create `apps/extension`.
-- [x] Register the extension activation event.
-- [x] Create `AvatarWebviewProvider`.
-- [x] Register an Activity Bar container.
-- [x] Register the assistant Webview view.
-- [x] Register `Codex Avatar: Open Assistant`.
-- [x] Register `Codex Avatar: Toggle Assistant`.
-- [x] Register `Codex Avatar: Reset Assistant`.
-- [x] Register `Codex Avatar: Open Settings`.
-- [x] Register `Codex Avatar: Show Debug Panel`.
-- [x] Register manual commands for every avatar state.
-- [x] Register manual commands for important avatar triggers.
-- [x] Generate a strict Content Security Policy.
-- [x] Use `webview.asWebviewUri()` for all local resources.
-- [x] Generate a per-session nonce.
-- [x] Prevent executable inline scripts; deliver initialization through the versioned typed bridge after `webview:ready`.
-- [x] Restrict network access.
-- [x] Add extension disposal cleanup through context/provider lifecycle disposal.
-- [x] Add error handling and user-friendly notifications.
-
-## Acceptance criteria
-
-- [x] Extension compiles.
-- [x] Extension launches in Extension Development Host.
-- [x] Assistant view opens from the Activity Bar.
-- [x] Assistant view opens from the Command Palette.
-- [x] No CSP errors appear.
-- [x] Reloading the Webview does not duplicate event listeners.
-- [x] Closing the extension disposes resources.
-
-### Phase 4 evidence — 2026-07-10
-
-- The extension manifest now contributes the Activity Bar view, settings/debug actions, all state preview commands, and important trigger commands with matching activation events.
-- Webview HTML uses local `asWebviewUri()` resources, a per-session nonce, no executable inline bootstrap, and a restrictive `default-src 'none'` CSP. Initialization now arrives through the versioned `webview:ready` bridge.
-- Verification: extension smoke tests pass 9/9, including manifest activation coverage and compiled CSP checks; formatting and typecheck pass.
-
----
-
-# Phase 5 — React/Vite Webview
-
-## Tasks
-
-- [x] Create the React and Vite Webview app.
-- [x] Create the VS Code API bridge.
-- [x] Ensure `acquireVsCodeApi()` is called exactly once.
-- [x] Create `App`.
-- [x] Create `AvatarPanel`.
-- [x] Create `AvatarStage`.
-- [x] Create `AssistantBubble`.
-- [x] Create `SettingsPanel`.
-- [x] Create `StatusDebugPanel`.
-- [x] Add an error boundary around avatar runtimes.
-- [x] Use VS Code theme variables.
-- [x] Support light, dark, and high-contrast themes.
-- [x] Add keyboard navigation.
-- [x] Add accessible labels.
-- [x] Add reduced-motion detection.
-- [x] Add visibility detection.
-- [x] Send `webview:ready` after initialization.
-- [x] Display a friendly fallback when a runtime fails.
-
-## Acceptance criteria
-
-- [x] Webview renders in all VS Code themes.
-- [x] Keyboard users can open settings and change runtime.
-- [x] The Webview survives extension reload.
-- [x] Runtime exceptions are contained by the error boundary.
-- [x] `webview:ready` is sent once.
-- [x] No remote resources are loaded.
-
-### Phase 5 evidence — 2026-07-10
-
-- The React/Vite Webview has a typed bridge, single API acquisition, stage/bubble/settings/debug components, theme-variable styling, keyboard-accessible controls, reduced-motion and visibility hooks, and a runtime error boundary with a friendly fallback.
-- Verification: Webview typecheck passes; Webview smoke tests pass 3/3, including SVG-only output, bridge actions, and no remote API usage.
-
----
-
-# Phase 6 — Static SVG Fallback Runtime
-
-## Tasks
-
-- [x] Create an original built-in SVG mascot.
-- [x] Ensure the SVG contains no untrusted scripts.
-- [x] Sanitize imported SVG files.
-- [x] Create `SvgAvatarRenderer`.
-- [x] Add state-specific CSS classes.
-- [x] Add idle breathing.
-- [x] Add blinking.
-- [x] Add thinking pulse.
-- [x] Add coding movement.
-- [x] Add speaking mouth pulse.
-- [x] Add success glow.
-- [x] Add warning pulse.
-- [x] Add error shake.
-- [x] Disable continuous effects in reduced-motion mode.
-- [x] Add runtime fallback selection.
-
-## Acceptance criteria
-
-- [x] The extension works with only the built-in SVG avatar.
-- [x] Every required state produces a visible change.
-- [x] Reduced-motion mode disables looping animation.
-- [x] SVG sanitization tests pass.
-- [x] Missing optional assets do not crash the extension.
-
-### Phase 6 evidence — 2026-07-10
-
-- The original inline SVG mascot renders every required state with CSS-driven breathing, blink, thinking/building pulse, coding/speaking motion, success/warning/error feedback, and reduced-motion/visibility pause behavior.
-- `sanitizeSvg` now strips scripts, foreign objects, event-handler attributes, external hrefs, and remote/data paint URLs before optimization.
-- Verification: asset-pipeline typecheck and tests pass 15/15; Webview SVG-only smoke tests remain green.
-
----
-
-# Phase 7 — PixiJS Runtime Foundation
-
-## Tasks
-
-- [x] Add PixiJS v8 to `runtime-pixi`.
-- [x] Add or reference the official PixiJS skills for coding agents.
-- [x] Create `PixiAvatarRuntime`.
-- [x] Create a single PixiJS `Application` per avatar stage.
-- [x] Initialize WebGL safely.
-- [x] Detect WebGPU without requiring it.
-- [x] Add automatic renderer fallback.
-- [x] Create a resize observer.
-- [x] Cap device pixel ratio.
-- [x] Create a texture cache.
-- [x] Destroy textures and application resources on disposal.
-- [x] Pause ticker when hidden.
-- [x] Resume ticker when visible.
-- [x] Add a configurable frame-rate cap.
-- [x] Add a debug information surface showing renderer, dimensions, and active state.
-- [x] Add unit tests for the adapter contract.
-
-### Phase 7 progress evidence — 2026-07-10
-
-- `packages/runtime-pixi` now depends on PixiJS 8.14 and exports an isolated `PixiAvatarRuntime` implementing the shared adapter contract. It creates one WebGL-preferred application per initialized stage, caps resolution at 2×, maps core states, handles trigger effects, and destroys application resources/canvases cleanly.
-- The adapter is lazy-loaded by `apps/webview/src/renderers/PixiAvatarRenderer.tsx` only when the PixiJS setting is selected. It forwards state, trigger, speech-level, reduced-motion, and visibility updates, and switches to the SVG renderer if loading or initialization fails.
-- The runtime exposes non-required WebGPU detection, WebGL-first initialization with WebGPU fallback when available, resize observation, visibility-driven ticker pause/resume, 30/60 FPS caps, and a debug information surface.
-- `packages/runtime-pixi/src/textureCache.ts` adds a local texture cache with trimmed source keys, concurrent-load deduplication, injected loading/destruction hooks, stale-load invalidation, and explicit cleanup. `PixiAvatarRuntime` clears the cache during disposal and disposes an existing application before reinitialization.
-- `skills.md` references the official PixiJS skills repository as coding-agent reference material only; it is not bundled as a runtime dependency.
-- Verification: `pnpm --filter @codex-avatar-studio/runtime-pixi typecheck`, `pnpm --filter @codex-avatar-studio/runtime-pixi lint`, `pnpm --filter @codex-avatar-studio/runtime-pixi test`, `pnpm --filter @codex-avatar-studio/webview test`, and `pnpm run ci` pass. Runtime-Pixi tests: 14 passed; Webview smoke tests: 3 passed. The lifecycle tests cover disposal, reinitialization, visibility events, WebGPU fallback selection, and failed initialization cleanup.
-- Manual browser smoke: served `apps/webview/dist` at `http://127.0.0.1:4173/?runtime=pixi` in the Codex in-app browser. Observed one Pixi canvas, no loading placeholder after initialization, no console errors, and one canvas after a page reload.
-- Manual fallback smoke: served the same build on a fresh origin with the Pixi lazy entry withheld. Observed one SVG avatar, no Pixi canvas, no loading placeholder, and no console errors; the generated chunk was restored and the normal Webview smoke suite passed afterward.
-
-## Performance rules
-
-- Default target: 30 FPS inside the IDE.
-- Optional high-quality target: 60 FPS.
-- Hidden Webview target: paused.
-- Reduced-motion target: static or event-only animation.
-- Maximum default device pixel ratio: 2.
-
-## Acceptance criteria
-
-- [x] PixiJS initializes without console errors.
-- [x] Runtime disposes cleanly.
-- [x] Reopening the panel does not create duplicate canvases.
-- [x] Hidden panel stops rendering.
-- [x] Renderer fallback works.
-- [x] SVG fallback loads if PixiJS initialization fails.
-
----
-
-# Phase 8 — Spritesheet Avatar and Codex Pet Behavior
-
-## Tasks
-
-- [x] Study the AITuber OnAir Pet example.
-- [x] Identify the smallest reusable behavior concepts.
-- [x] Do not copy unverified artwork.
-- [x] Create an original placeholder spritesheet.
-- [x] Define a spritesheet metadata format.
-- [x] Implement spritesheet loading contract.
-- [x] Implement named animation clips.
-- [x] Map avatar states to animation clips.
-- [x] Map triggers to one-shot clips.
-- [x] Add clip priorities.
-- [x] Add clean clip transitions.
-- [x] Add animation completion callbacks.
-- [x] Add random idle variation.
-- [x] Add cursor or editor-direction gaze approximation.
-- [x] Add particle layers for success and error.
-- [x] Add a holographic thinking effect.
-- [x] Add a low-performance mode without particles.
-- [x] Add tests for missing clips and malformed metadata.
-
-### Phase 8 progress evidence — 2026-07-10
-
-- Reference study: reviewed the AITuber OnAir Pet example README and `PetStage.tsx` at `https://github.com/shinshin86/aituber-onair/tree/main/packages/core/examples/react-pet-app`. The reference describes a local pet manifest plus spritesheet, state-row animation, audio-level reactions, and runtime pet replacement; its implementation adds weighted thinking actions, speaking action sequencing, keyword-driven mood reactions, and small movement physics.
-- Reusable concepts selected for this project: manifest-driven atlas metadata; deterministic state-to-clip mapping; bounded weighted idle/thinking variation; one-shot and looped clips; optional gaze/effects layers; and local-only asset replacement. No upstream artwork, code, or asset files were copied.
-- Original placeholder asset: `apps/extension/media/avatars/pixi/placeholder-spritesheet.svg` is a clean-room 4×4 atlas of geometric orb frames, paired with 23 state/trigger clips in `placeholder-spritesheet.json`. The extension asset test confirms the pairing, required clip set, internal-only references, and absence of scripts or remote URLs.
-- Pixi behavior: `PixiAvatarRuntime.setPoseInput` applies bounded cursor-direction gaze offsets; thinking draws a reduced-motion-aware holographic ring; success/error states and the particle trigger draw local effect dots; low-performance mode suppresses effect work. The Webview forwards cursor pose and intensity policy into the runtime.
-- `packages/runtime-pixi/src/spritesheet.ts` defines an original metadata contract, validates frame data, maps every required state and trigger to named clips, and falls back to `idle_loop` when a state clip is missing.
-- No upstream character artwork or copied assets were added. The runtime now loads the original local atlas through the Pixi stage, while SVG remains the failure fallback.
-- `SpriteAnimationController` applies clip priorities, restores the active state after one-shot completion, supports deterministic idle variation, exposes completion callbacks, and suppresses particle clips in low-performance mode.
-- Verification: runtime-pixi typecheck, lint, formatting, and 16 Vitest tests pass; extension asset smoke tests pass 10/10; full `pnpm run ci` passes.
-
-## Required state mapping
-
-```text
-idle       -> idle_loop
-welcome    -> greet_once
-listening  -> listen_loop
-thinking   -> think_loop
-speaking   -> talk_loop
-coding     -> type_loop
-reviewing  -> inspect_loop
-debugging  -> debug_loop
-building   -> scan_loop
-success    -> celebrate_once
-warning    -> concerned_loop
-error      -> error_once
-sleeping   -> sleep_loop
-```
-
-## Acceptance criteria
-
-- [x] All required states have a clip or fallback.
-- [x] Missing clips fall back to idle.
-- [x] One-shot clips return to the expected state.
-- [x] Spritesheet validation catches malformed data.
-- [x] No upstream character artwork is present.
-- [x] Animation remains responsive at the configured frame rate.
-
-### Phase 8 acceptance evidence — 2026-07-10
-
-- Required state and trigger coverage is asserted by `apps/extension/test/pixi-assets.test.mjs` (23 named clips) and `packages/runtime-pixi/test/spritesheet.test.ts` (state mapping plus idle fallback).
-- One-shot restoration, priorities, deterministic idle variation, and low-performance particle suppression are covered by `packages/runtime-pixi/test/animationController.test.ts`; malformed metadata is rejected by `packages/runtime-pixi/test/spritesheet.test.ts`.
-- Clean-room asset checks confirm the original geometric atlas has no scripts, remote references, or upstream character artwork.
-- `packages/runtime-pixi/test/runtimeLifecycle.test.ts` verifies local metadata/image loading and ticker-driven frame advancement at the configured FPS; `pnpm run ci` passes all formatting, lint, typecheck, test, and build stages.
-
----
-
-# Phase 9 — IDE Event Bridge
-
-## Tasks
-
-- [x] Listen to active editor changes.
-- [x] Listen to text document changes with throttling.
-- [x] Listen to document save events.
-- [x] Listen to diagnostics changes.
-- [x] Listen to debug session start.
-- [x] Listen to debug session termination.
-- [x] Listen to task start.
-- [x] Listen to task end.
-- [x] Listen to terminal creation and closure where useful.
-- [x] Listen to workspace trust changes.
-- [x] Map public IDE events to `IdeAssistantEvent`.
-- [x] Map assistant events to avatar states.
-- [x] Add debounce and cooldown rules.
-- [x] Add an idle timer.
-- [x] Add a sleep timer.
-- [x] Add manual state commands for events that cannot be detected reliably.
-- [x] Do not assume access to private Codex internal state.
-- [x] Add optional command hooks that other extensions can invoke.
-- [x] Document integration limits.
-
-### Phase 9 progress evidence — 2026-07-11
-
-- `apps/extension/src/ideEvents.ts` now listens to public VS Code editor, document, save, diagnostics, debug, task, terminal, and workspace-trust events. Task process exit codes map to success/error, and optional event surfaces are guarded.
-- Rapid document changes use a trailing throttle; diagnostics use a trailing debounce; activity resets an idle-to-sleep timer; manual state commands and the validated `codexAvatar.emitEvent` hook remain available for events that cannot be observed directly.
-- `docs/IDE_EVENT_BRIDGE.md` documents the public-only boundary, optional hook, throttling, and integration limits. No private Codex state is read.
-- Verification: `apps/extension/test/ideEvents.test.ts` passes 2/2 tests covering typing throttling, diagnostics debounce, task failure mapping, terminal/trust mapping, sleep behavior, graceful diagnostics failure, and listener disposal. Extension typecheck and tests pass.
-
-## Example event mapping
-
-```text
-Editor becomes active        -> welcome or idle
-User types                   -> coding
-Document saved               -> reviewing
-Task starts                  -> building
-Task succeeds                -> success
-Task fails                   -> error
-Debug starts                 -> debugging
-Error diagnostic appears     -> warning or error
-No interaction for N minutes -> sleeping
-Manual "Codex Thinking"      -> thinking
-Manual "Codex Speaking"      -> speaking
-```
-
-## Acceptance criteria
-
-- [x] Public IDE events produce the expected avatar states.
-- [x] Rapid typing does not flood the Webview.
-- [x] Repeated diagnostics are debounced.
-- [x] Tasks map exit results correctly.
-- [x] Event listeners are disposed.
-- [x] Unsupported IDE events fail gracefully.
-
-### Phase 9 acceptance evidence — 2026-07-11
-
-- `pnpm --workspace-root exec vitest run apps/extension/test/ideEvents.test.ts` verifies the public event mappings, throttling, debounce, task exit-code mapping, optional diagnostics failure handling, sleep transition, and disposal.
-- `pnpm --filter codex-avatar-studio-extension typecheck` and `pnpm --filter codex-avatar-studio-extension test` pass, including extension manifest/compiled-command smoke checks and the event bridge suite.
-
----
-
-# Phase 10 — Avatar Package and Manifest System
-
-## Tasks
-
-- [x] Define `avatar.manifest.json`.
-- [x] Add manifest versioning.
-- [x] Add runtime preference.
-- [x] Add runtime fallback.
-- [x] Add capability declarations.
-- [x] Add state-to-animation mappings.
-- [x] Add trigger mappings.
-- [x] Add preview image path.
-- [x] Add license metadata.
-- [x] Add author metadata.
-- [x] Add asset checksums.
-- [x] Validate all paths against path traversal.
-- [x] Reject remote URLs by default.
-- [x] Create a local avatar registry.
-- [x] Add import-avatar command.
-- [x] Add remove-avatar command.
-- [x] Add activate-avatar command.
-- [x] Add avatar validation report.
-- [x] Add a built-in example package.
-- [x] Document the format in `docs/AVATAR_PACKAGE_SPEC.md`.
-
-### Phase 10 progress evidence — 2026-07-11
-
-- `packages/avatar-core/src/manifest.ts` defines the versioned manifest schema, runtime preference/fallback, capabilities, state/trigger maps, author/license metadata, preview path, and SHA-256 checksum format.
-- `apps/extension/src/avatarPackages.ts` validates local packages, checks referenced files and checksums, rejects traversal/absolute/remote paths, rejects symlink escapes, and maintains a workspace-local registry under `.codex-avatar/`.
-- Import, remove, and activate commands are contributed by the extension. Active package paths are converted to approved Webview URIs; failures reload the built-in SVG/Pixi manifest.
-- The asset manager displays name, author, license, runtime paths, and validation status. `docs/AVATAR_PACKAGE_SPEC.md` documents the format and integration rules.
-- `apps/extension/media/avatars/avatar.manifest.json` is the built-in versioned example package for the original geometric avatar.
-- Verification: `apps/extension/test/avatar-packages.test.mjs` passes package import/activation/removal, built-in validation, traversal/remote rejection, and checksum mismatch tests; extension/Webview smoke tests and full `pnpm run ci` pass.
-
-## Example manifest
-
-```json
-{
-  "schemaVersion": 1,
-  "id": "sol-codex-companion",
-  "name": "Sol",
-  "version": "0.1.0",
-  "author": "Local User",
-  "license": "Original user-owned assets",
-  "preferredRuntime": "pixi",
-  "fallbackRuntime": "svg",
-  "entrypoints": {
-    "pixi": "sprites/avatar.json",
-    "svg": "fallback/avatar.svg"
-  },
-  "capabilities": [
-    "state-animation",
-    "one-shot-triggers",
-    "speech-level",
-    "reduced-motion"
-  ],
-  "states": {
-    "idle": "idle_loop",
-    "thinking": "think_loop",
-    "coding": "type_loop",
-    "speaking": "talk_loop",
-    "success": "celebrate_once",
-    "error": "error_once"
-  }
-}
-```
-
-## Acceptance criteria
-
-- [x] Valid packages import successfully.
-- [x] Invalid packages produce actionable errors.
-- [x] Path traversal attempts are rejected.
-- [x] Remote entrypoints are rejected by default.
-- [x] Removing an active avatar returns to the built-in avatar.
-- [x] License metadata is visible in settings.
-
-### Phase 10 acceptance evidence — 2026-07-11
-
-- `pnpm --filter codex-avatar-studio-extension test` verifies valid import, activation, removal-to-built-in behavior, malformed package errors, traversal/remote rejection, checksum mismatch handling, and contributed command wiring.
-- `pnpm --filter @codex-avatar-studio/webview test` verifies the built asset manager bundle includes license metadata and the manifest bridge remains local-only.
-- `pnpm run ci` passes formatting, lint, typecheck, tests, and builds.
-
----
-
-# Phase 11 — Image-to-SVG Asset Pipeline
-
-## Tasks
-
-- [x] Create the `asset-pipeline` package.
-- [x] Add `Codex Avatar: Vectorize Image to SVG`.
-- [x] Support PNG, JPG, and WebP input.
-- [x] Add configurable preprocessing.
-- [x] Add background removal only as an optional local step.
-- [x] Add grayscale and threshold modes.
-- [x] Add color quantization.
-- [x] Add vector tracing.
-- [x] Add SVG optimization with SVGO.
-- [x] Sanitize the final SVG.
-- [x] Add preview before saving.
-- [x] Preserve the original source file.
-- [x] Add output naming rules.
-- [x] Add cancellation support.
-- [x] Add size and complexity limits.
-- [x] Add tests with simple fixtures.
-- [x] Document expected limitations.
-
-### Phase 11 progress evidence — 2026-07-11
-
-- The local asset pipeline accepts PNG, JPG/JPEG, and WebP metadata, decodes PNG/JPG/JPEG with MIT Jimp, applies configurable threshold/noise/background options, records grayscale and quantization limitations, traces with Unlicense ImageTracerJS, optimizes with SVGO while preserving IDs/groups, and sanitizes before and after optimization. WebP metadata is validated, but unsupported WebP encodings return a clear local decoder error.
-- `previewImageToSvg` generates an in-memory optimized SVG and `savePreviewedImageToSvg` writes only after confirmation. The extension command opens the preview in an editor before saving. Source images remain untouched.
-- Abort signals are checked before, during, and after tracing. Raster dimensions and generated SVG byte/path limits reject unsafe work before output writes.
-- Verification: asset-pipeline tests pass 17/17, including preview/save, source preservation, cancellation, oversized input rejection, SVG sanitization, and simple raster conversion. Full CI is green.
-
-### Phase 11 tracer migration follow-up — 2026-07-12
-
-- Replaced the GPL-2.0 Potrace import with Unlicense ImageTracerJS and MIT Jimp decoding. The Potrace package and declaration are removed from the workspace and lockfile.
-- `scripts/validate-vsix.mjs` now scans the packaged extension bundle and rejects the removed Potrace runtime by name. `pnpm run package:vsix` and `pnpm run validate:vsix` pass with the 27-file VSIX.
-
-## Acceptance criteria
-
-- [x] A simple raster image converts to valid SVG.
-- [x] Generated SVG opens in the Webview.
-- [x] Original files remain unchanged.
-- [x] Oversized images are rejected or resized safely.
-- [x] Malicious SVG content is removed.
-- [x] Conversion can be cancelled.
-
-### Phase 11 acceptance evidence — 2026-07-11
-
-- `pnpm --filter @codex-avatar-studio/asset-pipeline test` covers raster conversion, preview-before-save, source preservation, cancellation, output safety limits, and sanitization.
-- `pnpm --filter @codex-avatar-studio/webview test` confirms the generated Webview bundle remains loadable and local-only; `pnpm run ci` passes all formatting, lint, typecheck, test, and build stages.
-
----
-
-# Phase 12 — Settings, Persistence, and Accessibility
-
-## Tasks
-
-- [x] Add extension settings schema.
-- [x] Add active avatar setting.
-- [x] Add runtime preference.
-- [x] Add animation intensity.
-- [x] Add frame-rate setting.
-- [x] Add particle-effects setting.
-- [x] Add reduced-motion override.
-- [x] Add sound and lip-sync settings.
-- [x] Add idle timeout.
-- [x] Add sleep timeout.
-- [x] Add debug overlay setting.
-- [x] Persist global preferences.
-- [x] Persist workspace-specific preferences only when appropriate.
-- [x] Add reset-to-defaults command.
-- [x] Add accessible settings descriptions.
-- [x] Add high-contrast compatibility.
-- [x] Add a no-animation mode.
-
-### Phase 12 progress evidence — 2026-07-11
-
-- Extension settings now validate and persist runtime, active avatar, intensity, frame rate, particles, reduced motion, sound/lip-sync flags, idle/sleep timeouts, debug overlay, and no-animation mode. Invalid persisted values fall back to safe defaults; updates are global because these preferences are user-level, while avatar package files remain workspace-local.
-- Pixi receives frame-rate, particle, lip-sync, and no-animation policy. SVG mouth movement respects the lip-sync flag. No-animation keeps the assistant rendered while suppressing continuous effects.
-- Settings descriptions are explicit, reset-to-defaults remains available, and the Webview includes keyboard-visible controls plus forced-colors styling.
-- Verification: `apps/extension/test/settings.test.ts` passes invalid-value fallback and global persistence checks; Pixi tests pass particle suppression; Webview smoke verifies no-animation wiring and high-contrast CSS; full CI is green.
-
-## Acceptance criteria
-
-- [x] Settings survive IDE restart.
-- [x] Workspace settings do not leak to unrelated workspaces.
-- [x] Invalid settings fall back to defaults.
-- [x] No-animation mode keeps the assistant functional.
-- [x] High-contrast mode remains usable.
-- [x] Reset command restores defaults.
-
-### Phase 12 acceptance evidence — 2026-07-11
-
-- `pnpm --filter codex-avatar-studio-extension test` covers settings fallback, bounded timing persistence, reset/contributed command wiring, and extension compilation.
-- `pnpm --filter @codex-avatar-studio/webview test` verifies no-animation settings and forced-colors CSS in the built Webview.
-- `pnpm run ci` passes formatting, lint, typecheck, tests, and builds.
-
----
-
-# Phase 13 — Audio-Reactive Mouth and Speech Animation
-
-This phase is optional for the first public MVP but must be implemented before voice assistant functionality.
-
-## Tasks
-
-- [x] Create an audio-reactive interface independent of any TTS provider.
-- [x] Accept normalized amplitude values from `0` to `1`.
-- [x] Add attack and release smoothing.
-- [x] Map amplitude to mouth-open levels.
-- [x] Add silence detection.
-- [x] Add speaking-start and speaking-stop events.
-- [x] Add a Web Audio API adapter for local playback.
-- [x] Avoid microphone permission unless explicitly requested.
-- [x] Add a mock audio-level generator for testing.
-- [x] Connect speech level to SVG.
-- [x] Connect speech level to PixiJS.
-- [x] Add reduced-motion behavior.
-- [x] Add unit tests for smoothing.
-
-### Phase 13 progress evidence — 2026-07-11
-
-- `packages/avatar-core/src/audio.ts` exposes a TTS-independent normalized amplitude interface with attack/release smoothing, silence thresholding, speaking start/stop callbacks, reset behavior, and a deterministic mock generator.
-- `apps/webview/src/audio/webAudioLevelAdapter.ts` analyzes local media-element playback only. It never calls microphone APIs and provides visibility observation that suspends/resumes processing when the Webview is hidden.
-- `useAvatarBehavior` consumes normalized external audio/speech levels, emits a smoothed mouth level to SVG and Pixi, and preserves text-only behavior as a fallback when no audio level is supplied. No-animation mode closes the mouth.
-- Pixi now renders a dedicated mouth layer and scales it from the smoothed speech level; SVG uses the same `mouthOpen` signal.
-- Verification: avatar-core audio tests pass 19/19; Pixi tests pass 17/17; Webview source smoke rejects microphone/network APIs; full CI is green.
-
-## Acceptance criteria
-
-- [x] Mock speech produces visible mouth movement.
-- [x] Silence closes the mouth.
-- [x] Audio processing stops when the Webview is hidden.
-- [x] No microphone permission is requested by default.
-- [x] Runtime remains functional without audio.
-
-### Phase 13 acceptance evidence — 2026-07-11
-
-- `pnpm --filter @codex-avatar-studio/avatar-core test` covers attack/release smoothing, normalized clamping, speaking transitions, and mock levels.
-- `pnpm --filter @codex-avatar-studio/runtime-pixi test` verifies the Pixi mouth layer responds to speech level without breaking the runtime contract.
-- `pnpm --filter @codex-avatar-studio/webview test` verifies the Webview bundle and rejects microphone/network APIs; `pnpm run ci` passes all stages.
-
----
-
-# Phase 14 — Optional Inochi2D Runtime
-
-Do not start this phase until the PixiJS MVP is stable.
-
-`DEFERRED:` Post-MVP optional adapter. Not required for the SVG/Pixi MVP route (Phases 0–12, 18–22). Scaffold remains under `optional/runtime-inochi2d` and must stay out of the base VSIX.
-
-## Tasks
-
-- [ ] Reconfirm the runtime and model-format licenses.
-- [ ] Create `optional/runtime-inochi2d`.
-- [ ] Lazy-load the runtime.
-- [ ] Add local model loading.
-- [ ] Add model validation.
-- [ ] Map avatar states to parameters.
-- [ ] Map speech level to mouth-open parameters.
-- [ ] Add blinking.
-- [ ] Add eye-direction controls.
-- [ ] Add idle breathing.
-- [ ] Add expression presets.
-- [ ] Add runtime disposal.
-- [ ] Add fallback to PixiJS or SVG.
-- [ ] Add an experimental feature flag.
-- [ ] Document supported and unsupported model features.
-
-## Acceptance criteria
-
-- [ ] Base extension bundle does not include Inochi2D.
-- [ ] Enabling the feature loads a local test model.
-- [ ] Missing or invalid models fall back safely.
-- [ ] Mouth and eye parameters respond.
-- [ ] Runtime disposes cleanly.
-- [ ] License documentation is complete.
-
----
-
-# Phase 15 — Optional Three.js and VRM Runtime
-
-Do not start this phase until the 2D MVP is stable.
-
-`DEFERRED:` Post-MVP optional adapter. Not required for the SVG/Pixi MVP route. Scaffold remains under `optional/runtime-vrm` and must stay out of the base VSIX.
-
-## Tasks
-
-- [ ] Create `optional/runtime-vrm`.
-- [ ] Add Three.js.
-- [ ] Add `@pixiv/three-vrm`.
-- [ ] Lazy-load all 3D dependencies.
-- [ ] Load local VRM models.
-- [ ] Validate model size.
-- [ ] Add a transparent scene.
-- [ ] Add camera framing.
-- [ ] Add neutral lighting.
-- [ ] Add idle animation.
-- [ ] Add blinking.
-- [ ] Add gaze tracking.
-- [ ] Add expression mapping.
-- [ ] Add speech-level mouth movement.
-- [ ] Add GLB or VRM animation loading.
-- [ ] Use WebGL by default.
-- [ ] Add experimental WebGPU detection.
-- [ ] Add renderer fallback.
-- [ ] Pause rendering when hidden.
-- [ ] Add aggressive resource disposal.
-- [ ] Add a performance quality selector.
-
-## Acceptance criteria
-
-- [ ] Base extension bundle does not include 3D dependencies.
-- [ ] A local VRM model loads.
-- [ ] WebGL works without WebGPU.
-- [ ] Unsupported WebGPU falls back automatically.
-- [ ] Model failure returns to the 2D runtime.
-- [ ] Hidden panel stops 3D rendering.
-- [ ] GPU resources are released after closing the panel.
-
----
-
-# Phase 16 — Optional Live2D Compatibility
-
-`DEFERRED:` Post-MVP optional adapter. Not required for the SVG/Pixi MVP route. Scaffold remains under `optional/runtime-live2d`; proprietary SDK files must not enter the base VSIX (enforced by `pnpm validate:vsix`).
-
-## Tasks
-
-- [ ] Complete a dedicated licensing review.
-- [ ] Keep Live2D support optional.
-- [ ] Create `optional/runtime-live2d`.
-- [ ] Do not bundle proprietary SDK files unless permitted.
-- [ ] Add local `model3.json` loading.
-- [ ] Validate referenced textures and motions.
-- [ ] Add blink parameters.
-- [ ] Add breath parameters.
-- [ ] Add gaze parameters.
-- [ ] Add mouth-open parameters.
-- [ ] Map states to expressions and motions.
-- [ ] Add runtime failure fallback.
-- [ ] Add attribution and commercial-use documentation.
-- [ ] Add a feature flag.
-
-## Acceptance criteria
-
-- [ ] Base product works without Live2D.
-- [ ] No proprietary SDK files are distributed without permission.
-- [ ] Local model loading works in a permitted development setup.
-- [ ] Failure falls back to PixiJS or SVG.
-- [ ] Licensing documentation clearly explains user responsibilities.
-
----
-
-# Phase 17 — Blender Export Tools
-
-`DEFERRED:` Optional post-MVP tooling path relative to the required SVG/Pixi route. Partial local scripts and extension command wiring exist under `scripts/blender` and are covered by dry-run tests, but this phase remains open until full Blender host export acceptance is completed on a machine with Blender installed.
-
-## Tasks
-
-- [ ] Create `optional/blender-tools`.
-- [ ] Add Blender executable path setting.
-- [ ] Detect Blender availability.
-- [ ] Add a safe process runner.
-- [ ] Add timeout and cancellation.
-- [ ] Create `export_glb.py`.
-- [ ] Create `export_svg.py` for Grease Pencil or line-art output.
-- [ ] Create `render_preview.py`.
-- [ ] Preserve the original `.blend` file.
-- [ ] Write outputs to a dedicated export directory.
-- [ ] Capture Blender stdout and stderr.
-- [ ] Produce user-friendly errors.
-- [ ] Validate generated files.
-- [ ] Add `Codex Avatar: Export Blender Scene`.
-- [ ] Add `Codex Avatar: Export Blender Line Art`.
-- [ ] Add documentation for supported Blender versions.
-
-## Acceptance criteria
-
-- [ ] Missing Blender installation produces a clear message.
-- [ ] Export command can be cancelled.
-- [ ] Original Blender files remain unchanged.
-- [ ] Valid GLB export passes validation.
-- [ ] Valid SVG export passes sanitization.
-- [ ] Failed processes do not leave locked files.
-
----
-
-# Phase 18 — Security and Privacy Hardening
-
-## Tasks
-
-- [x] Review all Webview CSP directives.
-- [x] Reject remote script execution.
-- [x] Sanitize SVG.
-- [x] Validate JSON with Zod.
-- [x] Prevent path traversal.
-- [x] Restrict file access to approved workspace or extension storage paths.
-- [x] Add maximum asset sizes.
-- [x] Add maximum texture dimensions.
-- [x] Add maximum spritesheet frame counts.
-- [x] Add safe subprocess argument handling.
-- [x] Do not use shell interpolation for Blender commands.
-- [x] Add workspace-trust checks.
-- [x] Document all local data storage.
-- [x] Add a clear-cache command.
-- [x] Add a delete-imported-avatar command.
-- [x] Add security tests for malformed packages.
-
-### Phase 18 progress evidence — 2026-07-11
-
-- Webview CSP is nonce-based and local-resource-only: `default-src 'none'`, no remote script sources, no embedded objects, no forms, and only VS Code resource URIs for scripts, styles, images, and connections.
-- Imported packages are bounded to 128 regular files, 10 MiB per file, and 64 MiB total. Symbolic links, unsafe SVG content, traversal, remote paths, forged registry paths, and checksum failures are rejected.
-- Pixi metadata rejects remote image paths, frames beyond 4096, excessive clip references, and textures larger than 4096×4096. Shared avatar manifests continue to use the Zod schema in `packages/avatar-core`.
-- Workspace-mutating commands require `vscode.workspace.isTrusted`. Blender scenes stay inside the workspace, subprocess arguments remain separate, and `shell: false` is explicit.
-- `Codex Avatar: Clear Generated Cache` removes only `.codex-avatar/cache/` and `.codex-avatar/previews/`; `Codex Avatar: Delete Imported Avatar Package` removes selected imported packages. Privacy and storage behavior is documented in `docs/SECURITY_PRIVACY.md`.
-- Verification fixtures cover oversized and unsafe packages, forged registries, workspace boundaries, CSP, command wiring, and non-shell Blender execution.
-
-## Acceptance criteria
-
-- [x] Security test fixtures are rejected.
-- [x] Workspace trust restrictions work.
-- [x] No remote code is executed.
-- [x] Asset paths cannot escape approved directories.
-- [x] Clearing cache removes generated data only.
-- [x] Privacy documentation matches implementation.
-
-### Phase 18 acceptance evidence — 2026-07-11
-
-- `apps/extension/test/avatar-packages.test.mjs` rejects traversal, remote entrypoints, unsafe SVG, oversized files, bad checksums, and forged registry paths while proving cache clearing preserves exports.
-- `packages/runtime-pixi/test/spritesheet.test.ts` covers local-only metadata and texture-dimension bounds; `apps/extension/test/blender-plan.test.mjs` covers workspace input boundaries and `shell: false`.
-- `apps/extension/test/extension-smoke.test.mjs` verifies trust-gated commands and strict CSP markers. `pnpm run ci` is the required final verification for formatting, lint, typecheck, tests, and builds.
-
----
-
-# Phase 19 — Performance and Stability
-
-## Tasks
-
-- [x] Add Webview visibility pause.
-- [x] Add frame-rate cap.
-- [x] Add texture cache limits.
-- [x] Add texture eviction.
-- [x] Add runtime memory diagnostics in development.
-- [x] Add low-quality mode.
-- [x] Add particle disable option.
-- [x] Add maximum canvas dimensions.
-- [x] Add delayed optional-runtime loading.
-- [x] Add runtime initialization timeout.
-- [x] Add crash recovery to SVG fallback.
-- [x] Test repeated open and close cycles.
-- [x] Test repeated avatar switching.
-- [x] Test extension reload.
-- [x] Document performance budgets.
-
-### Phase 19 progress evidence — 2026-07-11
-
-- Pixi pauses its ticker when the Webview is hidden, caps visible animation at 30 FPS by default with a 60 FPS opt-in, and preserves low-quality/particle suppression policies from earlier phases.
-- `PixiTextureCache` now enforces an 8-entry/32 MiB default budget, estimates RGBA memory, touches entries as they are used, and evicts the least-recently-used texture. Oversized individual textures fail closed.
-- Pixi caps logical canvas dimensions at 2048×2048, exposes bounded canvas and estimated texture memory diagnostics through `getDebugInfo()`, and uses an initialization timeout. The Webview applies an 8-second timeout and switches to the SVG fallback on runtime failure.
-- Optional Pixi loading remains dynamic; Webview smoke confirms optional runtime chunks stay out of the base entry. VS Code subscriptions own extension resources across reloads.
-- `docs/PERFORMANCE.md` records the measured budgets and verification commands.
-
-## Target budgets
-
-- Webview idle CPU: as close to zero as practical when hidden.
-- Default visible animation: 30 FPS.
-- Webview base JavaScript bundle: keep minimal.
-- Optional 3D runtime: separate lazy chunk.
-- Avatar switch: no IDE restart.
-- Runtime failure: automatic fallback, no extension crash.
-
-## Acceptance criteria
-
-- [x] Twenty open/close cycles do not create duplicate canvases.
-- [x] Twenty avatar switches do not continuously increase memory.
-- [x] Hidden Webview stops animation.
-- [x] Low-quality mode visibly reduces work.
-- [x] Runtime timeout falls back to SVG.
-- [x] Performance documentation contains measured results.
-
-### Phase 19 acceptance evidence — 2026-07-11
-
-- `packages/runtime-pixi/test/textureCache.test.ts` covers LRU eviction, byte-budget rejection, cleanup, and stale-load invalidation.
-- `packages/runtime-pixi/test/runtimeLifecycle.test.ts` is covered by the 24-test Pixi suite, including 20 open/close cycles, 20 avatar switches, hidden visibility pause, 30/60 FPS behavior, timeout cleanup, bounded canvas dimensions, fallback renderer cleanup, and memory diagnostics.
-- `apps/webview/test/webview-smoke.test.mjs` passes 4 tests for lazy optional loading, visibility pause, timeout wiring, and SVG recovery. `apps/extension/test/extension-smoke.test.mjs` passes reload-subscription cleanup checks.
-- `pnpm run ci` remains the final verification gate for formatting, lint, typecheck, tests, and builds.
-
----
-
-# Phase 20 — Testing
-
-## Unit tests
-
-- [x] State machine transitions.
-- [x] State priority.
-- [x] Event debounce.
-- [x] Message schemas.
-- [x] Manifest validation.
-- [x] Path validation.
-- [x] SVG sanitization.
-- [x] Spritesheet validation.
-- [x] Audio-level smoothing.
-- [x] Runtime fallback selection.
-- [x] Settings defaults.
-- [x] Workspace persistence.
-
-## Integration tests
-
-- [x] Extension activation.
-- [x] Webview opening.
-- [x] Extension-to-Webview message.
-- [x] Webview-to-extension message.
-- [x] Command registration.
-- [x] Manual state command.
-- [x] File-save event reaction.
-- [x] Diagnostic event reaction.
-- [x] Task start and finish reaction.
-- [x] Avatar import.
-- [x] Invalid avatar rejection.
-- [x] Runtime failure fallback.
-- [x] Extension deactivation cleanup.
-
-### Phase 20 progress evidence — 2026-07-12
-
-- Existing unit suites cover the shared state machine, event mappings/debounce, versioned message schemas, Zod manifests, workspace/path validation, SVG/spritesheet validation, audio smoothing, runtime fallback selection, settings defaults, and global persistence.
-- Integration coverage now exercises file-save, task-start, and task-finish reactions directly. Extension smoke verifies command registration, CSP, trust gating, reload subscription ownership, and packaged activation; avatar package tests cover import and invalid-package rejection.
-- The packaged-extension smoke extracts the generated VSIX, injects a minimal VS Code API mock, activates the extension, resolves the Webview, exchanges versioned messages in both directions, executes manual commands, and calls deactivation cleanup.
-
-## Manual test matrix
-
-- [x] Windows.
-- [ ] macOS, when available.
-- [ ] Linux, when available.
-- [ ] VS Code stable.
-- [ ] At least one VS Code-compatible editor, when extension compatibility permits.
-- [ ] Light theme.
-- [ ] Dark theme.
-- [ ] High-contrast theme.
-- [ ] Reduced motion.
-- [ ] Low-performance mode.
-- [x] No GPU acceleration scenario where testable.
-
-## Acceptance criteria
-
-- [x] Unit test suite passes.
-- [x] Integration test suite passes.
-- [x] Manual smoke test passes on the primary development platform.
-- [x] Known platform limitations are documented.
-- [x] No critical unhandled exceptions remain.
-
-### Phase 20 acceptance evidence — 2026-07-12
-
-- `pnpm run ci` passes formatting, lint, typecheck, all workspace tests, and builds. The current suites include 19 avatar-core tests, 17 asset-pipeline tests, 24 Pixi tests, 15 extension Node tests plus 4 extension Vitest tests, and 4 Webview tests.
-- `pnpm smoke:webview` passes the Windows headless Edge render smoke with GPU disabled. `pnpm package:vsix` and `pnpm smoke:vsix` pass packaged activation, Webview message exchange, command registration, and explicit deactivation cleanup.
-- `docs/TESTING.md` records the Windows verification, manual scenarios, unavailable macOS/Linux hosts, editor-host limitations, and the Blender prerequisite.
-
----
-
-# Phase 21 — CI, Packaging, and Release
-
-## Tasks
-
-- [x] Add CI for install, lint, type-check, test, and build.
-- [x] Pin or control Node and pnpm versions.
-- [x] Add dependency caching.
-- [x] Add extension packaging.
-- [x] Validate package contents.
-- [x] Exclude research clones and development-only assets.
-- [x] Exclude optional proprietary SDK files.
-- [x] Add versioning policy.
-- [x] Add changelog.
-- [x] Add release checklist.
-- [x] Add license and third-party notices to the package.
-- [x] Add a clean-room built-in avatar.
-- [x] Create a pre-release VSIX.
-- [x] Install the VSIX in a clean profile.
-- [x] Run final smoke tests.
-
-### Phase 21 progress evidence — 2026-07-12
-
-- GitHub Actions now controls Node through `.nvmrc` (`22.22.0`), activates pnpm `11.7.0`, uses setup-node pnpm caching, installs with `--frozen-lockfile`, and runs build, typecheck, lint, tests, packaging, VSIX validation, and packaged smoke.
-- `scripts/package-vsix.mjs` supports stable and `--pre-release` artifacts, bundles the required CSS data safely for the CommonJS extension host, strips source maps through `.vscodeignore`, and validates the generated artifact before returning success.
-- `scripts/validate-vsix.mjs` rejects development files, research/fixture content, node_modules, source maps, and proprietary runtime files; it requires the clean-room SVG/Pixi assets, extension bundle, Webview entry, license, third-party notices, and changelog.
-- Release policy and handoff steps are documented in `docs/RELEASE_CHECKLIST.md`; the changelog and package notices are included in the VSIX.
-
-## Acceptance criteria
-
-- [x] CI passes on the main branch.
-- [x] VSIX builds.
-- [x] VSIX installs in a clean VS Code profile.
-- [x] Assistant opens without development files.
-- [x] Built-in SVG and PixiJS avatars work.
-- [x] Package contains all required notices.
-- [x] Package contains no unlicensed assets.
-
-### Phase 21 acceptance evidence — 2026-07-12
-
-- `pnpm run ci` passes on the working `main` branch. `pnpm package:vsix` creates a 27-file `codex-avatar-studio-0.1.0.vsix`; `pnpm validate:vsix` and `pnpm smoke:vsix` pass.
-- `pnpm package:vsix:pre` creates and validates `codex-avatar-studio-0.1.0-pre.1.vsix`; its packaged smoke also passes.
-- A clean temporary VS Code profile installed the stable VSIX with `code.cmd --install-extension` and listed `codex-avatar-studio.codex-avatar-studio-extension`. The package smoke verifies activation, Webview CSP/message exchange, command registration, local SVG manifest, Pixi assets, and deactivation cleanup.
-- Package validation confirms the final artifact contains no source, test, map, node_modules, research, fixture, or proprietary SDK files and includes `LICENSE.txt`, `THIRD_PARTY_NOTICES.md`, and `changelog.md`.
-- Follow-up (2026-07-12): `pnpm smoke:clean-profile` (`scripts/smoke-clean-profile-install.mjs`) automates the isolated install via the CLI shim, refuses `Code.exe` (which can hang the shell), and cleans the temp profile. Re-verified: install listed `codex-avatar-studio.codex-avatar-studio-extension`.
-
----
-
-# Phase 22 — Documentation
-
-## Tasks
-
-- [x] Write user installation instructions.
-- [x] Write developer setup instructions.
-- [x] Write avatar package creation instructions.
-- [x] Write spritesheet creation instructions.
-- [x] Write image-to-SVG instructions.
-- [x] Write Blender export instructions.
-- [x] Write runtime adapter instructions.
-- [x] Write troubleshooting instructions.
-- [x] Write performance recommendations.
-- [x] Write privacy documentation.
-- [x] Write licensing documentation.
-- [x] Add screenshots or original demo recordings.
-- [x] Add architecture diagrams.
-- [x] Add examples without copyrighted third-party characters.
-
-## Acceptance criteria
-
-- [x] A new developer can build the project from the README.
-- [x] A user can import an avatar package without reading source code.
-- [x] A developer can create a new runtime adapter from the documentation.
-- [x] Licensing limitations are understandable.
-- [x] All documented commands match actual scripts.
-
-### Phase 22 evidence
-
-- `docs/USER_GUIDE.md` covers VSIX installation, the Extension Development Host, package import/activation/removal, settings, local outputs, and recovery.
-- `docs/DEVELOPER_SETUP.md`, `docs/RUNTIME_ADAPTERS.md`, `docs/SPRITESHEET_GUIDE.md`, and `docs/AVATAR_PACKAGE_SPEC.md` provide clean-checkout, adapter, spritesheet, and package creation workflows with original geometric examples.
-- `docs/ARCHITECTURE.md` contains the current Mermaid system diagram; `docs/DEMO.md` includes the original Webview smoke screenshot at `docs/assets/webview-smoke.png` and the reproducible command used to generate it.
-- `scripts/validate-docs.mjs` checks repository-local Markdown links, registered VS Code command titles, documented root pnpm scripts, and required documentation files. `pnpm run validate:docs` passes.
-- Existing `docs/PERFORMANCE.md`, `docs/SECURITY_PRIVACY.md`, and `docs/LICENSING.md` are linked from the new guides and state the current budgets, local-only data policy, and completed Potrace migration.
-
----
-
-# 6. Definition of MVP Complete
-
-The MVP is complete only when every item below is checked.
-
-- [x] Extension installs and activates.
-- [x] Assistant panel opens.
-- [x] React Webview loads.
-- [x] Strict CSP is active.
-- [x] Built-in SVG fallback works.
-- [x] Built-in original PixiJS spritesheet avatar works.
-- [x] State machine works.
-- [x] Manual state commands work.
-- [x] File save changes the avatar state.
-- [x] Diagnostics change the avatar state.
-- [x] Task start and completion change the avatar state.
-- [x] Avatar package validation works.
-- [x] Local avatar import works.
-- [x] Reduced-motion mode works.
-- [x] Hidden Webview pauses rendering.
-- [x] Invalid runtime falls back safely.
-- [x] Tests pass.
-- [x] CI passes.
-- [x] VSIX installs in a clean profile.
-- [x] No unlicensed character assets are included.
-- [x] Documentation is complete.
-
-### MVP complete evidence — 2026-07-12
-
-Cross-checked against completed Phases 0–13 and 18–22. Optional Phases 14–17 remain `DEFERRED` (not part of the required MVP route).
-
-| Criterion | Evidence |
-| --- | --- |
-| Extension installs and activates | `pnpm smoke:vsix` activates the packaged extension; `pnpm smoke:clean-profile` lists `codex-avatar-studio.codex-avatar-studio-extension` |
-| Assistant panel opens | Packaged smoke resolves `codexAvatar.assistantView`; Phase 4 Activity Bar / command registration still covered by extension smoke |
-| React Webview loads | `apps/webview` build + `webview-smoke` + packaged smoke HTML root / CSP / message exchange |
-| Strict CSP is active | `extension-smoke.test.mjs` asserts `Content-Security-Policy` and `default-src 'none'`; packaged smoke re-checks CSP |
-| Built-in SVG fallback | Built-in package / SVG renderer; VSIX requires `placeholder-avatar.svg`; Webview SVG base entry smoke |
-| Built-in original PixiJS spritesheet | Clean-room geometric atlas in package; `pixi-assets.test.mjs` + runtime-pixi suite (24); VSIX requires spritesheet SVG/JSON |
-| State machine | `packages/avatar-core/test/stateMachine.test.ts` (and related core suites, 19 total) |
-| Manual state commands | Packaged smoke executes registered commands including `codexAvatar.setState` and state preview commands |
-| File save → avatar state | `apps/extension/test/ideEvents.test.ts` save → `success` |
-| Diagnostics → avatar state | `ideEvents.test.ts` debounced diagnostics → `warning` |
-| Task start/completion → avatar state | `ideEvents.test.ts` task start → `thinking`, successful end → `success`, failed end → `error` |
-| Avatar package validation | `avatar-packages.test.mjs` rejects traversal, remote entrypoints, bad checksums, forged registry paths |
-| Local avatar import | Same suite: import, activate, remove returns to built-in |
-| Reduced-motion mode | Phase 6/12 acceptance; Webview `noAnimation` wiring; core reduced-motion policy tests |
-| Hidden Webview pauses | Phase 19 Pixi lifecycle + `webview-smoke` visibility pause |
-| Invalid runtime falls back | Webview timeout/SVG recovery smoke; Pixi init failure fallback lifecycle tests |
-| Tests pass | `pnpm test` 2026-07-12: 19 core + 17 pipeline + 24 Pixi + 15 extension Node + 5 extension Vitest + 4 Webview |
-| CI passes | `.github/workflows/ci.yml` runs install/build/typecheck/lint/test/package/validate/smoke; local `pnpm run ci` evidence from Phases 20–21 |
-| VSIX clean profile | `pnpm smoke:clean-profile` (CLI shim, not `Code.exe`) |
-| No unlicensed character assets | Clean-room built-in SVG/Pixi; `pnpm validate:vsix` rejects proprietary SDK/dev assets; `docs/LICENSING.md` non-negotiable asset policy. The permissive ImageTracerJS/Jimp replacement is not character artwork |
-| Documentation complete | Phase 22 + `pnpm validate:docs` |
-
-Re-verified this session: `pnpm test`, `pnpm validate:vsix` (27 files), `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, `pnpm validate:docs`.
-
-### Post-MVP publication review — 2026-07-12
-
-- Regenerated `THIRD_PARTY_NOTICES.md` from the installed workspace manifests: added the live `pixi.js@8.14.0`, `zod@4.4.3`, `svgo@4.0.1`, `vitest@4.1.10`, and `@biomejs/biome@2.5.3` entries; moved uninstalled Rive/Three packages to a deferred section.
-- Attested clean-room built-in SVG/Pixi/icon assets with SHA-256 values and authorship/license metadata in `docs/LICENSING.md` and `apps/extension/media/avatars/avatar.manifest.json`.
-- Added `pnpm validate:notices` (`scripts/validate-notices.mjs`) and wired it into CI plus the release checklist so notices, Potrace absence, and built-in asset hashes stay aligned before packaging.
-
----
-
-# 7. Recommended Commit Sequence
-
-Codex should use one focused commit per completed phase.
-
-```text
-chore: document baseline and licensing
-chore: initialize workspace tooling
-feat(core): add avatar protocol and schemas
-feat(core): add avatar state machine
-feat(extension): add assistant webview shell
-feat(webview): add React interface
-feat(svg): add fallback avatar runtime
-feat(pixi): add PixiJS runtime
-feat(pet): add spritesheet behavior
-feat(events): connect public IDE events
-feat(assets): add avatar package format
-feat(vector): add image-to-SVG pipeline
-feat(settings): add persistence and accessibility
-feat(audio): add speech-level animation
-feat(inochi): add optional Inochi2D adapter
-feat(vrm): add optional VRM adapter
-feat(live2d): add optional Live2D compatibility
-feat(blender): add local export tools
-security: harden assets and webview
-perf: add runtime budgets and cleanup
-test: complete integration coverage
-ci: package release candidate
-docs: complete user and developer guides
-```
-
----
-
-# 8. Final Instruction to Codex
-
-The required MVP is complete. Do **not** begin with Phase 0, and do **not** reopen the Potrace/ImageTracer migration.
-
-Before any new work:
-
-1. Read the **Current status** block at the top of this checklist.
-2. Read `AGENTS.md` and `docs/CODEX_IDE_PROMPT.md` (Session reset / post-MVP).
-3. Confirm `git status` is clean or understand existing uncommitted work.
-4. Only start an explicit user-requested task, or an optional deferred phase the user names.
-
-Do not implement Inochi2D, Live2D, VRM, WebGPU enhancements, or Blender expansion unless the user explicitly requests that deferred phase.
-
-When continuing optional work after user approval:
-
-1. Run the relevant verification.
-2. Mark the checkbox `[x]` only after verification succeeds.
-3. Record evidence.
-4. Commit the completed unit of work when asked.
-5. Do not invent a new “MVP closure” or tracer-migration todo list.

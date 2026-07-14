@@ -1,6 +1,6 @@
 # Runtime Adapter Guide
 
-Runtime adapters implement one shared contract so the extension can change renderers without changing IDE event handling. The permanent fallback is SVG. PixiJS is the required rich MVP adapter; Rive, Live2D, WebGL, WebGPU, Inochi2D, and VRM work are optional or deferred.
+Runtime adapters implement one shared contract so the extension can change renderers without changing IDE event handling. The permanent fallback is SVG. PixiJS is the required rich 2D adapter and WebGL is the optional local-GLB adapter; Rive, Live2D, WebGPU, Inochi2D, and VRM remain deferred.
 
 ## Contract
 
@@ -62,7 +62,7 @@ Use the shared `AvatarRuntimeKind`, states, triggers, capabilities, and manifest
 
 ## Webview integration
 
-The Pixi renderer is loaded with `import("@codex-avatar-studio/runtime-pixi")`. It passes frame rate, low-performance mode, particles, reduced motion, and an 8-second initialization timeout. If import or initialization fails, the Webview error boundary selects SVG. Keep optional dependencies out of the initial Webview entry and never require a remote runtime download.
+The Pixi renderer is loaded with `import("@codex-avatar-studio/runtime-pixi")`. The WebGL renderer is a separate React lazy chunk, and it imports `GLTFLoader` only after WebGL2 support and a local manifest entrypoint are confirmed. Both receive visibility and reduced-motion state; any import, asset, GPU, or context-loss failure selects the package SVG. Keep optional dependencies out of the initial Webview entry and never require a remote runtime download.
 
 ## Manifest selection
 

@@ -1,7 +1,7 @@
 /**
- * Runtime kinds supported by the shared protocol. The first five values form
- * the PixiJS-first plan; the final three are retained only to keep existing
- * user-owned prototype code readable while it remains outside the MVP bundle.
+ * Runtime kinds understood by manifests and the shared protocol. SVG, Pixi,
+ * and WebGL are selectable product runtimes; the remaining values preserve
+ * compatibility for optional adapters that are still isolated or deferred.
  */
 export const avatarRuntimeKinds = ["svg", "pixi", "inochi2d", "live2d", "vrm", "rive", "webgl", "webgpu"] as const;
 export type AvatarRuntimeKind = (typeof avatarRuntimeKinds)[number];

@@ -6,9 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const markdownFiles = [
   "README.md",
-  ...(await listMarkdownFiles(path.join(root, "docs"))).filter(
-    (file) => file !== "docs/PLAN_CHECKLIST.md" && file !== "docs/PLAN_CHECKLIST_LEGACY.md"
-  )
+  ...(await listMarkdownFiles(path.join(root, "docs"))).filter((file) => file !== "docs/PLAN_CHECKLIST.md")
 ];
 const contents = new Map();
 

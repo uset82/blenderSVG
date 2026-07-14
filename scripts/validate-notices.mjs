@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -42,7 +42,7 @@ for (const name of [...requiredPackages].sort()) {
   );
 }
 
-for (const forbiddenCurrent of ["potrace", "@rive-app/react-webgl2", "three"]) {
+for (const forbiddenCurrent of ["potrace", "@rive-app/react-webgl2"]) {
   assert.doesNotMatch(
     notices.split("## Deferred or not installed")[0] ?? notices,
     new RegExp(`\`${escapeRegExp(forbiddenCurrent)}\``),
@@ -50,7 +50,11 @@ for (const forbiddenCurrent of ["potrace", "@rive-app/react-webgl2", "three"]) {
   );
 }
 
-assert.doesNotMatch(readFileSync(path.join(root, "pnpm-lock.yaml"), "utf8"), /\bpotrace@/, "lockfile has no Potrace package");
+assert.doesNotMatch(
+  readFileSync(path.join(root, "pnpm-lock.yaml"), "utf8"),
+  /\bpotrace@/,
+  "lockfile has no Potrace package"
+);
 
 const builtInAssets = [
   "apps/extension/media/avatars/svg/placeholder-avatar.svg",
@@ -59,10 +63,12 @@ const builtInAssets = [
   "apps/extension/media/icon.png"
 ];
 
-const manifest = JSON.parse(
-  readFileSync(path.join(root, "apps/extension/media/avatars/avatar.manifest.json"), "utf8")
+const manifest = JSON.parse(readFileSync(path.join(root, "apps/extension/media/avatars/avatar.manifest.json"), "utf8"));
+assert.match(
+  String(manifest.license ?? ""),
+  /UNLICENSED|original project/i,
+  "built-in manifest declares original project license"
 );
-assert.match(String(manifest.license ?? ""), /UNLICENSED|original project/i, "built-in manifest declares original project license");
 assert.match(String(manifest.author ?? ""), /Codex Avatar Studio/i, "built-in manifest declares project authorship");
 
 for (const relativePath of builtInAssets) {

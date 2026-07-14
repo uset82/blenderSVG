@@ -4,6 +4,14 @@
   "private": true,
   "description": "VS Code/Codex-compatible animated assistant system with SVG fallback and optional richer avatar runtimes.",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/uset82/avatar-studio.git"
+  },
+  "homepage": "https://github.com/uset82/avatar-studio#readme",
+  "bugs": {
+    "url": "https://github.com/uset82/avatar-studio/issues"
+  },
   "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": ">=22 <23",
@@ -24,8 +32,11 @@
     "dev:extension": "pnpm --filter ./apps/extension watch",
     "package:vsix": "pnpm run package",
     "smoke:webview": "node scripts/smoke-webview-render.mjs",
+    "smoke:blender": "pnpm --filter codex-avatar-studio-extension build && node scripts/smoke-blender-host.mjs",
     "smoke:vsix": "node scripts/smoke-installed-vsix.mjs",
     "smoke:clean-profile": "node scripts/smoke-clean-profile-install.mjs",
+    "setup:blender-mcp": "node scripts/setup-blender-mcp.mjs",
+    "verify:blender-mcp": "node scripts/setup-blender-mcp.mjs --verify-only",
     "validate:docs": "node scripts/validate-docs.mjs",
     "validate:notices": "node scripts/validate-notices.mjs",
     "validate:vsix": "node scripts/validate-vsix.mjs",

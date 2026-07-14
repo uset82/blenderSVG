@@ -1,10 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import ImageTracer from "imagetracerjs";
 import Jimp from "jimp";
-import { assertTraceableImageMetadata, readImageMetadata } from "./imageMetadata.js";
+import { assertTraceableImageFile, assertTraceableImageMetadata, readImageMetadata } from "./imageMetadata.js";
 import { createManifestEntry } from "./manifestGenerator.js";
 import { optimizeSvg } from "./optimizeSvg.js";
-import { assertSupportedImagePath, createOutputPaths, getSvgExportDirectory } from "./paths.js";
+import { assertSupportedImagePath, createAvailableOutputPaths, getSvgExportDirectory } from "./paths.js";
 import type {
   RasterPreprocessingOptions,
   VectorizeImageOptions,
@@ -15,6 +15,8 @@ import { validateSvgLayers } from "./validateSvgLayers.js";
 
 const traceGuidance =
   "Image tracing is best for references, icons, and silhouettes. Redraw animated characters as clean named layers.";
+const mascotTraceGuidance =
+  "Cholita/mascot characters need an authored layered SVG (profile: mascot), not a bitmap trace. Use LayeredMascotRenderer or validateSvgLayers(..., { profile: 'mascot' }).";
 
 export async function vectorizeImageToSvg(options: VectorizeImageOptions): Promise<VectorizeImageResult> {
   const preview = await previewImageToSvg(options);
@@ -23,21 +25,32 @@ export async function vectorizeImageToSvg(options: VectorizeImageOptions): Promi
 
 export async function previewImageToSvg(options: VectorizeImageOptions): Promise<VectorizePreview> {
   throwIfAborted(options.signal);
+  options.onProgress?.("validating");
   assertSupportedImagePath(options.inputPath);
+  await assertTraceableImageFile(options.inputPath);
   assertTraceableImageMetadata(await readImageMetadata(options.inputPath));
   throwIfAborted(options.signal);
 
   const exportDirectory = getSvgExportDirectory(options.workspaceRoot, options.assetWorkspace);
-  const { rawSvgPath, optimizedSvgPath, manifestPath } = createOutputPaths(options.inputPath, exportDirectory);
+  const { rawSvgPath, optimizedSvgPath, manifestPath } = await createAvailableOutputPaths(
+    options.inputPath,
+    exportDirectory,
+    options.outputBaseName
+  );
 
   const preprocessing = normalizePreprocessing(options);
-  const rawSvg = await traceImage(options.inputPath, preprocessing, options.signal);
+  options.onProgress?.("decoding");
+  const rawSvg = await traceImage(options.inputPath, preprocessing, options.signal, options.onProgress);
   throwIfAborted(options.signal);
-  const optimizedSvg = optimizeSvg(rawSvg);
   const rawValidation = validateSvgLayers(rawSvg);
+  assertRawTraceLimits(rawValidation.byteLength, rawValidation.pathCount, options);
+  options.onProgress?.("optimizing");
+  const optimizedSvg = optimizeSvg(rawSvg);
+  throwIfAborted(options.signal);
   const optimizedValidation = validateSvgLayers(optimizedSvg);
   const warnings = uniqueWarnings([
     traceGuidance,
+    mascotTraceGuidance,
     ...preprocessingWarnings(preprocessing),
     ...rawValidation.warnings,
     ...optimizedValidation.warnings
@@ -52,6 +65,8 @@ export async function previewImageToSvg(options: VectorizeImageOptions): Promise
     manifestPath,
     rawSvg,
     optimizedSvg,
+    rawValidation,
+    optimizedValidation,
     warnings
   };
 }
@@ -63,18 +78,28 @@ export async function savePreviewedImageToSvg(
   throwIfAborted(options.signal);
   await mkdir(preview.exportDirectory, { recursive: true });
   const manifest = createManifestEntry({
-    inputPath: options.inputPath,
+    inputPath: preview.inputPath,
     workspaceRoot: options.workspaceRoot,
     rawSvgPath: preview.rawSvgPath,
     optimizedSvgPath: preview.optimizedSvgPath,
     warnings: preview.warnings
   });
 
-  await Promise.all([
-    writeFile(preview.rawSvgPath, preview.rawSvg, "utf8"),
-    writeFile(preview.optimizedSvgPath, preview.optimizedSvg, "utf8"),
-    writeFile(preview.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8")
-  ]);
+  const createdFiles: string[] = [];
+  try {
+    for (const [filePath, contents] of [
+      [preview.rawSvgPath, preview.rawSvg],
+      [preview.optimizedSvgPath, preview.optimizedSvg],
+      [preview.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`]
+    ] as const) {
+      throwIfAborted(options.signal);
+      await writeFile(filePath, contents, { encoding: "utf8", flag: "wx" });
+      createdFiles.push(filePath);
+    }
+  } catch (error) {
+    await Promise.all(createdFiles.map((filePath) => rm(filePath, { force: true })));
+    throw error;
+  }
 
   return {
     inputPath: preview.inputPath,
@@ -89,7 +114,8 @@ export async function savePreviewedImageToSvg(
 function traceImage(
   inputPath: string,
   preprocessing: RasterPreprocessingOptions,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onProgress?: VectorizeImageOptions["onProgress"]
 ): Promise<string> {
   throwIfAborted(signal);
   return Jimp.read(inputPath)
@@ -99,8 +125,10 @@ function traceImage(
     })
     .then((image) => {
       throwIfAborted(signal);
+      onProgress?.("preprocessing");
       applyPreprocessing(image, preprocessing);
       throwIfAborted(signal);
+      onProgress?.("tracing");
 
       try {
         const svg = ImageTracer.imagedataToSVG(
@@ -134,15 +162,34 @@ function normalizePreprocessing(options: VectorizeImageOptions): RasterPreproces
   ) {
     throw new Error("Noise reduction must be an integer from 0 to 100.");
   }
-  return { ...preprocessing, ...(threshold === undefined ? {} : { threshold }) };
+  if (preprocessing.detail && !["low", "balanced", "high"].includes(preprocessing.detail)) {
+    throw new Error("Detail must be low, balanced, or high.");
+  }
+
+  return {
+    grayscale: preprocessing.grayscale ?? false,
+    quantizationLevels: preprocessing.quantizationLevels ?? 16,
+    removeBackground: preprocessing.removeBackground ?? true,
+    noiseReduction: preprocessing.noiseReduction ?? 0,
+    detail: preprocessing.detail ?? "balanced",
+    ...(threshold === undefined ? {} : { threshold })
+  };
 }
 
 function createTraceOptions(preprocessing: RasterPreprocessingOptions): ImageTracerOptions {
-  const numberOfColors = preprocessing.grayscale === false ? (preprocessing.quantizationLevels ?? 16) : 2;
+  const numberOfColors = preprocessing.grayscale ? 2 : (preprocessing.quantizationLevels ?? 16);
+  const detail = preprocessing.detail ?? "balanced";
+  const detailOptions = {
+    low: { pathomit: 12, ltres: 2, qtres: 2 },
+    balanced: { pathomit: 6, ltres: 1, qtres: 1 },
+    high: { pathomit: 2, ltres: 0.5, qtres: 0.5 }
+  }[detail];
   return {
     colorsampling: 0,
     numberofcolors: numberOfColors,
-    pathomit: Math.max(1, Math.ceil((preprocessing.noiseReduction ?? 0) / 10)),
+    pathomit: detailOptions.pathomit,
+    ltres: detailOptions.ltres,
+    qtres: detailOptions.qtres,
     layering: 0,
     linefilter: false,
     roundcoords: 2,
@@ -152,7 +199,7 @@ function createTraceOptions(preprocessing: RasterPreprocessingOptions): ImageTra
 }
 
 function applyPreprocessing(image: JimpImage, preprocessing: RasterPreprocessingOptions): void {
-  if (preprocessing.grayscale !== false) image.greyscale();
+  if (preprocessing.grayscale) image.greyscale();
   if (preprocessing.threshold !== undefined) {
     image.threshold({ max: preprocessing.threshold, replace: 255, autoGreyscale: true });
   }
@@ -186,8 +233,18 @@ function preprocessingWarnings(preprocessing: RasterPreprocessingOptions): strin
 function assertOutputLimits(svg: string, pathCount: number, options: VectorizeImageOptions): void {
   const maxBytes = options.maxSvgBytes ?? 1_000_000;
   const maxPaths = options.maxSvgPaths ?? 20_000;
-  if (svg.length > maxBytes) throw new Error(`Generated SVG exceeds the ${maxBytes}-byte safety limit.`);
+  if (Buffer.byteLength(svg, "utf8") > maxBytes) {
+    throw new Error(`Generated SVG exceeds the ${maxBytes}-byte safety limit.`);
+  }
   if (pathCount > maxPaths) throw new Error(`Generated SVG exceeds the ${maxPaths}-path complexity limit.`);
+}
+
+function assertRawTraceLimits(byteLength: number, pathCount: number, options: VectorizeImageOptions): void {
+  const maxRawBytes = Math.max(options.maxSvgBytes ?? 1_000_000, 5_000_000);
+  if (byteLength > maxRawBytes) throw new Error(`Raw SVG trace exceeds the ${maxRawBytes}-byte safety limit.`);
+  if (pathCount > (options.maxSvgPaths ?? 20_000)) {
+    throw new Error(`Raw SVG trace exceeds the ${options.maxSvgPaths ?? 20_000}-path complexity limit.`);
+  }
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
@@ -215,6 +272,8 @@ type ImageTracerOptions = {
   colorsampling: number;
   numberofcolors: number;
   pathomit: number;
+  ltres: number;
+  qtres: number;
   layering: number;
   linefilter: boolean;
   roundcoords: number;

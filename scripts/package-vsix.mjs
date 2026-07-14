@@ -35,7 +35,7 @@ cpSync(path.join(extensionRoot, "media"), path.join(stage, "media"), {
 });
 cpSync(path.join(root, "scripts", "blender"), path.join(stage, "media", "blender"), {
   dereference: true,
-  filter: (source) => !source.endsWith("AGENTS.md"),
+  filter: (source) => !source.endsWith("AGENTS.md") && !source.endsWith("create_smoke_fixture.py"),
   recursive: true
 });
 mkdirSync(path.join(stage, "dist"), { recursive: true });
@@ -60,6 +60,19 @@ await build({
   format: "cjs",
   logLevel: "silent",
   outfile: path.join(stage, "dist", "extension.js"),
+  platform: "node",
+  sourcemap: true,
+  target: "node20",
+  plugins: [bundleCssTreeDataPlugin]
+});
+
+await build({
+  absWorkingDir: root,
+  bundle: true,
+  entryPoints: [path.join(root, "apps", "extension", "src", "vectorizeWorker.ts")],
+  format: "cjs",
+  logLevel: "silent",
+  outfile: path.join(stage, "dist", "vectorizeWorker.js"),
   platform: "node",
   sourcemap: true,
   target: "node20",

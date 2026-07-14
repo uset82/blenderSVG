@@ -19,6 +19,8 @@ export {
   type AvatarTrigger,
   type ExtensionToWebviewMessage,
   type ExtensionToWebviewMessageInput,
+  type GeneratedAvatarMetadata,
+  type VectorizeStudioOptions,
   type WebviewToExtensionMessage,
   type WebviewToExtensionMessageInput
 } from "@codex-avatar-studio/avatar-core";

@@ -1,6 +1,18 @@
-import { createHash } from "node:crypto";
-import { cp, lstat, mkdir, readFile, realpath, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  realpath,
+  readdir,
+  rename as renamePath,
+  rm,
+  stat,
+  writeFile
+} from "node:fs/promises";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { validateAvatarManifest, type AvatarManifest } from "@codex-avatar-studio/avatar-core";
 import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline";
 
@@ -23,6 +35,19 @@ export type AvatarPackageValidation = {
   manifest?: AvatarManifest | undefined;
   errors: string[];
   warnings: string[];
+};
+
+export type AvatarPackageRecord = {
+  id: string;
+  rootPath: string;
+  validation: AvatarPackageValidation;
+};
+
+export type AvatarPackageInstallTransaction = {
+  avatarPackage: AvatarPackage;
+  replacedExisting: boolean;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
 };
 
 type RegistryFile = {
@@ -73,7 +98,7 @@ export class AvatarPackageRegistry {
     try {
       const importedPackage = await loadAvatarPackage(targetRoot);
       const registry = await this.readRegistry();
-      registry.packages[importedPackage.id] = path.relative(assetRoot, targetRoot);
+      setRegistryPackage(registry, importedPackage.id, path.relative(assetRoot, targetRoot));
       await this.writeRegistry(registry);
       return importedPackage;
     } catch (error) {
@@ -82,11 +107,113 @@ export class AvatarPackageRegistry {
     }
   }
 
+  public async hasPackageCollision(id: string): Promise<boolean> {
+    assertValidPackageId(id);
+    const assetRoot = this.requireAssetRoot();
+    const registry = await this.readRegistry();
+    return Object.hasOwn(registry.packages, id) || (await exists(path.join(assetRoot, "avatars", id)));
+  }
+
+  public async suggestAvailableId(baseId: string): Promise<string> {
+    assertValidPackageId(baseId);
+    for (let copy = 1; copy <= 10_000; copy += 1) {
+      const suffix = `-${copy}`;
+      const candidate = copy === 1 ? baseId : `${baseId.slice(0, Math.max(1, 80 - suffix.length))}${suffix}`;
+      if (!(await this.hasPackageCollision(candidate))) return candidate;
+    }
+    throw new AvatarPackageError(`Could not create a unique avatar id from "${baseId}".`);
+  }
+
+  public async getPackage(id: string): Promise<AvatarPackage> {
+    assertValidPackageId(id);
+    const registry = await this.readRegistry();
+    if (!Object.hasOwn(registry.packages, id)) {
+      throw new AvatarPackageError(`Avatar package "${id}" is not registered.`);
+    }
+    const relativeRoot = registry.packages[id] as string;
+    return loadAvatarPackage(await this.resolveVerifiedRegisteredRoot(relativeRoot));
+  }
+
+  public async beginInstallStagedPackage(
+    stagedRoot: string,
+    options: { replaceExisting: boolean }
+  ): Promise<AvatarPackageInstallTransaction> {
+    const assetRoot = this.requireAssetRoot();
+    const resolvedStagingRoot = await realpath(stagedRoot);
+    assertInside(assetRoot, resolvedStagingRoot, "Generated avatar staging path");
+    const stagedPackage = await loadAvatarPackage(resolvedStagingRoot);
+    const targetRoot = path.resolve(assetRoot, "avatars", stagedPackage.id);
+    assertInside(assetRoot, targetRoot, "Generated avatar target");
+
+    const previousRegistry = await this.readRegistry();
+    const registrySnapshot = cloneRegistry(previousRegistry);
+    const targetExists = await exists(targetRoot);
+    const registryCollision = Object.hasOwn(previousRegistry.packages, stagedPackage.id);
+    if ((targetExists || registryCollision) && !options.replaceExisting) {
+      throw new AvatarPackageError(`Avatar package "${stagedPackage.id}" already exists.`);
+    }
+    if (registryCollision) {
+      const registeredTarget = this.resolveRegisteredRoot(previousRegistry.packages[stagedPackage.id] as string);
+      if (path.resolve(registeredTarget) !== targetRoot) {
+        throw new AvatarPackageError(`Avatar package "${stagedPackage.id}" is registered at an unexpected path.`);
+      }
+    }
+
+    const transactionRoot = path.resolve(assetRoot, "cache", "transactions", randomUUID());
+    const backupRoot = path.join(transactionRoot, "previous-package");
+    assertInside(assetRoot, transactionRoot, "Generated avatar transaction");
+    await mkdir(path.dirname(targetRoot), { recursive: true });
+    await mkdir(transactionRoot, { recursive: true });
+
+    let backedUp = false;
+    let installed = false;
+    let registryUpdated = false;
+    try {
+      if (targetExists) {
+        await renameWithRetry(targetRoot, backupRoot);
+        backedUp = true;
+      }
+      await renameWithRetry(resolvedStagingRoot, targetRoot);
+      installed = true;
+      const installedPackage = await loadAvatarPackage(targetRoot);
+      const nextRegistry = cloneRegistry(previousRegistry);
+      setRegistryPackage(nextRegistry, installedPackage.id, path.relative(assetRoot, targetRoot));
+      nextRegistry.activeId = installedPackage.id;
+      await this.writeRegistry(nextRegistry);
+      registryUpdated = true;
+
+      let settled = false;
+      return {
+        avatarPackage: installedPackage,
+        replacedExisting: targetExists || registryCollision,
+        commit: async () => {
+          if (settled) return;
+          await rm(transactionRoot, { recursive: true, force: true }).catch(() => undefined);
+          settled = true;
+        },
+        rollback: async () => {
+          if (settled) return;
+          settled = true;
+          await this.writeRegistry(registrySnapshot);
+          await rm(targetRoot, { recursive: true, force: true });
+          if (backedUp) await renameWithRetry(backupRoot, targetRoot);
+          await rm(transactionRoot, { recursive: true, force: true });
+        }
+      };
+    } catch (error) {
+      if (registryUpdated) await this.writeRegistry(registrySnapshot).catch(() => undefined);
+      if (installed) await rm(targetRoot, { recursive: true, force: true }).catch(() => undefined);
+      if (backedUp) await renameWithRetry(backupRoot, targetRoot).catch(() => undefined);
+      await rm(transactionRoot, { recursive: true, force: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+
   public async listPackages(): Promise<AvatarPackage[]> {
     const registry = await this.readRegistry();
     const packages: AvatarPackage[] = [];
     for (const [id, relativeRoot] of Object.entries(registry.packages)) {
-      const rootPath = this.resolveRegisteredRoot(relativeRoot);
+      const rootPath = await this.resolveVerifiedRegisteredRoot(relativeRoot);
       const avatarPackage = await loadAvatarPackage(rootPath);
       assertInside(this.requireAssetRoot(), avatarPackage.rootPath, "Registry package path");
       if (avatarPackage.id !== id) {
@@ -97,12 +224,48 @@ export class AvatarPackageRegistry {
     return packages;
   }
 
+  public async listPackageRecords(): Promise<AvatarPackageRecord[]> {
+    const registry = await this.readRegistry();
+    const records: AvatarPackageRecord[] = [];
+    for (const [id, relativeRoot] of Object.entries(registry.packages)) {
+      const rootPath = this.resolveRegisteredRoot(relativeRoot);
+      let validation: AvatarPackageValidation;
+      try {
+        await this.resolveVerifiedRegisteredRoot(relativeRoot);
+        validation = withMatchingRegistryId(id, await validateAvatarPackage(rootPath));
+      } catch {
+        validation = unsafeRegisteredPackageValidation();
+      }
+      records.push({ id, rootPath, validation });
+    }
+    return records;
+  }
+
+  public async getActiveId(): Promise<string | undefined> {
+    return (await this.readRegistry()).activeId;
+  }
+
+  public async validateRegisteredPackage(id: string): Promise<AvatarPackageValidation> {
+    assertValidPackageId(id);
+    const registry = await this.readRegistry();
+    if (!Object.hasOwn(registry.packages, id)) {
+      throw new AvatarPackageError(`Avatar package "${id}" is not registered.`);
+    }
+    const relativeRoot = registry.packages[id] as string;
+    try {
+      const rootPath = await this.resolveVerifiedRegisteredRoot(relativeRoot);
+      return withMatchingRegistryId(id, await validateAvatarPackage(rootPath));
+    } catch {
+      return unsafeRegisteredPackageValidation();
+    }
+  }
+
   public async getActivePackage(): Promise<AvatarPackage | undefined> {
     const registry = await this.readRegistry();
     if (!registry.activeId) return undefined;
     const relativeRoot = registry.packages[registry.activeId];
     if (!relativeRoot) throw new AvatarPackageError(`Active avatar "${registry.activeId}" is not registered.`);
-    const avatarPackage = await loadAvatarPackage(this.resolveRegisteredRoot(relativeRoot));
+    const avatarPackage = await loadAvatarPackage(await this.resolveVerifiedRegisteredRoot(relativeRoot));
     assertInside(this.requireAssetRoot(), avatarPackage.rootPath, "Registry package path");
     return avatarPackage;
   }
@@ -114,9 +277,11 @@ export class AvatarPackageRegistry {
       await this.writeRegistry(registry);
       return undefined;
     }
-    const relativeRoot = registry.packages[id];
-    if (!relativeRoot) throw new AvatarPackageError(`Avatar package "${id}" is not registered.`);
-    const avatarPackage = await loadAvatarPackage(this.resolveRegisteredRoot(relativeRoot));
+    if (!Object.hasOwn(registry.packages, id)) {
+      throw new AvatarPackageError(`Avatar package "${id}" is not registered.`);
+    }
+    const relativeRoot = registry.packages[id] as string;
+    const avatarPackage = await loadAvatarPackage(await this.resolveVerifiedRegisteredRoot(relativeRoot));
     assertInside(this.requireAssetRoot(), avatarPackage.rootPath, "Registry package path");
     registry.activeId = id;
     await this.writeRegistry(registry);
@@ -124,15 +289,39 @@ export class AvatarPackageRegistry {
   }
 
   public async removeAvatar(id: string): Promise<boolean> {
+    assertValidPackageId(id);
+    const assetRoot = this.requireAssetRoot();
     const registry = await this.readRegistry();
-    const relativeRoot = registry.packages[id];
-    if (!relativeRoot) throw new AvatarPackageError(`Avatar package "${id}" is not registered.`);
+    if (!Object.hasOwn(registry.packages, id)) {
+      throw new AvatarPackageError(`Avatar package "${id}" is not registered.`);
+    }
+    const relativeRoot = registry.packages[id] as string;
     const rootPath = this.resolveRegisteredRoot(relativeRoot);
-    await rm(rootPath, { recursive: true, force: false });
-    delete registry.packages[id];
     const wasActive = registry.activeId === id;
-    if (wasActive) delete registry.activeId;
-    await this.writeRegistry(registry);
+    const nextRegistry = cloneRegistry(registry);
+    delete nextRegistry.packages[id];
+    if (wasActive) delete nextRegistry.activeId;
+
+    const transactionRoot = path.resolve(assetRoot, "cache", "transactions", randomUUID());
+    const removedPackageRoot = path.join(transactionRoot, "removed-package");
+    assertInside(assetRoot, transactionRoot, "Avatar removal transaction");
+    await mkdir(transactionRoot, { recursive: true });
+
+    let moved = false;
+    try {
+      await renameWithRetry(rootPath, removedPackageRoot);
+      moved = true;
+      await this.writeRegistry(nextRegistry);
+    } catch (error) {
+      if (moved) {
+        await mkdir(path.dirname(rootPath), { recursive: true }).catch(() => undefined);
+        await renameWithRetry(removedPackageRoot, rootPath).catch(() => undefined);
+      }
+      await rm(transactionRoot, { recursive: true, force: true }).catch(() => undefined);
+      throw error;
+    }
+
+    await rm(transactionRoot, { recursive: true, force: true }).catch(() => undefined);
     return wasActive;
   }
 
@@ -170,6 +359,22 @@ export class AvatarPackageRegistry {
     return rootPath;
   }
 
+  private async resolveVerifiedRegisteredRoot(relativeRoot: string): Promise<string> {
+    const assetRoot = this.requireAssetRoot();
+    const rootPath = this.resolveRegisteredRoot(relativeRoot);
+    const rootStat = await lstat(rootPath).catch(() => {
+      throw new AvatarPackageError("Registered avatar package folder is missing or inaccessible.");
+    });
+    if (rootStat.isSymbolicLink()) {
+      throw new AvatarPackageError("Registered avatar package folder must not be a symbolic link.");
+    }
+    const resolvedRoot = await realpath(rootPath).catch(() => {
+      throw new AvatarPackageError("Registered avatar package folder is missing or inaccessible.");
+    });
+    assertInside(assetRoot, resolvedRoot, "Registry package path");
+    return rootPath;
+  }
+
   private async readRegistry(): Promise<RegistryFile> {
     const assetRoot = this.requireAssetRoot();
     const registryPath = path.join(assetRoot, "avatar-registry.json");
@@ -187,7 +392,23 @@ export class AvatarPackageRegistry {
   private async writeRegistry(registry: RegistryFile): Promise<void> {
     const assetRoot = this.requireAssetRoot();
     await mkdir(assetRoot, { recursive: true });
-    await writeFile(path.join(assetRoot, "avatar-registry.json"), `${JSON.stringify(registry, null, 2)}\n`, "utf8");
+    const registryPath = path.join(assetRoot, "avatar-registry.json");
+    const temporaryPath = path.join(assetRoot, `.avatar-registry-${randomUUID()}.tmp`);
+    const backupPath = path.join(assetRoot, `.avatar-registry-${randomUUID()}.bak`);
+    const hadRegistry = await exists(registryPath);
+    await writeFile(temporaryPath, `${JSON.stringify(registry, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    try {
+      if (hadRegistry) await renameWithRetry(registryPath, backupPath);
+      await renameWithRetry(temporaryPath, registryPath);
+      await rm(backupPath, { force: true });
+    } catch (error) {
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+      if (hadRegistry && (await exists(backupPath))) {
+        await rm(registryPath, { force: true }).catch(() => undefined);
+        await renameWithRetry(backupPath, registryPath).catch(() => undefined);
+      }
+      throw error;
+    }
   }
 }
 
@@ -207,8 +428,8 @@ export async function validateAvatarPackage(packageRoot: string): Promise<Avatar
     manifest = manifestResult.manifest;
     warnings.push(...manifestResult.warnings);
 
-    if (!/^[a-z0-9][a-z0-9._-]*$/i.test(manifest.id)) {
-      errors.push("id must contain only letters, numbers, dots, underscores, or hyphens.");
+    if (!isValidPackageId(manifest.id)) {
+      errors.push("id must be 1-80 letters, numbers, dots, underscores, or hyphens and start with a letter or number.");
     }
 
     const referencedFiles = new Set<string>();
@@ -400,11 +621,49 @@ function isRegistryFile(value: unknown): value is RegistryFile {
       return false;
     }
   }
-  return registry.activeId === undefined || registry.activeId in registry.packages;
+  return registry.activeId === undefined || Object.hasOwn(registry.packages, registry.activeId);
 }
 
 function isValidPackageId(value: string): boolean {
-  return /^[a-z0-9][a-z0-9._-]*$/i.test(value);
+  return /^[a-z0-9][a-z0-9._-]{0,79}$/i.test(value);
+}
+
+function assertValidPackageId(value: string): void {
+  if (!isValidPackageId(value)) {
+    throw new AvatarPackageError(
+      "Avatar id must be 1-80 letters, numbers, dots, underscores, or hyphens and start with a letter or number."
+    );
+  }
+}
+
+function withMatchingRegistryId(id: string, validation: AvatarPackageValidation): AvatarPackageValidation {
+  if (!validation.manifest || validation.manifest.id === id) return validation;
+  return {
+    ...validation,
+    valid: false,
+    errors: [...validation.errors, `Registry id "${id}" does not match package id "${validation.manifest.id}".`]
+  };
+}
+
+function unsafeRegisteredPackageValidation(): AvatarPackageValidation {
+  return {
+    valid: false,
+    errors: ["Registered avatar package folder is missing, inaccessible, or unsafe."],
+    warnings: []
+  };
+}
+
+function cloneRegistry(registry: RegistryFile): RegistryFile {
+  return JSON.parse(JSON.stringify(registry)) as RegistryFile;
+}
+
+function setRegistryPackage(registry: RegistryFile, id: string, relativeRoot: string): void {
+  Object.defineProperty(registry.packages, id, {
+    configurable: true,
+    enumerable: true,
+    value: relativeRoot,
+    writable: true
+  });
 }
 
 function isSafeRelativePath(value: string): boolean {
@@ -414,6 +673,27 @@ function isSafeRelativePath(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+const RENAME_RETRY_DELAYS_MS = [20, 40, 80, 160, 320, 500] as const;
+
+async function renameWithRetry(source: string, destination: string): Promise<void> {
+  let retry = 0;
+  while (true) {
+    try {
+      await renamePath(source, destination);
+      return;
+    } catch (error) {
+      if (!isTransientRenameError(error) || retry >= RENAME_RETRY_DELAYS_MS.length) throw error;
+      await delay(RENAME_RETRY_DELAYS_MS[retry]);
+      retry += 1;
+    }
+  }
+}
+
+function isTransientRenameError(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  return error.code === "EPERM" || error.code === "EACCES" || error.code === "EBUSY" || error.code === "ENOTEMPTY";
 }
 
 function isFileNotFound(error: unknown): boolean {

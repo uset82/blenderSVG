@@ -6,6 +6,14 @@
   "publisher": "codex-avatar-studio",
   "private": true,
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/uset82/avatar-studio.git"
+  },
+  "homepage": "https://github.com/uset82/avatar-studio#readme",
+  "bugs": {
+    "url": "https://github.com/uset82/avatar-studio/issues"
+  },
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.96.0"
@@ -34,6 +42,7 @@
     "onCommand:codexAvatar.emitEvent",
     "onCommand:codexAvatar.markSuccess",
     "onCommand:codexAvatar.markError",
+    "onCommand:codexAvatar.createFromPicture",
     "onCommand:codexAvatar.trigger.blink",
     "onCommand:codexAvatar.trigger.lookleft",
     "onCommand:codexAvatar.trigger.lookright",
@@ -167,6 +176,10 @@
         "title": "Codex Avatar: Mark Error"
       },
       {
+        "command": "codexAvatar.createFromPicture",
+        "title": "Codex Avatar: Create Avatar from Picture"
+      },
+      {
         "command": "codexAvatar.vectorizeImage",
         "title": "Codex Avatar: Vectorize Image to SVG"
       },
@@ -188,7 +201,8 @@
       "codexAvatar": [
         {
           "id": "codexAvatar.assistantView",
-          "name": "Assistant"
+          "name": "Assistant",
+          "type": "webview"
         }
       ]
     },
@@ -205,13 +219,10 @@
           "enum": [
             "svg",
             "pixi",
-            "rive",
-            "live2d",
-            "webgl",
-            "webgpu"
+            "webgl"
           ],
           "default": "svg",
-          "description": "Preferred avatar runtime. Unsupported runtimes fall back to SVG."
+          "description": "Preferred avatar runtime. WebGL is optional and unsupported or failed runtimes fall back to SVG."
         },
         "codexAvatar.position": {
           "type": "string",
@@ -303,7 +314,15 @@
         "codexAvatar.blenderPath": {
           "type": "string",
           "default": "",
-          "description": "Optional path to the Blender executable."
+          "description": "Optional path to the Blender executable.",
+          "restricted": true
+        },
+        "codexAvatar.blenderTimeoutSeconds": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 600,
+          "default": 120,
+          "description": "Maximum seconds allowed for one Blender export process."
         },
         "codexAvatar.assetWorkspace": {
           "type": "string",
@@ -318,7 +337,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && tsc -p tsconfig.json --noEmit",
     "lint": "pnpm --workspace-root exec biome lint apps/extension",
-    "test": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm build && node --test test/*.test.mjs && pnpm --workspace-root exec vitest run apps/extension/test/ideEvents.test.ts apps/extension/test/settings.test.ts",
+    "test": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && pnpm build && node --test test/*.test.mjs && pnpm --workspace-root exec vitest run apps/extension/test/avatar-webview-provider.test.ts apps/extension/test/blender-avatar-package.test.ts apps/extension/test/generated-avatar-package.test.ts apps/extension/test/ideEvents.test.ts apps/extension/test/picture-studio.test.ts apps/extension/test/settings.test.ts",
     "watch": "tsc -p tsconfig.json --watch",
     "package:vsix": "node ../../scripts/package-extension.mjs"
   },
