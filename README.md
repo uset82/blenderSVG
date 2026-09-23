@@ -1,284 +1,126 @@
-# Codex Avatar Studio
+# blenderSVG Studio
 
-Codex Avatar Studio is a local animated assistant for **Visual Studio Code** and compatible **Cursor** builds. It adds an avatar panel that reacts to coding activity, supports local picture-to-SVG creation, imports portable avatar packages, and can render validated 3D GLB avatars through WebGL.
+> **Working name.** A new product name is being chosen. The repository, package and extension names will change with it (plan step R6).
 
-The extension works without an account, cloud upload, Blender, or a dedicated GPU. Advanced features are optional and always fall back to the built-in SVG coder orb.
+blenderSVG Studio is a local-first design canvas where you and AI agents design together. It is an infinite [tldraw](https://tldraw.dev/) canvas with an agent chat that uses any model from your own [OpenRouter](https://openrouter.ai/) account. It also traces pictures into editable SVG on your computer, builds animated avatars, and hands work to Blender. It ships with a VS Code extension that adds an animated avatar to your editor.
 
-> [!IMPORTANT]
-> The repository and public VSIX do not include the local Cholita artwork, `.blend`, GLB, or workspace previews used during development. Users receive the redistributable coder orb and can create or import avatars for which they have the necessary rights.
+> [!NOTE]
+> The Studio is in active development. The avatar extension is the finished, tested part. The Studio is being rebuilt step by step against the Target UI design; see [the plan](docs/PLAN_CHECKLIST.md) for exactly what is done.
 
-## Features
+## What's in this repository
 
-- Built-in animated SVG avatar with no extra setup.
-- Local PNG, JPG, JPEG, and WebP to SVG conversion.
-- Avatar library for importing, validating, activating, exporting, and removing packages.
-- SVG, PixiJS, and optional Three.js WebGL rendering.
-- Semantic states: idle, welcome, listening, thinking, speaking, coding, reviewing, debugging, building, success, warning, error, and sleeping.
-- Triggers for blink, gaze, nod, shake, celebrate, point, speaking, and particle effects.
-- Reduced-motion, focus-mode, frame-rate, and animation-intensity controls.
-- Optional Blender 3.6+ discovery, GLB/SVG/PNG export, and SVG-to-editable-scene handoff.
-- Local-only files, strict Webview security policy, validated messages, and automatic SVG fallback.
+| Part | Folder | Status |
+| --- | --- | --- |
+| Studio canvas app (React + tldraw) | `apps/studio` | In progress. Design system and Home dashboard are in; the editor shell, chat panel and agents are next. |
+| VS Code extension | `apps/extension` | Working. Avatar sidebar, picture → SVG, avatar library, Blender tools. It also hosts the Studio in an editor tab for now. |
+| Avatar sidebar UI | `apps/webview` | Working. The compact avatar panel inside VS Code. |
+| Shared packages | `packages/` | `avatar-core` (avatar manifest, state machine, Studio messages), `asset-pipeline` (local tracing and SVG safety), `runtime-pixi` (PixiJS avatars), `mcp-server` (MCP tools). |
+| Blender scripts | `scripts/blender` | Working. Local SVG, GLB and PNG export and the SVG-to-scene handoff. |
+| Docs and plan | `docs/` | [Plan](docs/PLAN_CHECKLIST.md), [design brief](docs/STUDIO_DESIGN_BRIEF.md), [Target UI artboards](docs/design/target-ui/README.md). |
 
-## Requirements
+## Where it is going
 
-### End users
+The ordered roadmap lives in [docs/PLAN_CHECKLIST.md](docs/PLAN_CHECKLIST.md). In short:
 
-| Requirement | Notes |
-| --- | --- |
-| VS Code 1.96+ or a compatible Cursor build | VS Code is the release-tested host. |
-| A trusted workspace folder | Required for importing, generating, or exporting local assets. |
-| Blender 3.6+ | Optional; only required for Blender production tools. |
+1. A pen.dev-style editor: floating toolbars, layers, pages and a properties panel.
+2. A standalone local app that runs without VS Code, on your computer only (`127.0.0.1`).
+3. Real saving, reopening and export of projects.
+4. An agent panel where you pick any OpenRouter model, with streaming chat and saved conversations.
+5. Design agents that propose changes on the canvas, which you apply or undo in one step.
+6. An image → SVG dialog, the avatar builder, and the Blender connector.
+7. Connectors so coding agents (Codex, Claude Code, Cursor, WorkBuddy, Qoder) can work on the canvas over MCP.
 
-### Building from source
+## Quick start
 
-| Requirement | Version |
-| --- | --- |
-| Git | Current stable release |
-| Node.js | 22.x |
-| pnpm | 11.7.0 |
-
-## Install the extension
-
-### Option 1: Install a release VSIX
-
-1. Download `codex-avatar-studio-<version>.vsix` from the [GitHub Releases page](https://github.com/uset82/avatar-studio/releases).
-2. Open VS Code or Cursor.
-3. Open **Extensions**.
-4. Select the Extensions `…` menu and choose **Install from VSIX…**.
-5. Select the downloaded file and reload the IDE if prompted.
-
-VS Code users can also install from a terminal:
+You need Git, Node.js 22 and pnpm 11.7.0. VS Code 1.96+ and Blender 3.6+ are optional.
 
 ```bash
-code --install-extension codex-avatar-studio-0.1.0.vsix --force
-```
-
-### Option 2: Build the VSIX yourself
-
-```bash
-git clone https://github.com/uset82/avatar-studio.git
-cd avatar-studio
+git clone https://github.com/uset82/blenderSVG.git
+cd blenderSVG
 corepack enable
 corepack prepare pnpm@11.7.0 --activate
 pnpm install --frozen-lockfile
-pnpm package:vsix
 ```
 
-The package is created at:
-
-```text
-dist/codex-avatar-studio-0.1.0.vsix
-```
-
-Install it from the Extensions menu or run:
+### Try the Studio in your browser
 
 ```bash
-code --install-extension dist/codex-avatar-studio-0.1.0.vsix --force
+pnpm dev:studio
 ```
 
-### Option 3: Run an Extension Development Host
+Open `http://127.0.0.1:5174`. The browser preview keeps everything in memory, so nothing is saved, and the AI chat is off. Saving and chat work in the VS Code tab until the standalone app is ready.
+
+### Run it inside VS Code
 
 ```bash
-git clone https://github.com/uset82/avatar-studio.git
-cd avatar-studio
-corepack enable
-corepack prepare pnpm@11.7.0 --activate
-pnpm install --frozen-lockfile
 pnpm build
 ```
 
-Open the repository in VS Code and press **F5** to start the Extension Development Host.
+Open the folder in VS Code and press **F5** to start an Extension Development Host. Then, from the Command Palette:
 
-## First launch
+- **Codex Avatar: Open Studio** opens the Studio in an editor tab. Projects are saved under `.codex-avatar/studio/projects` in your workspace.
+- **Codex Avatar: Open Assistant** opens the avatar sidebar.
 
-1. Open a workspace folder and trust it when appropriate.
-2. Open the Command Palette with `Ctrl+Shift+P` or `Cmd+Shift+P`.
-3. Run **Codex Avatar: Open Assistant**.
-4. The built-in coder orb appears in the Codex Avatar activity-bar panel.
-
-If the panel is not visible, run **Codex Avatar: Toggle Assistant**, followed by **Codex Avatar: Reload Avatar**.
-
-## How it works
-
-```text
-IDE commands and activity
-          │
-          ▼
-VS Code extension host
-  validates settings, events, paths, and avatar packages
-          │
-          ▼
-Secure local Webview
-          │
-          ├── SVG renderer and built-in fallback
-          ├── PixiJS renderer for compatible packages
-          └── Lazy Three.js WebGL renderer for validated GLB packages
-```
-
-The extension host owns filesystem access, native file pickers, Blender processes, workspace trust checks, and safe Webview URIs. The Webview only receives validated messages and local assets that belong to the active package.
-
-If WebGL, a GLB file, an animation clip, or an optional runtime fails, the extension falls back to the package SVG and then to the built-in coder orb.
-
-## Everyday use
-
-### Use the built-in avatar
-
-Open the assistant and keep **Coder Orb** selected. Use the Command Palette to preview states and triggers:
-
-- **Codex Avatar: Set State**
-- **Codex Avatar: Start Thinking**
-- **Codex Avatar: Start Speaking**
-- **Codex Avatar: Mark Success**
-- **Codex Avatar: Mark Error**
-- **Codex Avatar: Trigger Blink**, **Nod**, **Shake**, **Celebrate**, or **Point**
-
-### Create an avatar from a picture
-
-1. Select **Create from Picture** in the assistant or run **Codex Avatar: Create Avatar from Picture**.
-2. Choose a local PNG, JPG, JPEG, or WebP file.
-3. Adjust the tracing controls and review the SVG preview.
-4. Enter the avatar name, id, author, version, and license or rights statement.
-5. Select **Save & Use**.
-
-Picture tracing creates a useful static SVG. It does not automatically segment, rig, or convert a picture into a production 3D character.
-
-### Import an avatar package
-
-1. Select **Import Avatar**.
-2. Choose a folder containing `avatar.manifest.json`, or select the manifest itself.
-3. Find the package in **Avatar library**.
-4. Select **Validate**, then **Use Avatar**.
-
-Every WebGL package must include both a validated local GLB and a package-local SVG fallback. See [Avatar Package Specification](docs/AVATAR_PACKAGE_SPEC.md) for the complete schema.
-
-### Export and share an avatar package
-
-1. Select a custom avatar marked **Ready**.
-2. Select **Export Avatar**.
-3. Confirm that you have permission to redistribute the artwork.
-4. Save the `.codex-avatar.zip` file.
-
-Recipients should extract the ZIP and import its package folder. Exporting a package does not grant new rights to its artwork.
-
-## Optional Blender workflow
-
-End users do not need Blender MCP. The extension’s **Blender Tools** panel can discover Blender, test the executable, and run local exports directly.
-
-1. Install Blender 3.6 or newer.
-2. Open **Blender Tools** in the assistant.
-3. Select **Auto-detect**, or browse to the Blender executable.
-4. Select **Test Connection**.
-5. Choose a `.blend` scene and export GLB, SVG, PNG, or supported combinations.
-
-Blender jobs run locally with bounded timeouts, safe argument arrays, staged output, validation, and cleanup. The source `.blend` is not overwritten.
-
-**Create Blender Scene from SVG** creates an editable curve-based starting scene. It is not automatic 2D-to-3D conversion or automatic character rigging.
-
-### Optional restricted Blender MCP for Codex contributors
-
-The repository contains a project-scoped Codex MCP configuration. It pins `blender-mcp==1.6.4`, connects only to `localhost:9876`, disables telemetry, and exposes a four-tool allowlist. Arbitrary Blender Python requires approval.
-
-Prerequisites:
-
-- Blender installed locally.
-- [`uv`](https://docs.astral.sh/uv/) with `uvx` available on `PATH`.
-- A local Codex workspace opened from this repository.
-
-Install or verify the audited Blender add-on:
+### Build and install the extension
 
 ```bash
-pnpm setup:blender-mcp
-pnpm verify:blender-mcp
+pnpm package:vsix
+code --install-extension dist/codex-avatar-studio-0.1.0.vsix --force
 ```
 
-Then restart Blender and begin a new Codex task before the first MCP smoke test. Full setup and safety details are in [Blender Pipeline](docs/BLENDER_PIPELINE.md).
+## Using the AI chat
 
-## Settings
+1. Open the Studio in VS Code and open the conversation panel.
+2. Select **Connect** and paste your own OpenRouter key into VS Code's password prompt. The key is kept in VS Code's secret storage and never reaches the page.
+3. Pick any model from your account's live catalog. You can filter by publisher, price, context size and capabilities.
+4. Review what will be sent, then send. Only your message and what you choose to attach go to OpenRouter.
 
-The assistant panel separates everyday behavior from advanced settings:
+## Using the avatar extension
 
-- **Enabled** — show or pause the assistant.
-- **Focus mode** — stop continuous motion while concentrating.
-- **Intensity** — low, medium, or high motion.
-- **Speech bubble** — show contextual assistant messages.
-- **Reduced motion** — respect the operating-system preference.
-- **Runtime** — SVG, PixiJS, or WebGL.
-- **Frame rate** — 30 or 60 FPS.
-- **Effects and diagnostics** — particles, debug overlay, and runtime reporting.
+- **Built-in avatar.** A coder orb reacts to your work, with no setup. Commands such as **Codex Avatar: Set State**, **Codex Avatar: Mark Success** and **Codex Avatar: Trigger Nod** preview its states.
+- **Create from a picture.** Choose a PNG, JPG or JPEG, adjust the tracing, review the SVG, fill in the name and license, then select **Save & Use**. Tracing makes a static SVG; it does not rig or animate a character by itself.
+- **Avatar library.** Import, validate, activate, export (`.codex-avatar.zip`) and remove avatar packages. See the [Avatar Package Specification](docs/AVATAR_PACKAGE_SPEC.md).
+- **Blender tools (optional).** Auto-detect or browse to Blender 3.6+, test the connection, export GLB, SVG or PNG from a `.blend` file, or turn an SVG into an editable Blender scene. Your source `.blend` is never overwritten. Details are in [Blender Pipeline](docs/BLENDER_PIPELINE.md).
+- **Blender MCP for contributors.** A restricted, local-only Blender MCP setup for coding agents is included:
 
-Avatar and runtime selection are workspace-scoped when a workspace is open. General behavior preferences remain global.
-
-## Local file layout
-
-Generated and imported content stays inside the active workspace:
-
-```text
-.codex-avatar/
-├── avatar-registry.json
-├── avatars/<avatar-id>/
-│   ├── avatar.manifest.json
-│   ├── svg/avatar.svg
-│   ├── webgl/avatar.glb       # optional
-│   └── preview.png            # optional
-├── cache/
-├── exports/
-└── previews/
-```
-
-`.codex-avatar` content is workspace data and is ignored by this repository. Review an avatar’s author and license before sharing it.
+  ```bash
+  pnpm setup:blender-mcp
+  pnpm verify:blender-mcp
+  ```
 
 ## Privacy and security
 
-- No account is required.
-- Source pictures, SVG files, GLB files, and Blender scenes are processed locally.
-- The Webview cannot request arbitrary local files.
-- Remote asset-generation services are not used.
-- Workspace trust gates filesystem changes and Blender execution.
-- Manifests, paths, messages, SVG, GLB, PNG, and package sizes are validated.
-- Optional runtime failure never prevents the extension from loading.
+- Pictures, SVG, avatars and Blender scenes are processed on your computer.
+- The AI chat is opt-in. It sends only what you submit to OpenRouter, using your own key, and it shows the request before sending.
+- Keys stay in the host (VS Code secret storage) and never reach the browser page, local storage or logs.
+- SVG is sanitized before it is shown, and the page cannot read arbitrary files.
+- Workspace trust gates file changes and Blender runs.
 
-See [Security and Privacy](docs/SECURITY_PRIVACY.md) for the full threat model.
+See [Security and Privacy](docs/SECURITY_PRIVACY.md) for the threat model.
 
-## Troubleshooting
-
-| Problem | What to try |
-| --- | --- |
-| Assistant panel is missing | Run **Codex Avatar: Open Assistant** or **Toggle Assistant**. |
-| Avatar is blank or stuck | Run **Codex Avatar: Reload Avatar**. |
-| Import, create, or export is disabled | Open a folder and confirm that the workspace is trusted. |
-| Picture conversion fails | Try a smaller PNG/JPG/JPEG/WebP and review the reported validation message. |
-| Blender is not found | Use **Blender Tools → Browse** or **Auto-detect**. |
-| A GLB cannot load | Validate the package and its SVG fallback; the stage should remain usable in SVG mode. |
-| Motion is too distracting | Enable **Focus mode**, lower intensity, or enable reduced motion. |
-
-More help is available in [Troubleshooting](docs/TROUBLESHOOTING.md) and the [User Guide](docs/USER_GUIDE.md).
-
-## Development and verification
+## Development
 
 ```bash
-pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test:unit
 pnpm run ci
+pnpm validate:docs
 pnpm smoke:webview
-pnpm smoke:blender
-pnpm package:vsix
-pnpm validate:vsix
 pnpm smoke:vsix
-pnpm smoke:clean-profile
+pnpm smoke:blender
 ```
 
-`pnpm smoke:blender` is skipped gracefully when a supported Blender installation is unavailable. Release packaging intentionally excludes `.codex-avatar`, private character assets, `.blend` files, and package GLBs.
+`pnpm smoke:blender` is skipped when Blender is not installed. Release packages never include `.codex-avatar/` workspace data, private artwork, `.blend` files or avatar GLBs.
 
-Project documentation:
+More documentation:
 
 - [Developer Setup](docs/DEVELOPER_SETUP.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [Avatar Package Specification](docs/AVATAR_PACKAGE_SPEC.md)
-- [Blender Pipeline](docs/BLENDER_PIPELINE.md)
-- [QA and Release](docs/QA_RELEASE.md)
-- [Implementation Checklist](docs/PLAN_CHECKLIST.md)
+- [Design System](docs/DESIGN_SYSTEM.md)
+- [User Guide](docs/USER_GUIDE.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Repository agent skills](.agents/README.md) and [agent rules](AGENTS.md)
 
-## License and third-party software
+## License
 
-The source repository is currently **all rights reserved**; see [LICENSE](LICENSE). Publishing the repository does not automatically grant permission to redistribute its source code or artwork. If you are the project owner and want community reuse or contributions, select and publish an explicit open-source license before inviting redistribution.
-
-Third-party dependencies and the audited project skills are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MIT; see [LICENSE](LICENSE). Third-party software, fonts and agent skills are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The development workspace's private character artwork is not part of the repository or the extension package.
