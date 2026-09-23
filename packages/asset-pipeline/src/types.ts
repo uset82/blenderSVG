@@ -2,9 +2,9 @@ export const supportedImageExtensions = [".png", ".jpg", ".jpeg"] as const;
 
 export type SupportedImageExtension = (typeof supportedImageExtensions)[number];
 
-// Remote values remain in the type for callers migrating from older releases.
-// previewImageToSvg rejects them before reading the source image.
-export type VectorEngine = "vtracer" | "imagetracer" | "openrouter" | "quiverai";
+// "quiverai" is reserved for the optional, off-by-default remote engine (plan Phase 21.3).
+// previewImageToSvg rejects every non-local engine before reading the source image.
+export type VectorEngine = "vtracer" | "imagetracer" | "quiverai";
 
 export type VectorizeImageOptions = {
   inputPath: string;
@@ -17,12 +17,6 @@ export type VectorizeImageOptions = {
   maxSvgBytes?: number;
   maxSvgPaths?: number;
   engine?: VectorEngine;
-  /** @deprecated Remote SVG and vision generation is disabled. */
-  openRouterApiKey?: string;
-  /** @deprecated Remote SVG and vision generation is disabled. */
-  openRouterModel?: string;
-  /** @deprecated Remote SVG and vision generation is disabled. */
-  openRouterPrompt?: string;
   /** @deprecated Remote SVG and vision generation is disabled. */
   quiverApiKey?: string;
   /** @deprecated Remote SVG and vision generation is disabled. */

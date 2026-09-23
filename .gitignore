@@ -28,3 +28,6 @@ tools/blender-mcp/
 apps/extension/media/webview/
 apps/extension/media/studio/
 *.vsix
+
+# Local agent tool state
+.kilo/

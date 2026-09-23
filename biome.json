@@ -11,10 +11,7 @@
       "!**/.kilo/**",
       "!apps/extension/media/**",
       "!apps/webview/dist/**",
-      "!apps/webview/src/renderers/Live2DAvatarRenderer.tsx",
-      "!apps/webview/src/renderers/RiveAvatarRenderer.tsx",
-      "!apps/webview/src/renderers/WebGLAvatarRenderer.tsx",
-      "!mcps/**"
+      "!apps/webview/src/renderers/WebGLAvatarRenderer.tsx"
     ]
   },
   "formatter": {

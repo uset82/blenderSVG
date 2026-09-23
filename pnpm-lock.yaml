@@ -58,9 +58,6 @@ importers:
       '@codex-avatar-studio/avatar-core':
         specifier: workspace:*
         version: link:../../packages/avatar-core
-      '@codex-avatar-studio/runtime-pixi':
-        specifier: workspace:*
-        version: link:../../packages/runtime-pixi
       '@fontsource/geist-mono':
         specifier: ^5.3.0
         version: 5.3.0
@@ -70,9 +67,6 @@ importers:
       '@tldraw/assets':
         specifier: 5.4.2
         version: 5.4.2
-      '@tldraw/tldraw':
-        specifier: ^5.4.2
-        version: 5.4.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@visioncortex/vtracer':
         specifier: 1.0.0-alpha.4
         version: 1.0.0-alpha.4
@@ -91,9 +85,6 @@ importers:
       react-dom:
         specifier: ^19.1.1
         version: 19.2.7(react@19.2.7)
-      three:
-        specifier: 0.185.1
-        version: 0.185.1
       tldraw:
         specifier: ^5.4.2
         version: 5.4.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -107,9 +98,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.1.9
         version: 19.2.3(@types/react@19.2.17)
-      '@types/three':
-        specifier: 0.185.1
-        version: 0.185.1
       '@vitejs/plugin-react':
         specifier: ^5.0.4
         version: 5.2.0(vite@7.3.6(@types/node@22.20.0))
@@ -1908,13 +1896,6 @@ packages:
     engines: {node: '>=22.12.0'}
     peerDependencies:
       react: ^18.2.0 || ^19.2.1
-
-  '@tldraw/tldraw@5.4.2':
-    resolution: {integrity: sha512-LEwo3LXuSklU9ty2R8546NhJwB38+c2qfJ1CkqoujCIuOW0miboZ8QfFYeGVWxYjy02lo03O0Ih+WclJTH9R/g==}
-    engines: {node: '>=22.12.0'}
-    peerDependencies:
-      react: ^18.2.0 || ^19.2.1
-      react-dom: ^18.2.0 || ^19.2.1
 
   '@tldraw/tlschema@5.4.2':
     resolution: {integrity: sha512-tdpCwAsObkngvhgSlHcEtYcHgt1/2ht1ck1rp7mOcD0is+Kkr9O/MbuWGHML1nCrdldAHy/QDXC2THnVEnvAMA==}
@@ -5663,16 +5644,6 @@ snapshots:
       '@tldraw/state': 5.4.2
       '@tldraw/utils': 5.4.2
       react: 19.2.7
-
-  '@tldraw/tldraw@5.4.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
-    dependencies:
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      tldraw: 5.4.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-    transitivePeerDependencies:
-      - '@floating-ui/dom'
-      - '@types/react'
-      - '@types/react-dom'
 
   '@tldraw/tlschema@5.4.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:

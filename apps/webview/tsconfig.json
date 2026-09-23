@@ -14,9 +14,5 @@
     "allowSyntheticDefaultImports": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
-  "exclude": [
-    "src/renderers/Live2DAvatarRenderer.tsx",
-    "src/renderers/RiveAvatarRenderer.tsx",
-    "src/renderers/WebGLAvatarRenderer.tsx"
-  ]
+  "exclude": ["src/renderers/WebGLAvatarRenderer.tsx"]
 }
