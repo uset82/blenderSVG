@@ -2,11 +2,11 @@
 
 > This is the only authoritative implementation plan for the repository. It supersedes the three former root plans and the legacy checklist. Their history remains available in Git.
 
-**Updated:** 2026-07-14
+**Updated:** 2026-09-23
 
-**Current state:** Phases 0–11 and their release gates are complete. Phase 12 is now the active required phase: add the restricted project Blender MCP workflow, productize the optional WebGL runtime, and create the local-only professional 3D Cholita package without redistributing its assets.
+**Current state:** Phases 0–11 are complete. Phase 12 has one unchecked post-restart Blender MCP acceptance task. The newer `apps/studio` canvas exists but its design and several visible controls need substantial work. Phases 13–18 below are the user-requested Studio redesign, real OpenRouter chat, and agent integration track; no task in that track is complete yet.
 
-**Next required phase:** Phase 12. Do not start another deferred runtime until its checklist and evidence are complete.
+**Next work for the requested Studio track:** Phase 13, beginning with credential and rendering safety. Work through Phases 13–18 in order. Keep Phase 12's final acceptance box open until its separate MCP evidence is recorded; do not declare the overall release complete while it remains open.
 
 ## 1. Product outcome
 
@@ -17,8 +17,9 @@ The required user journeys are:
 1. **Picture → SVG avatar:** choose a picture, preview it, vectorize it locally, save it as an avatar, activate it, and keep it active after reload.
 2. **Blender → avatar assets:** detect or configure Blender, export a `.blend` scene, validate the results, package supported output, and optionally activate it.
 3. **Manage avatars:** import, select, validate, reload, reveal, export, and remove local avatar packages from the Webview without relying on hidden commands.
+4. **Design in Studio:** open a recent local project, edit a canvas with working tools, save and reopen it, converse with a user-selected OpenRouter model, and apply any agent-proposed canvas change only after review.
 
-“Upload” means choosing a local file. No picture, model, SVG, or Blender file is sent to a server.
+“Upload” in the existing avatar workflow means choosing a local file. Picture tracing, Blender work, and avatar assets stay local. The new AI chat is a separate, explicitly enabled network feature: only the user's submitted text and any context they deliberately attach may be sent to OpenRouter. Never silently send pictures, SVG/GLB content, source scenes, workspace files, or paths.
 
 ## 2. Decisions that are now locked
 
@@ -32,8 +33,11 @@ The required user journeys are:
 - Auto-tracing creates a useful static SVG, not a rigged character. Named layers may add richer motion later, but missing layers must not prevent a basic avatar from working.
 - Blender is optional. Missing or broken Blender tooling must never prevent the extension or SVG fallback from loading.
 - A feature is complete only when its user-visible journey works in the Webview and installed VSIX. Internal helpers or command registration alone are not completion.
+- Keep the compact avatar sidebar working. Build the spacious canvas/chat experience from the existing `apps/studio` baseline, with a supported host boundary for network and filesystem work. Visual references guide hierarchy and interaction quality; they are not assets or instructions to copy.
 
 ## 3. Verified baseline and real gaps
+
+The table below records the historical audit that drove Phases 1–9. Their completion evidence is preserved below; its “disconnected” column does not describe the current avatar Webview.
 
 | Area | What already works | What is still disconnected |
 | --- | --- | --- |
@@ -52,6 +56,18 @@ Important audit findings:
 - Even a correctly imported SVG package still shows the built-in orb because the SVG renderer never reads `manifest.entrypoints.svg`.
 - Blender 4.5.3 is installed locally under `C:\Program Files\Blender Foundation\Blender 4.5\blender.exe`, while the current Windows probe stops at Blender 4.4.
 - A Blender export record is not an avatar package. GLB also cannot be advertised as active until the WebGL renderer is genuinely routed, built, tested, and protected by SVG fallback.
+
+### 3.1 Studio baseline at the start of the requested redesign (2026-09-23)
+
+| Area | Existing baseline | Gap to close |
+| --- | --- | --- |
+| Canvas | `apps/studio` runs React and tldraw with a frame, custom avatar/vector/Blender shapes, toolbar, side panels, and prompt dock | Several visible actions are placeholders; SVG insertion draws a rectangle, export shows an alert, and Blender handoff only opens the inspector |
+| Projects | A Recents dashboard and project title UI exist | Recents are hardcoded; create/open/rename/save/reopen and recovery are not a verified document workflow |
+| AI | A sidebar and model selector exist; a Vite development route can request an SVG | “Chat” fabricates an agent response from SVG generation; the model list mixes stale fixed IDs with live data, and the route is development-only |
+| Security | The avatar extension already has a typed bridge, strict CSP, workspace trust, and local package rules | The Studio Vite route contains a literal provider credential fallback, listens beyond loopback, and accepts unbounded requests; the browser stores an OpenRouter key in `localStorage` and injects SVG markup into the DOM |
+| Surfaces | The extension has a compact avatar activity-bar Webview | There is no supported large editor-tab Studio host yet; the browser preview and packaged extension must have explicit, tested responsibilities |
+
+The supplied Paper and pen.dev screenshots are visual references for a sparse Recents launcher, generous central canvas, compact tool rail, contextual inspector, agent conversation, and persistent composer in light and dark themes. The QuiverAI screenshot is a sign-in reference, not a requirement to add authentication. Avoid copying their branding, icons, layouts pixel for pixel, or unavailable features.
 
 ## 4. Target experience and architecture
 
@@ -431,6 +447,123 @@ Every message must pass runtime schema validation. The Webview must never receiv
 - `pnpm run ci` passed formatting, lint, strict typecheck, all builds, and all 182 tests. `pnpm smoke:blender`, `pnpm smoke:webview`, `pnpm validate:docs`, and `pnpm validate:notices` passed. `pnpm package:vsix` produced a validated 33-file, 1.77 MB VSIX; `pnpm smoke:vsix` and `pnpm smoke:clean-profile` passed. `scripts/validate-vsix.mjs` now requires the lazy WebGL/GLTF chunks and rejects `.codex-avatar`, Cholita, `.blend`, and `.glb` entries. `git status -- .codex-avatar` is empty and `git check-ignore` confirms the local `.blend`, GLB, SVG, and preview are ignored.
 - **BLOCKED:** the first live MCP tool smoke is intentionally restart-gated. Restart Blender and start a new Codex task, then verify `get_scene_info`, `get_object_info`, `get_viewport_screenshot`, and one explicitly approved harmless `execute_blender_code` call. Keep the final acceptance checkbox unchecked until that post-restart evidence is recorded.
 
+### Phase 13 — Secure the Studio baseline and define the product boundary · requested, required
+
+**Goal:** make the existing `apps/studio` safe to develop further, identify every simulated interaction, and give the large canvas a supported host for secrets, network requests, and local project work. The compact avatar Webview remains available.
+
+- [ ] Inventory every visible Studio control and data flow; capture the current Recents, canvas, sidebar, inspector, and composer at desktop and narrow widths. Record which controls work, fail, or simulate success.
+- [ ] Remove the literal ZenMux credential fallback from `apps/studio/vite.config.ts`; revoke or rotate that credential if active, scan tracked files for other credentials, and record the remediation without copying a secret into logs or this plan.
+- [ ] Make the development server loopback-only by default. Give local API routes an origin/session boundary, bounded request size, timeout, concurrency, and cancellation; verify an unauthenticated or oversized request cannot spend a provider key.
+- [ ] Remove OpenRouter key reads and writes from browser `localStorage` and request bodies. Store user credentials in VS Code `SecretStorage` for the packaged editor-tab surface; use a server-side environment or session secret for local development only.
+- [ ] Replace untrusted `dangerouslySetInnerHTML` SVG previews with validated, sanitized, inert rendering through the existing local SVG pipeline. Cover chat responses, vector output, canvas insertion, and error cases.
+- [ ] Define and implement one versioned, runtime-validated Studio bridge for model metadata, chat events, project actions, and proposed canvas mutations. Keep filesystem and provider calls on the trusted host side; allow only narrowly scoped local asset URIs into the UI.
+- [ ] Add an editor-tab Studio host for `apps/studio` and a local development adapter with the same contract. Verify the built product works without Vite's `configureServer` middleware and that the avatar sidebar still opens normally.
+- [ ] Add an explicit OpenRouter connection/consent state explaining that submitted text and deliberately attached context leave the device, while image tracing, Blender scenes, and avatar assets stay local. Show the exact context before send.
+- [ ] Add negative tests for key leakage, unsafe SVG, untrusted workspace, invalid bridge messages, oversized payloads, unauthorized local requests, cancellation, and offline startup; document the observed results.
+
+**Done when:** no credential is bundled or exposed to the browser, no raw SVG executes, the shipped Studio host has a validated local boundary, and the existing avatar workflow still works.
+
+**Phase 13 evidence:** Pending. Leave each box unchecked until the implementation, command/manual procedure, environment, affected files, and observed result are recorded here.
+
+### Phase 14 — Design a professional canvas workspace · requested, required
+
+**Goal:** use the supplied Paper and pen.dev references for hierarchy and interaction patterns while establishing an original, quieter visual language for this product.
+
+- [ ] Write a one-page design brief and reference matrix: identify useful aspects of screenshots 1–6 (Recents, canvas, tools, agent panel, inspector, composer, theme switching) and the present Studio elements to simplify or remove. Treat screenshot 7 only as sign-in context.
+- [ ] Define information architecture for Recents, the working canvas, conversation, assets, and settings. Give the large canvas one primary focus and keep the avatar sidebar as a compact entry point.
+- [ ] Specify design tokens for type scale, spacing, surface elevation, dividers, icon size, focus, status, and one primary accent; provide light, dark, and high-contrast values in `docs/DESIGN_SYSTEM.md` and code.
+- [ ] Replace the current glow/glass treatment and competing panels with a restrained shell: project/title controls, a compact tool rail, a generous canvas, contextual inspector, and a clearly placed conversation/composer area.
+- [ ] Redesign Recents around genuine project scanning: useful title, preview, modified time, search, list/grid choice, and one clear New Project action; handle the first-project empty state.
+- [ ] Make the agent conversation distinct from the quick creation prompt; show model, connection state, message stream, tool status, and an accessible composer without duplicate send surfaces.
+- [ ] Add intentional empty, loading, saving, generating, canceled, error, and success states. Disable or hide controls whose behavior is not yet implemented; do not present mock data as live status.
+- [ ] Make panels resize/collapse without covering the artboard or each other at 360px, 768px, 1280px, and 1920px widths; preserve usable canvas space and touch targets.
+- [ ] Specify keyboard order, shortcuts, labels, contrast, visible focus, reduced motion, and screen-reader announcements for navigation, canvas selection, chat streaming, and dialogs.
+- [ ] Capture and review light/dark/high-contrast screenshots of Recents, empty canvas, populated canvas, and chat at narrow and wide widths. Record concrete visual issues and iterate until the documented layout criteria pass.
+
+**Done when:** a user can identify the project, canvas, selected object, conversation, and next action at a glance in every supported theme and width, with no overlapping or decorative UI competing with the work.
+
+**Phase 14 evidence:** Pending; attach screenshot paths, viewport/theme matrix, accessibility procedure, observed fixes, and changed files as boxes are completed.
+
+### Phase 15 — Make projects, canvas tools, and exports real · requested, required
+
+**Goal:** turn the present canvas prototype into a reliable local editing workflow with honest controls and reversible changes.
+
+- [ ] Define a versioned local project document format for tldraw state, assets, chat references, and metadata; define migration and corruption recovery before persisting user data.
+- [ ] Persist projects atomically under a documented local location. Implement create, open, rename, duplicate, and delete with appropriate confirmation and path containment.
+- [ ] Populate Recents from actual project metadata, with working search, sort, preview, last-modified status, and open actions; remove hardcoded example projects.
+- [ ] Add autosave/saved/error indicators and recovery for interrupted writes. Verify the same project reopens with its frames, shapes, selection-independent content, and assets intact.
+- [ ] Wire frame, shape, text, avatar, and vector creation plus selection, pan/zoom, alignment/snap where offered, undo/redo, and keyboard shortcuts to actual tldraw actions; remove unsupported tool icons.
+- [ ] Make the layer/selection inspector edit real properties with bounded inputs and coherent multi-selection behavior; prevent controls from changing an unrelated shape.
+- [ ] Replace the current black-rectangle “insert SVG” placeholder with a real sanitized SVG asset/shape. Preserve viewBox, aspect ratio, hit testing, exportability, and undo.
+- [ ] Make prompt-to-vector generation show source, provider, progress, sanitized preview, error, and explicit Insert/Cancel actions. Do not fabricate an agent answer from SVG output.
+- [ ] Implement working project and visual exports with clear formats and safe filenames. Remove the `.svg & .blend bundle` claim until a real validated Blender export path exists.
+- [ ] Replace hardcoded Blender connection/version/scene labels with measured state from the optional local Blender integration; offer setup, retry, and safe handoff without modifying a source `.blend`.
+- [ ] Add project round-trip, undo/redo, SVG insertion/export, failed save, missing Blender, and placeholder-removal tests; verify with a real browser session.
+
+**Done when:** New Project → edit → save → close → reopen → export produces the same user content, and every visible creation or Blender action reports what actually happened.
+
+**Phase 15 evidence:** Pending; record round-trip fixture, output files, browser procedure, observed results, and changed files.
+
+### Phase 16 — Ship a real OpenRouter chat with user-selected models · requested, required
+
+**Goal:** let the user converse with any currently available, account-eligible OpenRouter text-chat model instead of a fixed or stale shortlist. Show other catalog entries with honest capability labels rather than pretending every model supports every chat feature.
+
+- [ ] Implement a host-owned OpenRouter gateway for connection validation, model catalog, account-filtered model availability, and chat. Keep API keys, authorization headers, and provider errors containing sensitive details out of the browser, Webview messages, bundles, and logs.
+- [ ] Add Connect, Test, Replace, and Disconnect for a user's own key; validate through the provider's current-key endpoint and show masked identity/limits when available. Never silently use a checked-in or shared key.
+- [ ] Fetch and cache the live full model catalog, then apply account/privacy/provider eligibility when connected. Normalize ID, display name, provider, modalities, context, pricing, supported parameters, and availability; refresh without redeploying the app.
+- [ ] Build a searchable, keyboard-usable model picker with provider, free/paid, modality, context, and price filters. Show loading, unavailable, and catalog-error states; remove stale hardcoded default IDs from the user-facing list.
+- [ ] Allow a user to choose and change the model per conversation, persist the model ID without persisting the key, and explain when a chosen model disappears or is unavailable for that account.
+- [ ] Send real multi-turn text messages to the selected model with bounded history and an explicit outbound-context preview. Only attach selected canvas text or other local context after the user chooses it.
+- [ ] Stream assistant output incrementally with a robust SSE parser, comment/keepalive handling, midstream error handling, final usage capture, abort, timeout, and cleanup. Never replace a failed response with a fabricated success.
+- [ ] Implement Stop, Retry, Regenerate, copy, and new conversation actions, with correct partial-response and duplicate-send behavior.
+- [ ] Store conversation history locally per project with a documented retention/delete/export policy. Exclude secrets and raw prompts from telemetry, crash reports, and normal logs.
+- [ ] Show model pricing and a clear pre-send paid-model cue; display token/usage and cost when returned by OpenRouter, distinguishing estimates from billed values.
+- [ ] Gate features by actual model capability: ordinary chat must work across eligible text models, while tool calls, vision, image output, or unsupported parameters are disabled with a reason.
+- [ ] Handle no key, invalid key (401), insufficient credits (402), rate limits (429), provider/server errors, offline mode, unavailable model, empty reply, malformed stream, and cancellation with actionable UI.
+- [ ] Add gateway and browser tests for catalog refresh, arbitrary newly listed model selection, multi-turn streaming, model switching, privacy context, Stop/Retry, usage display, and all error paths above.
+
+**Done when:** a user can connect their own key, find any eligible text-chat model in the live catalog, choose it, send/stream/stop a multi-turn conversation, recover from failures, and reopen that conversation without key leakage.
+
+**Phase 16 evidence:** Pending; record tested model IDs and catalog date without claiming permanent availability, mocked failure matrix, browser run, network/secret inspection, and changed files.
+
+### Phase 17 — Add honest, permissioned on-canvas agents · requested, required
+
+**Goal:** adapt useful ZCode ideas or compatible code through an explicit review, then make agent actions observable, bounded, and reversible. Chat remains useful when a model does not support tools.
+
+- [ ] Review a pinned ZCode revision, Apache-2.0 license, NOTICE, third-party dependencies/assets, APIs, maintenance state, and sandbox/permission model. Record exactly which concepts or code are reused and add required notices; do not import a whole Electron/CLI runtime by assumption.
+- [ ] Define a small typed agent state machine and tool registry for the Studio host, with explicit input/output schemas, capability checks, timeouts, cancellation, and per-tool audit status.
+- [ ] Implement a read-only planning/inspection path for selected canvas elements and permitted project metadata; show what context will be sent to the chosen model.
+- [ ] Have agents propose canvas edits as a preview or diff. Apply a mutation only after an explicit user action, then make it undoable as one coherent transaction.
+- [ ] Gate project file operations and optional Blender actions on workspace trust, safe local paths, existing Blender approval rules, and an explicit copy of any user scene. Do not let a chat response execute arbitrary code.
+- [ ] Make tool progress, errors, cancellation, and final results visible in the conversation. Keep agent output separate from verified canvas state.
+- [ ] Either implement and verify actual parallel agent execution with isolation and clear result comparison, or remove/disable the current 1x–6x and Split Work/Side by Side controls and related claims.
+- [ ] Test prompt injection against tool descriptions, invalid tool arguments, rejected approvals, tool timeout, partial parallel failure, undo, and a model without tool support.
+
+**Done when:** the UI never claims an agent action happened unless a validated tool did it, and every mutating action can be reviewed, approved, and undone.
+
+**Phase 17 evidence:** Pending; link the ZCode decision record/revision and notices, tool trace fixtures, approval/undo browser procedure, observed results, and changed files.
+
+### Phase 18 — Studio acceptance, packaging, and release · requested, required
+
+**Goal:** prove the redesign and OpenRouter journey in the browser and the packaged extension without regressing the local avatar and Blender paths.
+
+- [ ] Add a Studio test script and stable component, gateway, persistence, and browser fixtures to CI; remove development-only assumptions from production tests.
+- [ ] Run the full Recents → project → canvas edit → save/reopen → SVG export journey on the built Studio host and from an installed VSIX editor tab.
+- [ ] Run the Connect → live model search → choose → multi-turn send/stream → Stop/Retry → reopen conversation journey with a controlled provider fixture; separately perform an opt-in live API smoke with a user-owned key.
+- [ ] Review Recents, empty/populated canvas, inspector, and chat in light, dark, high contrast, 360px, 768px, 1280px, and 1920px viewports; capture evidence and fix overlap, clipping, and weak hierarchy.
+- [ ] Verify keyboard-only use, screen reader labels/status announcements, visible focus, touch target size, reduced motion, and no-animation behavior.
+- [ ] Measure canvas pan/zoom, 1,000-shape editing, long conversation rendering, and active streaming on a stated machine/browser; set and meet practical responsiveness and memory budgets.
+- [ ] Inspect the built assets, VSIX, storage, and network trace: no embedded keys, no unapproved endpoint, no automatic asset upload, no unsafe SVG execution, strict CSP, typed bridge, trust checks, and local fallback intact.
+- [ ] Run `pnpm run ci`, Studio build/preview smoke, `pnpm smoke:webview`, `pnpm package:vsix`, `pnpm validate:vsix`, `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, `pnpm validate:docs`, and `pnpm validate:notices`; record any environment-specific limitation.
+- [ ] Update the user guide, developer setup, architecture, design system, security/privacy, troubleshooting, OpenRouter costs/consent, ZCode reuse decision, and release checklist with the shipped behavior.
+- [ ] Record per-checkbox evidence in this plan and mark the new release gate only after all required Studio journeys pass. Keep Phase 12's separate MCP checkbox open until its live verification passes.
+
+**Done when:** the Studio is visually coherent, its controls work, chat uses the selected live OpenRouter model safely, the installed extension passes its required checks, and the documented evidence matches the shipped build.
+
+**Phase 18 evidence:** Pending; record exact commands, versions, screenshots, output paths, observed results, and changed files.
+
+**Implementation references:** [Paper](https://app.paper.design/) and [pen.dev](https://www.pen.dev/) are visual references; [OpenRouter model catalog](https://openrouter.ai/docs/api/api-reference/models/list-all-models-and-their-properties), [account-filtered models](https://openrouter.ai/docs/api/api-reference/models/list-models-filtered-by-user-provider-preferences-privacy-settings-and-guardrails), [chat streaming](https://openrouter.ai/docs/api_reference/streaming), and [authentication](https://openrouter.ai/docs/api_reference/authentication) define the API behavior; [ZCode](https://github.com/zai-org/ZCode) is a candidate architecture/code source subject to the Phase 17 review.
+
 ## 6. Release gates
 
 ### 6.1 Core Studio gate
@@ -463,6 +596,17 @@ Every message must pass runtime schema validation. The Webview must never receiv
 - [x] Package export stays local, revalidates before writing, and warns on restricted or unclear redistribution rights.
 - [x] Workspace trust gates filesystem mutation and Blender execution.
 
+### 6.4 Studio design and OpenRouter gate · new, unchecked
+
+- [ ] Recents and the canvas use a coherent, accessible visual system in light, dark, and high-contrast themes at narrow and wide widths.
+- [ ] A local project can be created, edited, saved, reopened, and exported without simulated controls or data loss.
+- [ ] An inserted or generated SVG is sanitized, visibly rendered as the actual vector, and remains editable/exportable through the documented workflow.
+- [ ] The user can connect their own OpenRouter key without exposing it to browser storage, bundles, messages, or logs.
+- [ ] The model picker reflects the live OpenRouter catalog and account eligibility, and the user can choose any compatible text-chat model.
+- [ ] Real multi-turn chat streams from the chosen model, supports Stop/Retry, persists locally, and handles provider/cost/error states honestly.
+- [ ] Any agent tool use is capability-gated, permissioned, observable, reversible, and truthful; unsupported parallel controls are absent or disabled.
+- [ ] The built Studio host and installed VSIX pass the documented visual, functional, accessibility, privacy, performance, and regression checks.
+
 ## 7. Deferred backlog
 
 These are intentionally outside the active delivery path:
@@ -485,7 +629,8 @@ These are intentionally outside the active delivery path:
 - Keep each phase reviewable and update this checklist only after implementation plus verification.
 - A checked item needs evidence: command/manual procedure, observed result, environment, and affected files.
 - If blocked, leave the item unchecked and add `BLOCKED:` with the exact condition and a safe next action.
-- Maintain local-only processing, strict CSP, path containment, SVG sanitization, workspace trust, `shell: false`, reduced motion, and SVG fallback throughout.
+- Maintain local-only image/model/asset processing, strict CSP, path containment, SVG sanitization, workspace trust, `shell: false`, reduced motion, and SVG fallback throughout. The user-enabled OpenRouter text chat is the only planned remote-processing exception, with explicit outbound-context preview and host-held credentials.
+- For the user-requested Studio track, work through Phases 13–18 in order. Phase 12's final live MCP acceptance remains a separate required gate and must not be marked complete by Studio work.
 - Prefer one focused pull request per phase. GitHub labels/boards are project-management aids, not implementation prerequisites.
 
 Use this progress format after every implementation session:

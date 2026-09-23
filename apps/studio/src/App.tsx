@@ -10,7 +10,6 @@ import { BlenderConnectorShapeUtil } from './shapes/BlenderConnectorCanvasShape.
 import { StudioWindowBar } from './components/StudioWindowBar.js'
 import { StudioToolbar } from './components/StudioToolbar.js'
 import { AgentHarnessSidebar } from './components/AgentHarnessSidebar.js'
-import { FloatingPromptBar } from './components/FloatingPromptBar.js'
 import { StudioInspector } from './components/StudioInspector.js'
 import { RecentsDashboard } from './components/RecentsDashboard.js'
 
@@ -18,14 +17,13 @@ const customShapeUtils = [AvatarShapeUtil, VectorStudioShapeUtil, BlenderConnect
 
 export function App() {
   const editorRef = useRef<Editor | null>(null)
-  const [projectTitle, setProjectTitle] = useState('Untitled Canvas')
+  const [projectTitle, setProjectTitle] = useState('Untitled')
   const [activeMode, setActiveMode] = useState<'design' | 'agents' | 'blender'>('design')
   const [activeTool, setActiveTool] = useState('select')
   const [isRecentsOpen, setIsRecentsOpen] = useState(false)
   const [isAgentSidebarOpen, setIsAgentSidebarOpen] = useState(true)
-  const [isInspectorOpen, setIsInspectorOpen] = useState(false)
+  const [isInspectorOpen, setIsInspectorOpen] = useState(true)
   const [zoomLevel, setZoomLevel] = useState(1)
-  const [isGenerating, setIsGenerating] = useState(false)
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
 
   const handleMount = (editor: Editor) => {
@@ -38,51 +36,25 @@ export function App() {
       setZoomLevel(editor.getZoomLevel())
     })
 
-    // Spawn central Artboard Frame and default workstation nodes if blank
-    const existingShapes = editor.getCurrentPageShapes()
-    if (existingShapes.length === 0) {
-      // 1. Central Artboard Frame (Paper.design & pen.dev style)
+    // Clean up any outdated prototype shapes from earlier sessions
+    const oldShapes = editor.getCurrentPageShapes().filter((s: any) => s.type === 'avatar' || s.type === 'vector-studio')
+    if (oldShapes.length > 0) {
+      editor.deleteShapes(oldShapes.map((s: any) => s.id))
+    }
+
+    // Spawn central Artboard Frame if none exists (pen.dev style)
+    const existingFrames = editor.getCurrentPageShapes().filter((s: any) => s.type === 'frame')
+    if (existingFrames.length === 0) {
       editor.createShape({
         type: 'frame',
-        x: 440,
+        x: 140,
         y: 80,
         props: {
-          w: 960,
-          h: 680,
-          name: 'Main Artboard'
+          w: 1080,
+          h: 720,
+          name: 'Frame'
         }
       })
-
-      // 2. Avatar Stage (inside artboard)
-      editor.createShape({
-        type: 'avatar' as any,
-        x: 480,
-        y: 140,
-        props: {
-          w: 320,
-          h: 460,
-          character: 'cholita-3d',
-          avatarState: 'idle',
-          speech: 'blenderSVG Studio ready. Agent harness online!'
-        }
-      })
-
-      // 3. Vector Studio (inside artboard)
-      editor.createShape({
-        type: 'vector-studio' as any,
-        x: 840,
-        y: 140,
-        props: {
-          w: 420,
-          h: 640,
-          engine: 'zenmux',
-          openRouterModel: 'z-ai/glm-4.6v-flash-free',
-          detail: 'balanced',
-          lastSvg: '',
-          isProcessing: false
-        }
-      })
-
       editor.zoomToFit()
     }
   }
@@ -96,51 +68,9 @@ export function App() {
     if (type === 'frame') {
       editor.createShape({
         type: 'frame',
-        x: center.x - 400,
+        x: center.x - 450,
         y: center.y - 300,
-        props: { w: 800, h: 600, name: 'New Frame' }
-      })
-    } else if (type === 'avatar') {
-      editor.createShape({
-        type: 'avatar' as any,
-        x: center.x - 160,
-        y: center.y - 230,
-        props: {
-          w: 320,
-          h: 460,
-          character: 'cholita-3d',
-          avatarState: 'idle',
-          speech: 'Avatar Stage initialized!'
-        }
-      })
-    } else if (type === 'vector-studio') {
-      editor.createShape({
-        type: 'vector-studio' as any,
-        x: center.x - 210,
-        y: center.y - 320,
-        props: {
-          w: 420,
-          h: 640,
-          engine: 'zenmux',
-          openRouterModel: 'z-ai/glm-4.6v-flash-free',
-          detail: 'balanced',
-          lastSvg: '',
-          isProcessing: false
-        }
-      })
-    } else if (type === 'blender-connector') {
-      editor.createShape({
-        type: 'blender-connector' as any,
-        x: center.x - 180,
-        y: center.y - 190,
-        props: {
-          w: 360,
-          h: 380,
-          blenderVersion: 'Blender 4.5.3 LTS',
-          isConnected: true,
-          activeScene: 'cholita.blend',
-          lastExport: ''
-        }
+        props: { w: 900, h: 600, name: 'Frame' }
       })
     } else if (type === 'geo') {
       editor.createShape({
@@ -164,7 +94,6 @@ export function App() {
     if (!editor) return
 
     const center = editor.getViewportPageBounds().center
-    // Insert shape on canvas
     editor.createShape({
       type: 'geo',
       x: center.x - 120,
@@ -179,32 +108,8 @@ export function App() {
     })
   }
 
-  const handleSendToBlender = (svg: string) => {
+  const handleSendToBlender = (_svg: string) => {
     setIsInspectorOpen(true)
-  }
-
-  const handlePromptGenerate = async (prompt: string, mode: 'design' | 'vector' | 'avatar' | 'image') => {
-    setIsGenerating(true)
-    try {
-      const response = await fetch('/api/vectorize-sample', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          engine: 'zenmux',
-          prompt,
-          model: 'z-ai/glm-4.6v-flash-free'
-        })
-      })
-
-      const data = await response.json()
-      if (data.ok && data.svg) {
-        handleInsertSvgToCanvas(data.svg, prompt)
-      }
-    } catch (err) {
-      console.error('Prompt generation failed:', err)
-    } finally {
-      setIsGenerating(false)
-    }
   }
 
   const handleZoomIn = () => {
@@ -223,10 +128,16 @@ export function App() {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* Ambient Top Lighting Glow */}
-      <div className="ambient-top-glow" />
-
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
+        background: '#090a0d'
+      }}
+    >
       {/* Top Window Bar */}
       <StudioWindowBar
         projectTitle={projectTitle}
@@ -247,36 +158,43 @@ export function App() {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onZoomReset={handleZoomReset}
-        onExport={() => alert('Exporting canvas project to .svg & .blend bundle...')}
+        onExport={() => alert('Exporting canvas project...')}
       />
 
-      {/* Left Canvas Toolbar (Vertical floating strip) */}
-      <StudioToolbar
-        activeTool={activeTool}
-        onSelectTool={setActiveTool}
-        onAddShape={handleAddShape}
-      />
+      {/* Main Workspace (Docked Left Sidebar | Canvas Viewport | Docked Right Inspector) */}
+      <div style={{ display: 'flex', flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {/* On-Canvas Agent Harness Sidebar (pen.dev + ZCode) */}
+        {isAgentSidebarOpen && (
+          <AgentHarnessSidebar
+            isOpen={isAgentSidebarOpen}
+            onClose={() => setIsAgentSidebarOpen(false)}
+            onInsertSvgToCanvas={handleInsertSvgToCanvas}
+            onSendToBlender={handleSendToBlender}
+          />
+        )}
 
-      {/* On-Canvas Agent Harness Sidebar (pen.dev + ZCode) */}
-      <AgentHarnessSidebar
-        isOpen={isAgentSidebarOpen}
-        onClose={() => setIsAgentSidebarOpen(false)}
-        onInsertSvgToCanvas={handleInsertSvgToCanvas}
-        onSendToBlender={handleSendToBlender}
-      />
+        {/* Central Infinite Canvas Container */}
+        <div style={{ position: 'relative', flex: 1, height: '100%', overflow: 'hidden' }}>
+          {/* Floating Canvas Toolbar */}
+          <StudioToolbar
+            activeTool={activeTool}
+            onSelectTool={setActiveTool}
+            onAddShape={handleAddShape}
+          />
 
-      {/* Right Inspector & Blender 3D Bridge */}
-      <StudioInspector
-        isOpen={isInspectorOpen}
-        onClose={() => setIsInspectorOpen(false)}
-        selectedShapeId={selectedShapeId}
-      />
+          {/* Tldraw Canvas with default UI disabled */}
+          <Tldraw hideUi={true} shapeUtils={customShapeUtils} onMount={handleMount} />
+        </div>
 
-      {/* Bottom Floating AI Generation Dock (Screenshot 3) */}
-      <FloatingPromptBar
-        onGenerate={handlePromptGenerate}
-        isProcessing={isGenerating}
-      />
+        {/* Right Inspector & Blender 3D Bridge */}
+        {isInspectorOpen && (
+          <StudioInspector
+            isOpen={isInspectorOpen}
+            onClose={() => setIsInspectorOpen(false)}
+            selectedShapeId={selectedShapeId}
+          />
+        )}
+      </div>
 
       {/* Full-Screen Recents & Projects Dashboard (Paper.design style) */}
       <RecentsDashboard
@@ -286,19 +204,13 @@ export function App() {
           setProjectTitle(id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' '))
         }}
         onNewFile={() => {
-          setProjectTitle('Untitled Canvas')
+          setProjectTitle('Untitled')
           editorRef.current?.selectAll().deleteShapes(editorRef.current.getSelectedShapeIds())
           handleAddShape('frame')
         }}
       />
-
-      {/* Core Infinite Canvas (Tldraw) */}
-      <div style={{ position: 'absolute', inset: 0, paddingTop: 48 }}>
-        <Tldraw shapeUtils={customShapeUtils} onMount={handleMount} />
-      </div>
     </div>
   )
 }
 
 export default App
-

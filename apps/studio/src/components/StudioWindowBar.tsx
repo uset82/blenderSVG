@@ -21,8 +21,6 @@ export interface StudioWindowBarProps {
 export function StudioWindowBar({
   projectTitle,
   onTitleChange,
-  activeMode,
-  onModeChange,
   isRecentsOpen,
   onToggleRecents,
   isAgentSidebarOpen,
@@ -50,68 +48,46 @@ export function StudioWindowBar({
   return (
     <header
       style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 48,
+        height: 44,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 16px',
-        background: 'rgba(14, 16, 21, 0.88)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+        padding: '0 14px',
+        background: '#0c0d10',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         zIndex: 100,
-        userSelect: 'none'
+        userSelect: 'none',
+        flexShrink: 0
       }}
     >
-      {/* Left: App Logo, Dashboard Switcher & Project Breadcrumbs */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* Left: Project Brand & Auto-saved Title */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {/* Recents Dashboard Toggle */}
         <button
           onClick={onToggleRecents}
-          title="Toggle Projects Dashboard"
+          title="All Projects (Paper style)"
           style={{
-            background: isRecentsOpen ? '#262b37' : '#151820',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 8,
-            padding: '5px 8px',
-            color: isRecentsOpen ? '#388bfd' : '#f3f5f8',
+            background: isRecentsOpen ? '#20242e' : 'transparent',
+            border: 'none',
+            borderRadius: 6,
+            padding: '5px 7px',
+            color: '#c5cdd8',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            fontSize: 12,
-            fontWeight: 600
+            fontSize: 13
           }}
         >
-          <span style={{ fontSize: 13 }}>⊞</span>
-          <span>Recents</span>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+          </svg>
         </button>
 
-        <div style={{ height: 16, width: 1, background: 'rgba(255, 255, 255, 0.1)' }} />
-
-        {/* Brand & Document Name */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: 6,
-              background: 'linear-gradient(135deg, #f97316, #a855f7)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              fontWeight: 800,
-              color: '#ffffff',
-              boxShadow: '0 2px 8px rgba(249, 115, 22, 0.35)'
-            }}
-          >
-            b
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#f0f3f6', letterSpacing: '-0.3px' }}>
+            blendersvg
+          </span>
+          <span style={{ color: '#57606e', fontSize: 12 }}>/</span>
 
           {isEditingTitle ? (
             <input
@@ -122,13 +98,12 @@ export function StudioWindowBar({
               onBlur={handleTitleSubmit}
               onKeyDown={(e) => e.key === 'Enter' && handleTitleSubmit()}
               style={{
-                background: '#1e222b',
+                background: '#161920',
                 border: '1px solid #388bfd',
-                borderRadius: 6,
-                padding: '3px 8px',
-                color: '#f3f5f8',
-                fontSize: 13,
-                fontWeight: 600,
+                borderRadius: 5,
+                padding: '2px 6px',
+                color: '#f0f3f6',
+                fontSize: 12,
                 outline: 'none'
               }}
             />
@@ -140,131 +115,88 @@ export function StudioWindowBar({
                 alignItems: 'center',
                 gap: 6,
                 cursor: 'pointer',
-                padding: '3px 6px',
-                borderRadius: 6,
-                color: '#f3f5f8',
-                fontSize: 13,
-                fontWeight: 600
+                color: '#9aa4b2',
+                fontSize: 12
               }}
-              title="Click to rename"
             >
-              <span>{projectTitle}</span>
-              <span style={{ fontSize: 11, color: '#5e6878' }}>• Auto-saved</span>
+              <span style={{ color: '#f0f3f6', fontWeight: 500 }}>{projectTitle}</span>
+              <span style={{ fontSize: 11, color: '#57606e' }}>— Auto-saved</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Center: Mode Switchers (Design | Agents | Blender 3D) */}
-      <div
-        style={{
-          display: 'flex',
-          background: '#151820',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: 10,
-          padding: 3,
-          gap: 2
-        }}
-      >
+      {/* Right Controls (pen.dev style) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Agents Toggle */}
         <button
-          onClick={() => onModeChange('design')}
+          onClick={onToggleAgentSidebar}
           style={{
-            background: activeMode === 'design' ? '#262b37' : 'transparent',
-            color: activeMode === 'design' ? '#ffffff' : '#9aa4b2',
-            border: 'none',
-            borderRadius: 7,
-            padding: '5px 12px',
-            fontSize: 12,
+            background: isAgentSidebarOpen ? '#20242e' : 'transparent',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 6,
+            padding: '4px 10px',
+            color: isAgentSidebarOpen ? '#ffffff' : '#8c96a5',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: isAgentSidebarOpen ? '#388bfd' : '#57606e' }} />
+          <span>Agents</span>
+        </button>
+
+        {/* Inspector Toggle */}
+        <button
+          onClick={onToggleInspector}
+          style={{
+            background: isInspectorOpen ? '#20242e' : 'transparent',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 6,
+            padding: '4px 10px',
+            color: isInspectorOpen ? '#ffffff' : '#8c96a5',
+            fontSize: 11,
             fontWeight: 600,
             cursor: 'pointer'
           }}
         >
-          Design
-        </button>
-        <button
-          onClick={() => onModeChange('agents')}
-          style={{
-            background: activeMode === 'agents' ? '#262b37' : 'transparent',
-            color: activeMode === 'agents' ? '#388bfd' : '#9aa4b2',
-            border: 'none',
-            borderRadius: 7,
-            padding: '5px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4
-          }}
-        >
-          <span>🤖</span>
-          <span>Agents</span>
-        </button>
-        <button
-          onClick={() => onModeChange('blender')}
-          style={{
-            background: activeMode === 'blender' ? '#262b37' : 'transparent',
-            color: activeMode === 'blender' ? '#f97316' : '#9aa4b2',
-            border: 'none',
-            borderRadius: 7,
-            padding: '5px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4
-          }}
-        >
-          <span>🧊</span>
-          <span>Blender 3D</span>
-        </button>
-      </div>
-
-      {/* Right: Sidebar Toggles, Zoom & User Profile */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {/* Toggle Agent Sidebar Button */}
-        <button
-          onClick={onToggleAgentSidebar}
-          title="Toggle AI Agent Harness (pen.dev)"
-          style={{
-            background: isAgentSidebarOpen ? 'rgba(56, 139, 253, 0.15)' : '#151820',
-            border: `1px solid ${isAgentSidebarOpen ? '#388bfd' : 'rgba(255, 255, 255, 0.08)'}`,
-            borderRadius: 8,
-            padding: '5px 10px',
-            color: isAgentSidebarOpen ? '#58a6ff' : '#9aa4b2',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
-          }}
-        >
-          <span>✨</span>
-          <span>Agent</span>
+          Inspector
         </button>
 
-        {/* Toggle Inspector Button */}
+        {/* Share Button */}
         <button
-          onClick={onToggleInspector}
-          title="Toggle Inspector & Importer"
           style={{
-            background: isInspectorOpen ? 'rgba(168, 85, 247, 0.15)' : '#151820',
-            border: `1px solid ${isInspectorOpen ? '#a855f7' : 'rgba(255, 255, 255, 0.08)'}`,
-            borderRadius: 8,
-            padding: '5px 10px',
-            color: isInspectorOpen ? '#c084fc' : '#9aa4b2',
-            fontSize: 12,
+            background: 'transparent',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 6,
+            padding: '4px 10px',
+            color: '#c5cdd8',
+            fontSize: 11,
             fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
+            cursor: 'pointer'
           }}
         >
-          <span>⚙</span>
-          <span>Inspector</span>
+          Share
+        </button>
+
+        {/* Export Button */}
+        <button
+          onClick={onExport}
+          style={{
+            background: '#ffffff',
+            border: 'none',
+            borderRadius: 6,
+            padding: '4px 10px',
+            color: '#0c0d10',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Export
         </button>
 
         {/* Zoom Controls */}
@@ -272,10 +204,10 @@ export function StudioWindowBar({
           style={{
             display: 'flex',
             alignItems: 'center',
-            background: '#151820',
+            background: '#14161c',
             border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 8,
-            padding: '2px 4px'
+            borderRadius: 6,
+            padding: '1px 3px'
           }}
         >
           <button
@@ -283,11 +215,10 @@ export function StudioWindowBar({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#9aa4b2',
+              color: '#8c96a5',
               cursor: 'pointer',
-              padding: '2px 6px',
-              fontSize: 13,
-              fontWeight: 700
+              padding: '1px 4px',
+              fontSize: 11
             }}
           >
             −
@@ -295,10 +226,10 @@ export function StudioWindowBar({
           <span
             onClick={onZoomReset}
             style={{
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 600,
-              color: '#f3f5f8',
-              padding: '2px 6px',
+              color: '#c5cdd8',
+              padding: '1px 4px',
               cursor: 'pointer'
             }}
           >
@@ -309,48 +240,30 @@ export function StudioWindowBar({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#9aa4b2',
+              color: '#8c96a5',
               cursor: 'pointer',
-              padding: '2px 6px',
-              fontSize: 13,
-              fontWeight: 700
+              padding: '1px 4px',
+              fontSize: 11
             }}
           >
             +
           </button>
         </div>
 
-        {/* Export Button */}
-        <button
-          onClick={onExport}
-          style={{
-            background: '#238636',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: 8,
-            padding: '5px 12px',
-            color: '#ffffff',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
-          Export
-        </button>
-
         {/* User Avatar */}
         <div
           style={{
-            width: 28,
-            height: 28,
+            width: 24,
+            height: 24,
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #388bfd, #0969da)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
+            background: '#262a36',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: 700,
-            color: '#fff',
+            color: '#f0f3f6',
             cursor: 'pointer'
           }}
           title="Carlos Carpio"
