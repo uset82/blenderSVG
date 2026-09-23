@@ -25,6 +25,7 @@
   "activationEvents": [
     "onView:codexAvatar.assistantView",
     "onCommand:codexAvatar.openAssistant",
+    "onCommand:codexAvatar.openStudio",
     "onCommand:codexAvatar.toggleAssistant",
     "onCommand:codexAvatar.resetSettings",
     "onCommand:codexAvatar.openSettings",
@@ -62,6 +63,11 @@
       {
         "command": "codexAvatar.openAssistant",
         "title": "Codex Avatar: Open Assistant"
+      },
+      {
+        "command": "codexAvatar.openStudio",
+        "title": "Codex Avatar: Open Studio",
+        "icon": "$(preview)"
       },
       {
         "command": "codexAvatar.toggleAssistant",
@@ -206,6 +212,15 @@
         }
       ]
     },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codexAvatar.openStudio",
+          "when": "view == codexAvatar.assistantView",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Codex Avatar Studio",
       "properties": {
@@ -337,7 +352,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && tsc -p tsconfig.json --noEmit",
     "lint": "pnpm --workspace-root exec biome lint apps/extension",
-    "test": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && pnpm build && node --test test/*.test.mjs && pnpm --workspace-root exec vitest run apps/extension/test/avatar-webview-provider.test.ts apps/extension/test/blender-avatar-package.test.ts apps/extension/test/generated-avatar-package.test.ts apps/extension/test/ideEvents.test.ts apps/extension/test/picture-studio.test.ts apps/extension/test/settings.test.ts",
+    "test": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && pnpm build && node --test test/*.test.mjs && pnpm --workspace-root exec vitest run apps/extension/test/avatar-webview-provider.test.ts apps/extension/test/blender-avatar-package.test.ts apps/extension/test/generated-avatar-package.test.ts apps/extension/test/ideEvents.test.ts apps/extension/test/picture-studio.test.ts apps/extension/test/settings.test.ts apps/extension/test/openRouterConnection.test.ts apps/extension/test/studio-webview-panel.test.ts",
     "watch": "tsc -p tsconfig.json --watch",
     "package:vsix": "node ../../scripts/package-extension.mjs"
   },

@@ -5,6 +5,7 @@ import { avatarStates, isAvatarState, isIdeAssistantEvent, type AvatarState } fr
 import { BlenderIntegrationController } from "./blenderIntegration.js";
 import type { BlenderExportMode } from "./blenderRunner.js";
 import { IdeEventsController } from "./ideEvents.js";
+import { StudioWebviewPanel } from "./StudioWebviewPanel.js";
 import { getAvatarConfig, resetAvatarConfig, toggleAssistantEnabled, updateAvatarConfig } from "./settings.js";
 
 let activeIdeEvents: IdeEventsController | undefined;
@@ -23,6 +24,10 @@ export function activate(context: vscode.ExtensionContext): void {
     assetRootProvider: () => packageRegistry.getAssetRoot()
   });
   const provider = new AvatarWebviewProvider(context.extensionUri, packageRegistry, undefined, blenderIntegration);
+  const studioPanel = new StudioWebviewPanel(context.extensionUri, context.secrets, () => {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+    return root?.scheme === "file" ? root.fsPath : undefined;
+  });
   const ideEvents = new IdeEventsController(provider, {
     defaultIdleDelayMs: initialConfig.idleTimeout * 1000,
     sleepDelayMs: initialConfig.sleepTimeout * 1000
@@ -55,6 +60,8 @@ export function activate(context: vscode.ExtensionContext): void {
     blenderOutputChannel,
     blenderIntegration,
     provider,
+    studioPanel,
+    vscode.workspace.onDidGrantWorkspaceTrust(() => studioPanel.refreshWorkspaceTrust()),
     vscode.window.registerWebviewViewProvider(AvatarWebviewProvider.viewType, provider),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("codexAvatar")) {
@@ -66,6 +73,7 @@ export function activate(context: vscode.ExtensionContext): void {
     registerCommand("codexAvatar.openAssistant", async () => {
       await vscode.commands.executeCommand("workbench.view.extension.codexAvatar");
     }),
+    registerCommand("codexAvatar.openStudio", () => studioPanel.open()),
     registerCommand("codexAvatar.toggleAssistant", async () => {
       const enabled = await toggleAssistantEnabled();
       const nextState: AvatarState = enabled ? "welcome" : "sleeping";

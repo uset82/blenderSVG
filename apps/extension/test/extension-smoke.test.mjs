@@ -16,6 +16,7 @@ test("extension manifest activates every contributed command", async () => {
   const activationEvents = new Set(manifest.activationEvents);
   const requiredCommands = [
     "codexAvatar.openAssistant",
+    "codexAvatar.openStudio",
     "codexAvatar.toggleAssistant",
     "codexAvatar.resetSettings",
     "codexAvatar.openAssetsFolder",
@@ -61,6 +62,7 @@ test("compiled extension registers commands and keeps webview CSP strict", async
 
   for (const command of [
     "codexAvatar.openAssistant",
+    "codexAvatar.openStudio",
     "codexAvatar.toggleAssistant",
     "codexAvatar.resetSettings",
     "codexAvatar.openAssetsFolder",
@@ -84,6 +86,10 @@ test("compiled extension registers commands and keeps webview CSP strict", async
   }
 
   assert.ok(providerSource.includes("Content-Security-Policy"), "webview has a CSP meta tag");
+  const studioSource = await readFile(path.join(extensionRoot, "dist", "StudioWebviewPanel.js"), "utf8");
+  assert.ok(studioSource.includes("default-src 'none'"), "Studio panel denies default remote content");
+  assert.ok(studioSource.includes("asWebviewUri"), "Studio assets use VS Code webview URIs");
+  assert.ok(studioSource.includes("parseStudioToHostMessage"), "Studio messages are runtime validated");
   assert.ok(providerSource.includes("default-src 'none'"), "webview denies default remote content");
   assert.ok(providerSource.includes("object-src 'none'"), "webview denies embedded objects");
   assert.doesNotMatch(providerSource, /script-src[^;]*(?:https?:|unsafe-eval)/i, "webview rejects remote scripts");
