@@ -1,15 +1,19 @@
 [mcp_servers.blender]
 command = "uvx"
-args = ["--python", "3.11", "blender-mcp==1.6.4"]
+args = [
+    "--python",
+    "3.11",
+    "blender-mcp==1.6.4",
+]
 enabled = true
 required = false
 startup_timeout_sec = 20
 tool_timeout_sec = 120
 enabled_tools = [
-  "get_scene_info",
-  "get_object_info",
-  "get_viewport_screenshot",
-  "execute_blender_code",
+    "get_scene_info",
+    "get_object_info",
+    "get_viewport_screenshot",
+    "execute_blender_code",
 ]
 default_tools_approval_mode = "prompt"
 
@@ -32,3 +36,10 @@ approval_mode = "auto"
 
 [mcp_servers.blender.tools.execute_blender_code]
 approval_mode = "prompt"
+
+[mcp_servers.blender-svg]
+command = "node"
+args = ["d:/Proyectos/Blender/packages/mcp-server/dist/src/index.js"]
+
+[mcp_servers.blender-svg.env]
+OPENROUTER_API_KEY = ""
