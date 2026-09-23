@@ -21,11 +21,13 @@ for (const required of [
   "extension/package.json",
   "extension/dist/extension.js",
   "extension/dist/vectorizeWorker.js",
+  "extension/dist/vtracer_wasm_bg.wasm",
   "extension/media/webview/index.html",
   "extension/media/webview/index.js",
   "extension/media/webview/index.css",
   "extension/media/webview/WebGLAvatarRenderer.js",
   "extension/media/webview/GLTFLoader.js",
+  "extension/media/studio/index.html",
   "extension/media/avatars/avatar.manifest.json",
   "extension/media/avatars/svg/placeholder-avatar.svg",
   "extension/media/avatars/pixi/placeholder-spritesheet.svg",
@@ -56,6 +58,24 @@ for (const entry of entries) {
     `VSIX excludes development or proprietary asset ${entry}`
   );
 }
+
+assert.ok(
+  entries.some((entry) => /^extension\/media\/studio\/assets\/[^/]+\.js$/.test(entry)),
+  "VSIX contains the bundled Studio application"
+);
+assert.ok(
+  entries.some((entry) => /^extension\/media\/studio\/assets\/[^/]+\.css$/.test(entry)),
+  "VSIX contains Studio styles"
+);
+const studioHtml = execFileSync("tar", ["-xOf", vsixPath, "extension/media/studio/index.html"], {
+  encoding: "utf8",
+  maxBuffer: 1024 * 1024
+});
+assert.doesNotMatch(
+  studioHtml,
+  /<script[^>]+src=["']https?:|<link[^>]+href=["']https?:/i,
+  "Studio HTML has no remote assets"
+);
 
 assert.ok(
   entries.some((entry) => entry.endsWith("/placeholder-avatar.svg")),

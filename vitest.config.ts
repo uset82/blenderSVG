@@ -9,6 +9,7 @@ export default defineConfig({
     include: [
       "packages/*/test/**/*.test.ts",
       "apps/extension/test/**/*.test.ts",
+      "apps/studio/test/**/*.test.ts",
       "apps/webview/test/**/*.test.tsx"
     ],
     restoreMocks: true

@@ -1,14 +1,23 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const vsixPath = path.resolve(process.env.VSIX_PATH ?? path.join(root, "dist", "codex-avatar-studio-0.1.0.vsix"));
+const offline = process.env.SMOKE_OFFLINE === "1";
+let outboundFetches = 0;
+if (offline) {
+  globalThis.fetch = async () => {
+    outboundFetches += 1;
+    throw new Error("Network is unavailable in the offline Studio smoke.");
+  };
+}
 
 if (!existsSync(vsixPath)) {
   throw new Error(`VSIX does not exist: ${vsixPath}`);
@@ -62,6 +71,11 @@ mkdirSync(activationWorkspace, { recursive: true });
 vscode.__workspaceRoot = activationWorkspace;
 const context = {
   extensionUri: { fsPath: installedExtensionDir },
+  secrets: {
+    get: async () => undefined,
+    store: async () => undefined,
+    delete: async () => undefined
+  },
   subscriptions: []
 };
 
@@ -69,6 +83,7 @@ extension.activate(context);
 
 const requiredCommands = [
   "codexAvatar.openAssistant",
+  "codexAvatar.openStudio",
   "codexAvatar.toggleAssistant",
   "codexAvatar.resetSettings",
   "codexAvatar.openAssetsFolder",
@@ -95,6 +110,45 @@ for (const command of requiredCommands) {
 const provider = vscode.__registeredViewProviders.get("codexAvatar.assistantView");
 assert.equal(provider?.constructor.name, "AvatarWebviewProvider");
 assert.ok(context.subscriptions.length >= requiredCommands.length, "activation adds disposables");
+
+await vscode.__registeredCommands.get("codexAvatar.openStudio")();
+const studioPanel = vscode.__createdPanels.at(-1);
+assert.ok(studioPanel, "Studio opens in an editor WebviewPanel");
+assert.match(studioPanel.webview.html, /default-src 'none'/, "Studio panel denies remote default content");
+assert.match(studioPanel.webview.html, /media\/studio\/assets\/index-[^" ]+\.js/i, "Studio loads bundled JS");
+assert.doesNotMatch(studioPanel.webview.html, /https:\/\/fonts\./i, "Studio has no remote font dependency");
+await studioPanel.handlers[0]({ protocolVersion: 1, type: "studio:ready" });
+const studioState = await waitForMessage(studioPanel.messages, "studio:hostState");
+assert.equal(studioState.host, "vscode");
+assert.equal(studioState.connection.status, "disconnected");
+await studioPanel.handlers[0]({
+  protocolVersion: 1,
+  type: "studio:openRouterConnection",
+  action: "test",
+  apiKey: "forbidden"
+});
+assert.equal(studioPanel.messages.length, 1, "Studio rejects a message carrying a credential field");
+if (offline) {
+  await studioPanel.handlers[0]({ protocolVersion: 1, type: "studio:modelCatalogRequest" });
+  const catalog = await waitForMessage(studioPanel.messages, "studio:modelCatalog");
+  assert.equal(catalog.status, "error", "an empty secret store leaves the catalog unavailable");
+  await studioPanel.handlers[0]({
+    protocolVersion: 1,
+    type: "studio:chatRequest",
+    requestId: "offline-chat-request",
+    modelId: "example/model",
+    history: [],
+    userMessage: "offline smoke"
+  });
+  const chatError = await waitForMessage(
+    studioPanel.messages,
+    "studio:chatError",
+    (message) => message.requestId === "offline-chat-request"
+  );
+  assert.equal(chatError.code, "model-unavailable", "chat remains unavailable without a loaded model");
+  assert.equal(outboundFetches, 0, "Studio startup and no-key actions issue no network requests");
+}
+const savedStudioProject = await verifyInstalledStudioProjectRoundTrip(studioPanel, activationWorkspace);
 
 const webviewSmoke = createWebviewSmoke();
 provider.resolveWebviewView(webviewSmoke.view);
@@ -248,8 +302,205 @@ assert.ok(
 );
 
 extension.deactivate?.();
+await verifyInstalledStudioProjectRestart(extension, vscode, context, activationWorkspace, savedStudioProject);
 
-console.log(`VSIX package, activation, command, and webview smoke passed: ${installedExtensionDir}`);
+console.log(`VSIX package, activation, Studio project round-trip, and webview smoke passed: ${installedExtensionDir}`);
+
+async function verifyInstalledStudioProjectRoundTrip(panel, workspaceRoot) {
+  const projectId = randomUUID();
+  const filePath = path.join(workspaceRoot, ".codex-avatar", "studio", "projects", `${projectId}.json`);
+  const initialSnapshot = JSON.stringify({
+    document: {
+      schema: { schemaVersion: 2, sequences: {} },
+      store: { "shape:fixture": { id: "shape:fixture", typeName: "shape", type: "geo", x: 24, y: 40 } }
+    }
+  });
+  const editedSnapshot = JSON.stringify({
+    document: {
+      schema: { schemaVersion: 2, sequences: {} },
+      store: { "shape:fixture": { id: "shape:fixture", typeName: "shape", type: "geo", x: 160, y: 40 } }
+    }
+  });
+
+  panel.handlers[0]({ protocolVersion: 1, type: "studio:projectListRequest" });
+  const initialList = await waitForMessage(panel.messages, "studio:projectList");
+  assert.equal(initialList.status, "ready", "installed Studio lists its local workspace");
+  assert.deepEqual(initialList.projects, [], "new workspace begins with no Studio projects");
+
+  panel.handlers[0]({
+    protocolVersion: 1,
+    type: "studio:projectSave",
+    requestId: "project-create-fixture",
+    projectId,
+    title: "Round trip fixture",
+    snapshot: initialSnapshot
+  });
+  await waitForMessage(
+    panel.messages,
+    "studio:projectSaved",
+    (message) => message.requestId === "project-create-fixture"
+  );
+  assert.equal(existsSync(filePath), true, "installed Studio writes a versioned project file");
+
+  panel.handlers[0]({
+    protocolVersion: 1,
+    type: "studio:projectSave",
+    requestId: "project-edit-first",
+    projectId,
+    title: "Round trip fixture",
+    snapshot: initialSnapshot
+  });
+  panel.handlers[0]({
+    protocolVersion: 1,
+    type: "studio:projectSave",
+    requestId: "project-edit-latest",
+    projectId,
+    title: "Edited canvas",
+    snapshot: editedSnapshot
+  });
+  await waitForMessage(panel.messages, "studio:projectSaved", (message) => message.requestId === "project-edit-latest");
+  assert.equal(JSON.parse(readFileSync(filePath, "utf8")).snapshot, editedSnapshot, "latest queued edit wins");
+  assert.equal(
+    readdirSync(path.dirname(filePath)).some((entry) => entry.endsWith(".tmp")),
+    false,
+    "successful atomic saves leave no temporary project file"
+  );
+
+  panel.handlers[0]({
+    protocolVersion: 1,
+    type: "studio:projectOpen",
+    requestId: "project-reopen-fixture",
+    projectId
+  });
+  const reopened = await waitForMessage(
+    panel.messages,
+    "studio:projectOpened",
+    (message) => message.requestId === "project-reopen-fixture"
+  );
+  assert.equal(reopened.project.title, "Edited canvas");
+  assert.equal(reopened.project.snapshot, editedSnapshot, "reopened project retains its edited shape data");
+  return { projectId, filePath, snapshot: editedSnapshot };
+}
+
+async function verifyInstalledStudioProjectRestart(extension, vscode, context, workspaceRoot, savedProject) {
+  vscode.__workspaceRoot = workspaceRoot;
+  extension.activate({ ...context, subscriptions: [] });
+  await vscode.__registeredCommands.get("codexAvatar.openStudio")();
+  const panel = vscode.__createdPanels.at(-1);
+  panel.handlers[0]({ protocolVersion: 1, type: "studio:projectListRequest" });
+  const list = await waitForMessage(panel.messages, "studio:projectList");
+  assert.equal(list.status, "ready", "restarted installed host lists projects");
+  assert.equal(
+    list.projects.some((project) => project.id === savedProject.projectId),
+    true
+  );
+
+  panel.handlers[0]({
+    protocolVersion: 1,
+    type: "studio:projectOpen",
+    requestId: "project-open-after-restart",
+    projectId: savedProject.projectId
+  });
+  const reopened = await waitForMessage(
+    panel.messages,
+    "studio:projectOpened",
+    (message) => message.requestId === "project-open-after-restart"
+  );
+  assert.equal(reopened.project.snapshot, savedProject.snapshot, "edited canvas survives host restart");
+
+  const fsPromises = requireInstalled("node:fs/promises");
+  const originalRename = fsPromises.rename;
+  const bytesBeforeFailedSave = readFileSync(savedProject.filePath, "utf8");
+  fsPromises.rename = async (source, target) => {
+    if (path.basename(target) === `${savedProject.projectId}.json`) {
+      throw Object.assign(new Error("Injected atomic rename failure"), { code: "EACCES" });
+    }
+    return originalRename(source, target);
+  };
+  try {
+    panel.handlers[0]({
+      protocolVersion: 1,
+      type: "studio:projectSave",
+      requestId: "project-save-rename-failed",
+      projectId: savedProject.projectId,
+      title: "Changed during failed save",
+      snapshot: savedProject.snapshot
+    });
+    const ioError = await waitForMessage(
+      panel.messages,
+      "studio:projectError",
+      (message) => message.requestId === "project-save-rename-failed"
+    );
+    assert.equal(ioError.code, "io", "failed atomic rename reports an I/O error");
+    assert.equal(
+      readFileSync(savedProject.filePath, "utf8"),
+      bytesBeforeFailedSave,
+      "failed save keeps last good file"
+    );
+    assert.equal(
+      readdirSync(path.dirname(savedProject.filePath)).some((entry) => entry.endsWith(".tmp")),
+      false,
+      "failed atomic save removes its temporary file"
+    );
+  } finally {
+    fsPromises.rename = originalRename;
+  }
+
+  const goodFile = readFileSync(savedProject.filePath, "utf8");
+  writeFileSync(savedProject.filePath, "{damaged-json", "utf8");
+  panel.handlers[0]({ protocolVersion: 1, type: "studio:projectListRequest" });
+  const damagedList = await waitForMessage(
+    panel.messages,
+    "studio:projectList",
+    (message) => message.corruptCount === 1
+  );
+  assert.equal(
+    damagedList.projects.some((project) => project.id === savedProject.projectId),
+    false
+  );
+  panel.handlers[0]({
+    protocolVersion: 1,
+    type: "studio:projectOpen",
+    requestId: "project-open-damaged",
+    projectId: savedProject.projectId
+  });
+  const openError = await waitForMessage(
+    panel.messages,
+    "studio:projectError",
+    (message) => message.requestId === "project-open-damaged"
+  );
+  assert.equal(openError.code, "corrupt", "damaged project returns an actionable error");
+  panel.handlers[0]({
+    protocolVersion: 1,
+    type: "studio:projectSave",
+    requestId: "project-save-over-damaged",
+    projectId: savedProject.projectId,
+    title: "Edited canvas",
+    snapshot: savedProject.snapshot
+  });
+  const saveError = await waitForMessage(
+    panel.messages,
+    "studio:projectError",
+    (message) => message.requestId === "project-save-over-damaged"
+  );
+  assert.equal(saveError.code, "corrupt", "autosave cannot overwrite unreadable project data");
+  assert.equal(readFileSync(savedProject.filePath, "utf8"), "{damaged-json", "damaged bytes remain for recovery");
+
+  writeFileSync(savedProject.filePath, goodFile, "utf8");
+  panel.handlers[0]({
+    protocolVersion: 1,
+    type: "studio:projectOpen",
+    requestId: "project-open-repaired",
+    projectId: savedProject.projectId
+  });
+  const repaired = await waitForMessage(
+    panel.messages,
+    "studio:projectOpened",
+    (message) => message.requestId === "project-open-repaired"
+  );
+  assert.equal(repaired.project.snapshot, savedProject.snapshot, "user-repaired project can reopen");
+  extension.deactivate?.();
+}
 
 function extractVsix(vsixFile, outputDirectory) {
   execFileSync("tar", ["-xf", vsixFile, "-C", outputDirectory], { stdio: "inherit" });
@@ -288,6 +539,7 @@ function createVscodeMockSource() {
   return String.raw`
 const registeredCommands = new Map();
 const registeredViewProviders = new Map();
+const createdPanels = [];
 const executedCommands = new Set();
 const createdDirectories = [];
 const disposable = () => ({ dispose() {} });
@@ -304,6 +556,7 @@ const Uri = {
 module.exports = {
   __registeredCommands: registeredCommands,
   __registeredViewProviders: registeredViewProviders,
+  __createdPanels: createdPanels,
   __executedCommands: executedCommands,
   __createdDirectories: createdDirectories,
   __configStore: configStore,
@@ -311,6 +564,7 @@ module.exports = {
   __quickPickValue: undefined,
   __workspaceRoot: process.cwd(),
   ConfigurationTarget: { Global: 1 },
+  ViewColumn: { Active: 1 },
   DiagnosticSeverity: { Error: 0, Warning: 1 },
   Uri,
   commands: {
@@ -339,6 +593,23 @@ module.exports = {
     onDidEndTask: () => disposable()
   },
   window: {
+    createWebviewPanel(_viewType, _title, _column, options) {
+      const handlers = [];
+      const messages = [];
+      const webview = {
+        html: "",
+        cspSource: "vscode-webview://codex-avatar-studio",
+        asWebviewUri(uri) {
+          const fsPath = uri.fsPath.replace(/\\/g, "/");
+          return { toString: () => "vscode-webview://codex-avatar-studio/" + fsPath.replace(/^[A-Za-z]:/, "") };
+        },
+        onDidReceiveMessage(handler) { handlers.push(handler); return disposable(); },
+        postMessage(message) { messages.push(message); return Promise.resolve(true); }
+      };
+      const panel = { options, webview, handlers, messages, reveal() {}, onDidDispose: () => disposable(), dispose() {} };
+      createdPanels.push(panel);
+      return panel;
+    },
     createOutputChannel: () => ({
       append() {},
       appendLine() {},
@@ -382,7 +653,7 @@ module.exports = {
     onDidGrantWorkspaceTrust: () => disposable(),
     openTextDocument: async uri => ({ uri }),
     get workspaceFolders() {
-      return [{ uri: { fsPath: module.exports.__workspaceRoot } }];
+      return [{ uri: { fsPath: module.exports.__workspaceRoot, scheme: "file" } }];
     }
   }
 };

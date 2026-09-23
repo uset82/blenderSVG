@@ -10,6 +10,7 @@ build/
 .codex-avatar/cache/
 .codex-avatar/exports/
 .codex-avatar/previews/
+.codex-avatar/studio/projects/
 .codex-avatar/imports/
 .codex-avatar/avatars/
 .codex-avatar/avatar-registry.json
@@ -25,4 +26,5 @@ tools/blender-mcp/
 *.png.tmp
 
 apps/extension/media/webview/
+apps/extension/media/studio/
 *.vsix

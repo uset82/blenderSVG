@@ -7,7 +7,9 @@ const generatedDirectories = [
   "dist",
   "apps/extension/dist",
   "apps/extension/media/webview",
+  "apps/extension/media/studio",
   "apps/webview/dist",
+  "apps/studio/dist",
   "packages/avatar-core/dist",
   "packages/asset-pipeline/dist",
   "packages/runtime-pixi/dist"

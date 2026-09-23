@@ -8,6 +8,7 @@
       "*.json",
       "!**/node_modules/**",
       "!**/dist/**",
+      "!**/.kilo/**",
       "!apps/extension/media/**",
       "!apps/webview/dist/**",
       "!apps/webview/src/renderers/Live2DAvatarRenderer.tsx",

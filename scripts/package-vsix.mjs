@@ -79,6 +79,21 @@ await build({
   plugins: [bundleCssTreeDataPlugin]
 });
 
+// The bundled VTracer worker resolves its local WASM relative to dist/vectorizeWorker.js.
+copyFileSync(
+  path.join(
+    root,
+    "packages",
+    "asset-pipeline",
+    "node_modules",
+    "@visioncortex",
+    "vtracer",
+    "pkg",
+    "vtracer_wasm_bg.wasm"
+  ),
+  path.join(stage, "dist", "vtracer_wasm_bg.wasm")
+);
+
 const manifestPath = path.join(stage, "package.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 manifest.version = version;

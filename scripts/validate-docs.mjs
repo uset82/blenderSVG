@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const markdownFiles = [
   "README.md",
-  ...(await listMarkdownFiles(path.join(root, "docs"))).filter((file) => file !== "docs/PLAN_CHECKLIST.md")
+  ...(await listMarkdownFiles(path.join(root, "docs"))).filter((file) => !isExcludedPlanDocument(file))
 ];
 const contents = new Map();
 
@@ -29,9 +29,15 @@ const rootPackage = JSON.parse(await readFile(path.join(root, "package.json"), "
 const rootScripts = new Set(Object.keys(rootPackage.scripts));
 const documentedPnpmCommands = new Set();
 for (const content of contents.values()) {
-  for (const match of content.matchAll(/\bpnpm\s+(?:(?:run)\s+)?([a-z][a-z\d:_-]*)/g)) {
-    const command = match[1];
-    if (!new Set(["install", "add", "update", "list", "exec", "dlx"]).has(command)) documentedPnpmCommands.add(command);
+  const codeSpans = [...content.matchAll(/`([^`\n]+)`/g)].map((match) => match[1]);
+  const codeBlocks = [...content.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map((match) => match[1]);
+  for (const code of [...codeSpans, ...codeBlocks]) {
+    for (const match of code.matchAll(/\bpnpm\s+(?:(?:run)\s+)?([a-z][a-z\d:_-]*)/g)) {
+      const command = match[1];
+      if (!new Set(["install", "add", "update", "list", "exec", "dlx"]).has(command)) {
+        documentedPnpmCommands.add(command);
+      }
+    }
   }
 }
 for (const command of documentedPnpmCommands) {
@@ -87,4 +93,8 @@ function extractMarkdownTargets(content) {
 function isInside(parent, child) {
   const relative = path.relative(path.resolve(parent), path.resolve(child));
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function isExcludedPlanDocument(relativeFile) {
+  return relativeFile === "docs/PLAN_CHECKLIST.md" || relativeFile.startsWith("docs/plan/");
 }

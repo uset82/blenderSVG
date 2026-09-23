@@ -13,6 +13,7 @@ const licensing = readFileSync(licensingPath, "utf8");
 const workspacePackageDirs = [
   ".",
   "apps/extension",
+  "apps/studio",
   "apps/webview",
   "packages/asset-pipeline",
   "packages/avatar-core",
