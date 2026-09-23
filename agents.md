@@ -13,8 +13,11 @@
 - Implement the first incomplete required phase in the canonical plan unless the user names another phase.
 - Mark a checkbox only after implementation and proportionate verification succeed; record evidence in the plan.
 - Preserve unrelated user changes and local/untracked assets.
-- Keep image, SVG, avatar-package, and Blender processing local. Do not add remote asset services.
+- Keep image, SVG, avatar-package, and Blender processing local by default. Remote AI is opt-in only: the OpenRouter chat and the optional, off-by-default QuiverAI SVG engine. Both use the user's own key held by the host, and the UI shows what will be sent. Do not add other remote asset services.
 - Preserve strict Webview CSP, typed bridge validation, workspace trust, safe local paths, SVG sanitization, reduced motion, and the built-in SVG fallback.
+- The standalone Studio host and its MCP endpoint bind to loopback only and check the Host header, the Origin, and a per-launch or per-client token on every request. Provider keys never reach the browser.
+- Check Studio visual work against the Target UI design canvas linked from [`docs/STUDIO_DESIGN_BRIEF.md`](docs/STUDIO_DESIGN_BRIEF.md). Paper and pen.dev contribute layout and interaction patterns only; brand, icons and copy stay our own.
+- doop is AGPL-3.0: use it as an idea reference only and never copy its code. ZCode is Apache-2.0: port only files audited under Phase 20.1, with per-file attribution and notices.
 - Blender and advanced runtimes must remain optional and fail gracefully.
 - Do not imply that bitmap tracing creates a rigged/animated character or that Blender automatically converts arbitrary pictures into production 3D avatars.
 

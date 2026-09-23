@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Composer menus</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#151516;font-family:'Geist',system-ui,sans-serif;color:#ededef}
+a{color:#ededef}a:hover{color:#ffffff}
+button,input,textarea,select{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; gap: 48px; padding: 56px 64px; box-sizing: border-box; background: #151516; color: #ededef; font-family: 'Geist', system-ui, sans-serif; font-size: 13px; overflow: hidden;">
+
+<div style="width: 340px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px;">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8b8b93;">Composer · Add to context</span>
+<div role="menu" aria-label="Add to context" style="width: 270px; display: flex; flex-direction: column; padding: 6px; background: #232326; border: 1px solid #36363b; border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.45);">
+<span style="padding: 6px 8px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #8b8b93;">ADD TO CONTEXT</span>
+<button type="button" role="menuitem" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 8px; background: #2e2e33; border: 0; border-radius: 8px; color: #ededef; font-size: 13px; text-align: left;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l8.6-8.6A4 4 0 1 1 18 8.8l-8.6 8.6a2 2 0 0 1-2.8-2.8l8.5-8.5"></path></svg>
+<span style="flex-grow: 1;">Add image or file</span></button>
+<button type="button" role="menuitem" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 8px; background: transparent; border: 0; border-radius: 8px; color: #ededef; font-size: 13px; text-align: left;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" x2="2" y1="6" y2="6"></line><line x1="22" x2="2" y1="18" y2="18"></line><line x1="6" x2="6" y1="2" y2="22"></line><line x1="18" x2="18" y1="2" y2="22"></line></svg>
+<span style="flex-grow: 1;">Add from canvas</span>
+<span style="font-size: 11px; color: #8b8b93;">Selection</span></button>
+<button type="button" role="menuitem" aria-haspopup="menu" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 8px; background: transparent; border: 0; border-radius: 8px; color: #ededef; font-size: 13px; text-align: left;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1"></circle><circle cx="17.5" cy="10.5" r="1"></circle><circle cx="8.5" cy="7.5" r="1"></circle><circle cx="6.5" cy="12.5" r="1"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.7-1.7h2c3 0 5.5-2.5 5.5-5.5C22 6 17.5 2 12 2z"></path></svg>
+<span style="flex-grow: 1;">Choose a style</span>
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8b8b93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+<button type="button" role="menuitem" aria-haspopup="menu" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 8px; background: transparent; border: 0; border-radius: 8px; color: #ededef; font-size: 13px; text-align: left;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.6 3.6-1.3-1.3a1.2 1.2 0 0 0-1.7 0L2.4 18.6a1.2 1.2 0 0 0 0 1.7l1.3 1.3a1.2 1.2 0 0 0 1.7 0L21.6 5.4a1.2 1.2 0 0 0 0-1.8"></path><path d="m14 7 3 3"></path></svg>
+<span style="flex-grow: 1;">Pick a skill</span>
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8b8b93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+</div>
+
+<form style="width: 300px; display: flex; flex-direction: column; background: #232326; border: 1px solid #36363b; border-radius: 12px;">
+<label for="sheet-prompt" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Message the agent</label>
+<textarea id="sheet-prompt" rows="2" placeholder="Design anything…" style="min-height: 52px; padding: 12px 12px 4px; background: transparent; border: 0; outline: none; resize: none; color: #ededef; font-size: 13px; line-height: 1.5;"></textarea>
+<div style="display: flex; align-items: center; gap: 4px; padding: 6px 8px 8px;">
+<button type="button" aria-label="Add context" aria-expanded="true" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: #34343a; border: 0; border-radius: 8px; color: #ededef;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
+</button>
+<span style="height: 26px; display: flex; align-items: center; padding: 0 8px; color: #a3a3aa; font-size: 12px;">Build</span>
+<span style="height: 26px; display: flex; align-items: center; padding: 0 8px; color: #a3a3aa; font-size: 12px;">1x</span>
+<div style="flex-grow: 1;"></div>
+<span style="height: 26px; display: flex; align-items: center; padding: 0 8px; color: #a3a3aa; font-size: 12px;">Claude Sonnet 5</span>
+<button type="submit" aria-label="Send" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: {{accent}}; border: 0; border-radius: 999px; color: #0d1526;">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>
+</button>
+</div>
+</form>
+
+<span style="margin-top: 22px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8b8b93;">Attached context chips</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+<span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; background: #2b2b2f; border-radius: 6px; font-size: 12px;">hero-sketch.png <span style="color: #8b8b93;">· 212 KB</span></span>
+<span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; background: #2b2b2f; border-radius: 6px; font-size: 12px;">Frame: Landing page</span>
+<span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; background: #2b2b2f; border-radius: 6px; font-size: 12px;">Style: Warm studio</span>
+<span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; background: #2b2b2f; border-radius: 6px; font-size: 12px;">Skill: Landing page</span>
+</div>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #8b8b93;">Every chip is exactly what will be sent with the next message. An image goes only to models that accept images.</p>
+</div>
+
+<div style="width: 440px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px;">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8b8b93;">Model picker · OpenRouter catalog</span>
+<div role="dialog" aria-label="Choose a model" style="display: flex; flex-direction: column; background: #232326; border: 1px solid #36363b; border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.45); overflow: hidden;">
+<div style="padding: 10px;">
+<label style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; background: #1b1b1d; border: 1px solid {{accent}}; border-radius: 8px;">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8b8b93" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+<input type="text" placeholder="Search models or publishers" aria-label="Search models" style="flex-grow: 1; background: transparent; border: 0; outline: none; color: #ededef; font-size: 13px;">
+</label>
+<div role="group" aria-label="Filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+<button type="button" aria-pressed="false" style="height: 26px; padding: 0 10px; background: transparent; border: 1px solid #36363b; border-radius: 999px; color: #a3a3aa; font-size: 12px;">Free</button>
+<button type="button" aria-pressed="false" style="height: 26px; padding: 0 10px; background: transparent; border: 1px solid #36363b; border-radius: 999px; color: #a3a3aa; font-size: 12px;">Vision</button>
+<button type="button" aria-pressed="true" style="height: 26px; padding: 0 10px; background: #34343a; border: 1px solid #56565e; border-radius: 999px; color: #ededef; font-size: 12px;">Tools</button>
+<button type="button" aria-pressed="false" style="height: 26px; padding: 0 10px; background: transparent; border: 1px solid #36363b; border-radius: 999px; color: #a3a3aa; font-size: 12px;">Reasoning</button>
+<button type="button" aria-pressed="false" style="height: 26px; padding: 0 10px; background: transparent; border: 1px solid #36363b; border-radius: 999px; color: #a3a3aa; font-size: 12px;">128k+ context</button>
+<button type="button" style="height: 26px; padding: 0 10px; background: transparent; border: 0; color: #a3a3aa; font-size: 12px;">More filters</button>
+</div>
+</div>
+<div role="listbox" aria-label="Models" style="display: flex; flex-direction: column; padding: 0 6px 6px; border-top: 1px solid #2e2e32;">
+<span style="padding: 10px 8px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #8b8b93;">FAVORITES</span>
+<div role="option" aria-selected="true" style="display: flex; align-items: center; gap: 10px; padding: 8px; background: #2e2e33; border-radius: 8px;">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; font-weight: 500;">Claude Sonnet 5</span><span style="display: flex; gap: 4px; font-size: 11px; color: #8b8b93;">anthropic · 200k <span style="padding: 0 5px; border: 1px solid #3a3a40; border-radius: 4px;">Tools</span><span style="padding: 0 5px; border: 1px solid #3a3a40; border-radius: 4px;">Vision</span></span></span>
+<span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a3a3aa;">$3 / $15</span>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{accent}}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+</div>
+<span style="padding: 12px 8px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #8b8b93;">RECENT</span>
+<div role="option" aria-selected="false" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px;">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; font-weight: 500;">GLM-4.7</span><span style="display: flex; gap: 4px; font-size: 11px; color: #8b8b93;">z-ai · 200k <span style="padding: 0 5px; border: 1px solid #3a3a40; border-radius: 4px;">Tools</span><span style="padding: 0 5px; border: 1px solid #3a3a40; border-radius: 4px;">Reasoning</span></span></span>
+<span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a3a3aa;">$0.60 / $2.20</span>
+<span style="width: 15px;"></span>
+</div>
+<span style="padding: 12px 8px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #8b8b93;">ALL MATCHING MODELS</span>
+<div role="option" aria-selected="false" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px;">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; font-weight: 500;">Qwen3 Coder</span><span style="display: flex; gap: 4px; font-size: 11px; color: #8b8b93;">qwen · 262k <span style="padding: 0 5px; border: 1px solid #3a3a40; border-radius: 4px;">Tools</span></span></span>
+<span style="font-size: 11px; font-weight: 600; color: #5fd08a;">Free</span>
+<span style="width: 15px;"></span>
+</div>
+<div role="option" aria-selected="false" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px;">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; font-weight: 500;">DeepSeek V3.2</span><span style="display: flex; gap: 4px; font-size: 11px; color: #8b8b93;">deepseek · 164k <span style="padding: 0 5px; border: 1px solid #3a3a40; border-radius: 4px;">Tools</span><span style="padding: 0 5px; border: 1px solid #3a3a40; border-radius: 4px;">Reasoning</span></span></span>
+<span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a3a3aa;">$0.28 / $0.42</span>
+<span style="width: 15px;"></span>
+</div>
+<div role="option" aria-selected="false" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px;">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; font-weight: 500;">Gemini 2.5 Flash</span><span style="display: flex; gap: 4px; font-size: 11px; color: #8b8b93;">google · 1M <span style="padding: 0 5px; border: 1px solid #3a3a40; border-radius: 4px;">Tools</span><span style="padding: 0 5px; border: 1px solid #3a3a40; border-radius: 4px;">Vision</span></span></span>
+<span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a3a3aa;">$0.30 / $2.50</span>
+<span style="width: 15px;"></span>
+</div>
+<div role="option" aria-selected="false" aria-disabled="true" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; opacity: 0.62;">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; font-weight: 500;">An image-only model</span><span style="font-size: 11px; color: #a3a3aa;">Outputs images only, so it can't chat here</span></span>
+<span style="font-size: 11px; color: #a3a3aa;">Unavailable</span>
+<span style="width: 15px;"></span>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #2e2e32; font-size: 11.5px; color: #8b8b93;">
+<span style="flex-grow: 1;">Per 1M tokens, input / output · refreshed 2 min ago</span>
+<button type="button" style="height: 26px; padding: 0 10px; background: transparent; border: 1px solid #36363b; border-radius: 6px; color: #ededef; font-size: 12px;">Refresh</button>
+</div>
+</div>
+</div>
+
+<div style="width: 340px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px;">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8b8b93;">Mode menu</span>
+<div role="menu" aria-label="Agent mode" style="display: flex; flex-direction: column; padding: 6px; background: #232326; border: 1px solid #36363b; border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.45);">
+<button type="button" role="menuitemradio" aria-checked="false" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px; background: transparent; border: 0; border-radius: 8px; color: #ededef; text-align: left;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top: 2px;"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13px; font-weight: 500;">Ask</span><span style="font-size: 12px; color: #8b8b93;">Chat only. Nothing on the canvas changes.</span></span></button>
+<button type="button" role="menuitemradio" aria-checked="false" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px; background: transparent; border: 0; border-radius: 8px; color: #ededef; text-align: left;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top: 2px;"><path d="m3 17 2 2 4-4"></path><path d="m3 7 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13px; font-weight: 500;">Plan</span><span style="font-size: 12px; color: #8b8b93;">Reads the canvas and returns a step list.</span></span></button>
+<button type="button" role="menuitemradio" aria-checked="true" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px; background: #2e2e33; border: 0; border-radius: 8px; color: #ededef; text-align: left;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top: 2px;"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13px; font-weight: 500;">Build</span><span style="font-size: 12px; color: #8b8b93;">Proposes changes; you apply or reject each one.</span></span>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{accent}}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top: 2px;"><path d="M20 6 9 17l-5-5"></path></svg></button>
+<button type="button" role="menuitemradio" aria-checked="false" style="display: flex; align-items: flex-start; gap: 10px; padding: 8px; background: transparent; border: 0; border-radius: 8px; color: #ededef; text-align: left;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top: 2px;"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13px; font-weight: 500;">Auto</span><span style="font-size: 12px; color: #8b8b93;">Applies canvas-only changes; each one is a single undo. Files and Blender still ask.</span></span></button>
+<div style="display: flex; justify-content: space-between; padding: 8px 8px 4px; margin-top: 4px; border-top: 1px solid #2e2e32; font-size: 11.5px; color: #8b8b93;"><span>Cycle modes</span><span style="font-family: 'Geist Mono', monospace;">Shift + Tab</span></div>
+</div>
+
+<span style="margin-top: 22px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8b8b93;">Variants menu</span>
+<div role="menu" aria-label="Variants" style="display: flex; flex-direction: column; padding: 6px; background: #232326; border: 1px solid #36363b; border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.45);">
+<button type="button" role="menuitemradio" aria-checked="true" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 8px; background: #2e2e33; border: 0; border-radius: 8px; color: #ededef; font-size: 13px; text-align: left;"><span style="width: 28px; font-family: 'Geist Mono', monospace;">1x</span><span style="flex-grow: 1; color: #a3a3aa;">One agent</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{accent}}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></button>
+<button type="button" role="menuitemradio" aria-checked="false" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 8px; background: transparent; border: 0; border-radius: 8px; color: #ededef; font-size: 13px; text-align: left;"><span style="width: 28px; font-family: 'Geist Mono', monospace;">2x</span><span style="flex-grow: 1; color: #a3a3aa;">Two variants, side by side</span></button>
+<button type="button" role="menuitemradio" aria-checked="false" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 8px; background: transparent; border: 0; border-radius: 8px; color: #ededef; font-size: 13px; text-align: left;"><span style="width: 28px; font-family: 'Geist Mono', monospace;">3x</span><span style="flex-grow: 1; color: #a3a3aa;">Three variants</span></button>
+<button type="button" role="menuitemradio" aria-checked="false" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 8px; background: transparent; border: 0; border-radius: 8px; color: #ededef; font-size: 13px; text-align: left;"><span style="width: 28px; font-family: 'Geist Mono', monospace;">4x</span><span style="flex-grow: 1; color: #a3a3aa;">Four variants</span></button>
+<p style="margin: 4px 0 0; padding: 8px 8px 4px; border-top: 1px solid #2e2e32; font-size: 11.5px; line-height: 1.5; color: #8b8b93;">Each variant runs as its own agent into its own frame. Keep the one you like.</p>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#7aa7ff","options":["#7aa7ff","#8fd694","#f0a35e","#c7a6ff"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#7aa7ff' };
+  }
+}
+</script>
+</body>
+</html>

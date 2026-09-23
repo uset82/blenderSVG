@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vector asset dialog</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#151516;font-family:'Geist',system-ui,sans-serif;color:#ededef}
+a{color:#ededef}a:hover{color:#ffffff}
+button,input,textarea,select{font-family:inherit}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; display: flex; align-items: center; justify-content: center; background-color: #151516; background-image: radial-gradient(circle, #2a2a2d 1px, transparent 1.3px); background-size: 16px 16px; color: #ededef; font-family: 'Geist', system-ui, sans-serif; font-size: 13px; overflow: hidden;">
+<div style="position: absolute; left: 8px; top: 60px; width: 320px; height: 832px; background: #1b1b1d; border: 1px solid #2e2e32; border-radius: 12px;"></div>
+<div style="position: absolute; left: 8px; top: 8px; width: 320px; height: 44px; background: #1b1b1d; border: 1px solid #2e2e32; border-radius: 12px;"></div>
+<div style="position: absolute; right: 8px; top: 8px; width: 280px; height: 884px; background: #1b1b1d; border: 1px solid #2e2e32; border-radius: 12px;"></div>
+<div style="position: absolute; left: 0; top: 0; width: 1440px; height: 900px; background: rgba(6,6,8,0.66);"></div>
+
+<div role="dialog" aria-modal="true" aria-labelledby="va-title" style="position: relative; width: 1000px; display: flex; flex-direction: column; background: #1b1b1d; border: 1px solid #36363b; border-radius: 16px; box-shadow: 0 24px 64px rgba(0,0,0,0.55); overflow: hidden;">
+<div style="display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px; border-bottom: 1px solid #2e2e32;">
+<span style="width: 36px; height: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: #232326; border-radius: 8px;">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.7 21.3a1 1 0 0 1-1.4 0l-1.6-1.6a1 1 0 0 1 0-1.4l5.6-5.6a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4z"></path><path d="m18 13-1.4-6.9a1 1 0 0 0-.7-.8L3.2 2a1 1 0 0 0-1.2 1.2l3.3 12.7a1 1 0 0 0 .8.7L13 18"></path><path d="m2.3 2.3 7.3 7.3"></path><circle cx="11" cy="11" r="2"></circle></svg>
+</span>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;">
+<h2 id="va-title" style="margin: 0; font-size: 15px; font-weight: 600;">Vector asset</h2>
+<span style="font-size: 12.5px; color: #a3a3aa;">Trace a picture into editable SVG. Runs on this computer; nothing is uploaded.</span>
+</div>
+<button type="button" aria-label="Close" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; border-radius: 8px; color: #a3a3aa;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+</button>
+</div>
+
+<div style="display: flex; gap: 20px; padding: 20px;">
+<div style="width: 620px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;">
+<div role="img" aria-label="Before and after comparison of the traced fox illustration" style="position: relative; width: 620px; height: 440px; border-radius: 10px; overflow: hidden; background: #f3ede4;">
+<div style="position: absolute; left: 0; top: 0; width: 310px; height: 440px; overflow: hidden;">
+<svg width="620" height="440" viewBox="0 0 620 440" aria-hidden="true" style="display: block; filter: blur(1.6px) saturate(0.85);"><rect width="620" height="440" fill="#f3ede4"></rect><circle cx="310" cy="236" r="150" fill="#ecdcc6"></circle><path d="M200 150 230 60 290 130Z" fill="#e0782f"></path><path d="M420 150 390 60 330 130Z" fill="#e0782f"></path><path d="M214 136 232 84 268 128Z" fill="#2b1f1a"></path><path d="M406 136 388 84 352 128Z" fill="#2b1f1a"></path><path d="M190 170Q310 90 430 170Q440 260 310 350Q180 260 190 170Z" fill="#e0782f"></path><path d="M230 240Q270 250 310 350Q350 250 390 240Q370 300 310 350Q250 300 230 240Z" fill="#fbf4ea"></path><ellipse cx="262" cy="214" rx="12" ry="16" fill="#2b1f1a"></ellipse><ellipse cx="358" cy="214" rx="12" ry="16" fill="#2b1f1a"></ellipse><circle cx="266" cy="208" r="4" fill="#ffffff"></circle><circle cx="362" cy="208" r="4" fill="#ffffff"></circle><path d="M296 318Q310 306 324 318Q316 334 310 336Q304 334 296 318Z" fill="#2b1f1a"></path></svg>
+</div>
+<div style="position: absolute; left: 310px; top: 0; width: 310px; height: 440px; overflow: hidden;">
+<svg width="620" height="440" viewBox="0 0 620 440" aria-hidden="true" style="display: block; margin-left: -310px;"><rect width="620" height="440" fill="#f3ede4"></rect><circle cx="310" cy="236" r="150" fill="#ecdcc6"></circle><path d="M200 150 230 60 290 130Z" fill="#e0782f"></path><path d="M420 150 390 60 330 130Z" fill="#e0782f"></path><path d="M214 136 232 84 268 128Z" fill="#2b1f1a"></path><path d="M406 136 388 84 352 128Z" fill="#2b1f1a"></path><path d="M190 170Q310 90 430 170Q440 260 310 350Q180 260 190 170Z" fill="#e0782f"></path><path d="M230 240Q270 250 310 350Q350 250 390 240Q370 300 310 350Q250 300 230 240Z" fill="#fbf4ea"></path><ellipse cx="262" cy="214" rx="12" ry="16" fill="#2b1f1a"></ellipse><ellipse cx="358" cy="214" rx="12" ry="16" fill="#2b1f1a"></ellipse><circle cx="266" cy="208" r="4" fill="#ffffff"></circle><circle cx="362" cy="208" r="4" fill="#ffffff"></circle><path d="M296 318Q310 306 324 318Q316 334 310 336Q304 334 296 318Z" fill="#2b1f1a"></path><path d="M420 150 390 60 330 130Z" fill="none" stroke="{{accent}}" stroke-width="1.5"></path><rect x="416" y="146" width="8" height="8" fill="#ffffff" stroke="{{accent}}" stroke-width="1.5"></rect><rect x="386" y="56" width="8" height="8" fill="#ffffff" stroke="{{accent}}" stroke-width="1.5"></rect><rect x="326" y="126" width="8" height="8" fill="#ffffff" stroke="{{accent}}" stroke-width="1.5"></rect></svg>
+</div>
+<span style="position: absolute; left: 12px; top: 12px; padding: 4px 8px; background: rgba(21,21,22,0.82); border-radius: 6px; color: #ededef; font-size: 11.5px;">Original · PNG</span>
+<span style="position: absolute; right: 12px; top: 12px; padding: 4px 8px; background: rgba(21,21,22,0.82); border-radius: 6px; color: #ededef; font-size: 11.5px;">SVG · editable paths</span>
+<span style="position: absolute; left: 309px; top: 0; width: 2px; height: 440px; background: #ffffff;"></span>
+<button type="button" aria-label="Drag to compare" style="position: absolute; left: 294px; top: 204px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #ffffff; border: 0; border-radius: 999px; color: #151516; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18-6-6 6-6"></path><path d="m15 6 6 6-6 6"></path></svg>
+</button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: #a3a3aa;">
+<span style="font-family: 'Geist Mono', monospace;">214 paths · 38 KB · 16 colors</span>
+<span style="display: flex; align-items: center; gap: 5px; color: #5fd08a;">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.7 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>
+Sanitized</span>
+<div style="flex-grow: 1;"></div>
+<span style="color: #8b8b93;">Drag the handle to compare</span>
+</div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px;">
+<span id="preset-label" style="font-size: 12px; color: #8b8b93;">Preset</span>
+<div role="radiogroup" aria-labelledby="preset-label" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+<button type="button" role="radio" aria-checked="true" style="display: flex; flex-direction: column; gap: 2px; padding: 10px; background: #232326; border: 1px solid {{accent}}; border-radius: 10px; color: #ededef; text-align: left;"><span style="font-size: 12.5px; font-weight: 600;">Color illustration</span><span style="font-size: 11.5px; color: #8b8b93;">Keeps up to 16 colors</span></button>
+<button type="button" role="radio" aria-checked="false" style="display: flex; flex-direction: column; gap: 2px; padding: 10px; background: transparent; border: 1px solid #2e2e32; border-radius: 10px; color: #ededef; text-align: left;"><span style="font-size: 12.5px; font-weight: 600;">Clean icon</span><span style="font-size: 11.5px; color: #8b8b93;">Few flat shapes</span></button>
+<button type="button" role="radio" aria-checked="false" style="display: flex; flex-direction: column; gap: 2px; padding: 10px; background: transparent; border: 1px solid #2e2e32; border-radius: 10px; color: #ededef; text-align: left;"><span style="font-size: 12.5px; font-weight: 600;">Silhouette</span><span style="font-size: 11.5px; color: #8b8b93;">One color, high contrast</span></button>
+<button type="button" role="radio" aria-checked="false" style="display: flex; flex-direction: column; gap: 2px; padding: 10px; background: transparent; border: 1px solid #2e2e32; border-radius: 10px; color: #ededef; text-align: left;"><span style="font-size: 12.5px; font-weight: 600;">Pixel art</span><span style="font-size: 11.5px; color: #8b8b93;">Square, hard edges</span></button>
+</div>
+
+<button type="button" aria-expanded="true" style="display: flex; align-items: center; gap: 6px; height: 28px; margin-top: 4px; padding: 0; background: transparent; border: 0; color: #ededef; font-size: 12.5px; font-weight: 600;">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+Advanced</button>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; font-size: 12px;"><span style="flex-grow: 1; color: #a3a3aa;">Color precision</span><span style="font-family: 'Geist Mono', monospace;">6</span></div>
+<div style="position: relative; height: 16px; display: flex; align-items: center;"><span style="width: 100%; height: 4px; background: #34343a; border-radius: 999px;"></span><span style="position: absolute; left: 0; width: 62%; height: 4px; background: {{accent}}; border-radius: 999px;"></span><span style="position: absolute; left: calc(62% - 7px); width: 14px; height: 14px; background: #ededef; border-radius: 999px;"></span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; font-size: 12px;"><span style="flex-grow: 1; color: #a3a3aa;">Speckle filter</span><span style="font-family: 'Geist Mono', monospace;">4 px</span></div>
+<div style="position: relative; height: 16px; display: flex; align-items: center;"><span style="width: 100%; height: 4px; background: #34343a; border-radius: 999px;"></span><span style="position: absolute; left: 0; width: 28%; height: 4px; background: {{accent}}; border-radius: 999px;"></span><span style="position: absolute; left: calc(28% - 7px); width: 14px; height: 14px; background: #ededef; border-radius: 999px;"></span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; font-size: 12px;"><span style="flex-grow: 1; color: #a3a3aa;">Corner threshold</span><span style="font-family: 'Geist Mono', monospace;">60°</span></div>
+<div style="position: relative; height: 16px; display: flex; align-items: center;"><span style="width: 100%; height: 4px; background: #34343a; border-radius: 999px;"></span><span style="position: absolute; left: 0; width: 45%; height: 4px; background: {{accent}}; border-radius: 999px;"></span><span style="position: absolute; left: calc(45% - 7px); width: 14px; height: 14px; background: #ededef; border-radius: 999px;"></span></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; color: #a3a3aa;">Curves</span>
+<div role="radiogroup" aria-label="Curves" style="display: flex; padding: 2px; background: #232326; border: 1px solid #2e2e32; border-radius: 8px;">
+<button type="button" role="radio" aria-checked="true" style="flex-grow: 1; height: 26px; background: #34343a; border: 0; border-radius: 6px; color: #ededef; font-size: 12px;">Spline</button>
+<button type="button" role="radio" aria-checked="false" style="flex-grow: 1; height: 26px; background: transparent; border: 0; border-radius: 6px; color: #a3a3aa; font-size: 12px;">Polygon</button>
+<button type="button" role="radio" aria-checked="false" style="flex-grow: 1; height: 26px; background: transparent; border: 0; border-radius: 6px; color: #a3a3aa; font-size: 12px;">Pixel</button>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; color: #a3a3aa;">Layering</span>
+<div role="radiogroup" aria-label="Layering" style="display: flex; padding: 2px; background: #232326; border: 1px solid #2e2e32; border-radius: 8px;">
+<button type="button" role="radio" aria-checked="true" style="flex-grow: 1; height: 26px; background: #34343a; border: 0; border-radius: 6px; color: #ededef; font-size: 12px;">Stacked</button>
+<button type="button" role="radio" aria-checked="false" style="flex-grow: 1; height: 26px; background: transparent; border: 0; border-radius: 6px; color: #a3a3aa; font-size: 12px;">Cutout</button>
+</div>
+</div>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #ededef;">
+<input type="checkbox" checked="checked" style="width: 15px; height: 15px; margin: 0; accent-color: {{accent}};">
+Remove near-white background</label>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-top: 1px solid #2e2e32;">
+<span style="flex-grow: 1; font-size: 12px; color: #8b8b93;">sketch-fox.png · 1024 × 1024 · 1.2 MB</span>
+<button type="button" style="height: 36px; padding: 0 16px; background: transparent; border: 1px solid #36363b; border-radius: 8px; color: #ededef; font-size: 13px;">Cancel</button>
+<button type="button" style="height: 36px; padding: 0 16px; background: {{accent}}; border: 0; border-radius: 8px; color: #0d1526; font-size: 13px; font-weight: 600;">Insert on canvas</button>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#7aa7ff","options":["#7aa7ff","#8fd694","#f0a35e","#c7a6ff"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#7aa7ff' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-09-23T17:04:53Z" },
+  "title": "blenderSVG Studio — Target UI",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Home dashboard · Phase 15" },
+    "Editor-Empty.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 900, "title": "Editor, empty agent · Phases 16 & 19" },
+    "Editor-Working.dc.html": { "x": 3040, "y": 0, "w": 1440, "h": 900, "title": "Editor, agent working · Phases 19 & 20" },
+    "Composer-Menus.dc.html": { "x": 0, "y": 1320, "w": 1440, "h": 900, "title": "Composer menus · Phases 19 & 20" },
+    "Vector-Asset.dc.html": { "x": 1520, "y": 1320, "w": 1440, "h": 900, "title": "Image → SVG dialog · Phase 21" },
+    "Connectors.dc.html": { "x": 3040, "y": 1320, "w": 1440, "h": 900, "title": "IDE connectors · Phase 22" },
+    "Settings-Models.dc.html": { "x": 0, "y": 2640, "w": 1440, "h": 900, "title": "Settings, models & keys · Phases 17 & 19" },
+    "Editor-Light.dc.html": { "x": 1520, "y": 2640, "w": 1440, "h": 900, "title": "Editor, light theme with layers · Phases 14 & 16" },
+    "Editor-Mobile.dc.html": { "x": 3040, "y": 2640, "w": 390, "h": 844, "title": "Editor on a phone · Phase 16" }
+  },
+  "order": [
+    "Main.dc.html",
+    "Editor-Empty.dc.html",
+    "Editor-Working.dc.html",
+    "Composer-Menus.dc.html",
+    "Vector-Asset.dc.html",
+    "Connectors.dc.html",
+    "Settings-Models.dc.html",
+    "Editor-Light.dc.html",
+    "Editor-Mobile.dc.html"
+  ],
+  "notes": {
+    "row1": { "x": 0, "y": -300, "text": "Home and editor", "kind": "title1", "maxW": 4480 },
+    "row2": { "x": 0, "y": 1020, "text": "Agent, creation and connectors", "kind": "title1", "maxW": 4480 },
+    "row3": { "x": 0, "y": 2340, "text": "Settings, light theme and phone", "kind": "title1", "maxW": 4480 }
+  },
+  "designSystems": []
+}
