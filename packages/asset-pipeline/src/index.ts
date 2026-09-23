@@ -7,6 +7,7 @@ export * from "./types.js";
 export * from "./validateSvgLayers.js";
 export * from "./quiverVectorEngine.js";
 export * from "./openRouterEngine.js";
+export * from "./zenmuxEngine.js";
 export * from "./svgIr.js";
 export * from "./svgParser.js";
 export * from "./svgSerializer.js";

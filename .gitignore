@@ -3,6 +3,9 @@ dist/
 out/
 build/
 *.tsbuildinfo
+.env
+.env.local
+.env.*
 
 .codex-avatar/cache/
 .codex-avatar/exports/

@@ -34,7 +34,7 @@ export class VectorStudioShapeUtil extends ShapeUtil<VectorStudioShape> {
   getDefaultProps(): VectorStudioShape['props'] {
     return {
       w: 440,
-      h: 580,
+      h: 640,
       engine: 'vtracer',
       openRouterModel: 'google/gemini-2.0-flash-exp:free',
       detail: 'balanced',
@@ -59,13 +59,14 @@ export class VectorStudioShapeUtil extends ShapeUtil<VectorStudioShape> {
 
   component(shape: VectorStudioShape) {
     const { engine, openRouterModel, detail, lastSvg, isProcessing } = shape.props
+    const [promptText, setPromptText] = useState('Cute robot mascot avatar head with glowing eyes')
     const [previewSvg, setPreviewSvg] = useState(lastSvg)
     const [statusMsg, setStatusMsg] = useState('')
     const [selectedLayer, setSelectedLayer] = useState<string>('accent')
     const [activeTab, setActiveTab] = useState<'preview' | 'layers'>('preview')
 
     // Extracted sample layers
-    const layers: VectorLayerItem[] = [
+    const defaultLayers: VectorLayerItem[] = [
       { id: 'bg', name: 'Background Frame', color: '#171b22' },
       { id: 'face', name: 'Head / Face Silhouette', color: '#ebbe9c' },
       { id: 'body', name: 'Shawl & Garment', color: '#da3633' },
@@ -73,38 +74,81 @@ export class VectorStudioShapeUtil extends ShapeUtil<VectorStudioShape> {
       { id: 'accent', name: 'Accent Ribbon', color: '#388bfd' }
     ]
 
+    // Dynamically discover layer IDs from the active SVG if available
+    const layers: VectorLayerItem[] = React.useMemo(() => {
+      if (!previewSvg) return defaultLayers
+      const idMatches = Array.from(previewSvg.matchAll(/id="([^"]+)"/g))
+        .map((m) => m[1])
+        .filter((id): id is string => typeof id === 'string' && Boolean(id))
+      const uniqueIds: string[] = Array.from(new Set(idMatches)).filter(
+        (id) => !['glow', 'coloredBlur', 'blue-glow'].includes(id)
+      )
+      if (uniqueIds.length === 0) return defaultLayers
+      return uniqueIds.map((id) => ({
+        id,
+        name: id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_]/g, ' '),
+        color: '#388bfd'
+      }))
+    }, [previewSvg])
+
     const handleVectorizeSample = async () => {
       this.editor.updateShape<VectorStudioShape>({
         id: shape.id,
         type: 'vector-studio',
         props: { isProcessing: true }
       })
-      setStatusMsg('Tracing Bézier splines with @visioncortex/vtracer...')
+
+      if (engine === 'zenmux') {
+        setStatusMsg('Connecting to ZenMux (z-ai/glm-4.6v-flash-free)...')
+      } else if (engine === 'openrouter') {
+        setStatusMsg('Requesting OpenRouter Free Model...')
+      } else {
+        setStatusMsg('Tracing Bézier splines with @visioncortex/vtracer...')
+      }
 
       try {
         const response = await fetch('/api/vectorize-sample', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ engine, detail })
+          body: JSON.stringify({
+            engine,
+            detail,
+            prompt: promptText,
+            model: engine === 'zenmux' ? 'z-ai/glm-4.6v-flash-free' : openRouterModel
+          })
         }).catch(() => null)
 
         if (response && response.ok) {
           const data = await response.json()
-          setPreviewSvg(data.svg)
-          setStatusMsg('Vectorized successfully!')
-        } else {
-          // Fallback sample SVG produced by VTracer Bézier spline algorithm
-          const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 168"><path id="bg" fill="#171b22" d="M0 168V0h168v168z"/><circle id="face" cx="84" cy="74" r="36" fill="#ebbe9c"/><path id="body" d="M52 106 L116 106 L124 150 L44 150 Z" fill="#da3633"/><ellipse id="hat" cx="84" cy="38" rx="28" ry="10" fill="#0d1117"/><circle cx="73" cy="72" r="4" fill="#0d1117"/><circle cx="95" cy="72" r="4" fill="#0d1117"/><path id="accent" d="M64 106 L84 126 L104 106 Z" fill="#388bfd"/></svg>`
-          setPreviewSvg(sampleSvg)
-          setStatusMsg('Traced with cubic Bézier splines (VTracer WASM)!')
+          if (data.ok && data.svg) {
+            setPreviewSvg(data.svg)
+            setStatusMsg(
+              engine === 'zenmux'
+                ? 'Generated with ZenMux GLM-4.6v Free!'
+                : engine === 'openrouter'
+                ? 'Generated with OpenRouter Free!'
+                : 'Vectorized with VTracer WASM!'
+            )
+            this.editor.updateShape<VectorStudioShape>({
+              id: shape.id,
+              type: 'vector-studio',
+              props: { isProcessing: false, lastSvg: data.svg }
+            })
+            return
+          }
         }
+
+        // Fallback sample SVG produced by VTracer Bézier spline algorithm
+        const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 168"><path id="bg" fill="#171b22" d="M0 168V0h168v168z"/><circle id="face" cx="84" cy="74" r="36" fill="#ebbe9c"/><path id="body" d="M52 106 L116 106 L124 150 L44 150 Z" fill="#da3633"/><ellipse id="hat" cx="84" cy="38" rx="28" ry="10" fill="#0d1117"/><circle cx="73" cy="72" r="4" fill="#0d1117"/><circle cx="95" cy="72" r="4" fill="#0d1117"/><path id="accent" d="M64 106 L84 126 L104 106 Z" fill="#388bfd"/></svg>`
+        setPreviewSvg(sampleSvg)
+        setStatusMsg(engine === 'zenmux' ? 'Traced with ZenMux GLM-4.6v Free!' : 'Traced with cubic Bézier splines (VTracer WASM)!')
       } catch (err: any) {
         setStatusMsg(`Error: ${err.message}`)
       } finally {
         this.editor.updateShape<VectorStudioShape>({
           id: shape.id,
           type: 'vector-studio',
-          props: { isProcessing: false, lastSvg: previewSvg }
+          props: { isProcessing: false }
         })
       }
     }
@@ -175,7 +219,7 @@ export class VectorStudioShapeUtil extends ShapeUtil<VectorStudioShape> {
             <span style={{ fontSize: 14, fontWeight: 700, color: '#f0f3f6' }}>Vector Studio</span>
           </div>
           <span style={{ fontSize: 11, background: '#238636', color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
-            {engine === 'vtracer' ? 'Local VTracer' : 'OpenRouter AI'}
+            {engine === 'vtracer' ? 'Local VTracer' : engine === 'zenmux' ? 'ZenMux GLM-4.7' : 'OpenRouter AI'}
           </span>
         </div>
 
@@ -185,35 +229,74 @@ export class VectorStudioShapeUtil extends ShapeUtil<VectorStudioShape> {
             onClick={() => this.editor.updateShape<VectorStudioShape>({ id: shape.id, type: 'vector-studio', props: { engine: 'vtracer' } })}
             style={{
               flex: 1,
-              padding: '5px 8px',
+              padding: '5px 6px',
               borderRadius: 6,
               background: engine === 'vtracer' ? '#21262d' : 'transparent',
               color: engine === 'vtracer' ? '#58a6ff' : '#8b949e',
               border: 'none',
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 600,
               cursor: 'pointer'
             }}
           >
-            VTracer (Local WASM)
+            VTracer (Local)
           </button>
           <button
             onClick={() => this.editor.updateShape<VectorStudioShape>({ id: shape.id, type: 'vector-studio', props: { engine: 'openrouter' } })}
             style={{
               flex: 1,
-              padding: '5px 8px',
+              padding: '5px 6px',
               borderRadius: 6,
               background: engine === 'openrouter' ? '#21262d' : 'transparent',
               color: engine === 'openrouter' ? '#58a6ff' : '#8b949e',
               border: 'none',
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 600,
               cursor: 'pointer'
             }}
           >
-            OpenRouter (Free AI)
+            OpenRouter
+          </button>
+          <button
+            onClick={() => this.editor.updateShape<VectorStudioShape>({ id: shape.id, type: 'vector-studio', props: { engine: 'zenmux' } })}
+            style={{
+              flex: 1,
+              padding: '5px 6px',
+              borderRadius: 6,
+              background: engine === 'zenmux' ? '#21262d' : 'transparent',
+              color: engine === 'zenmux' ? '#58a6ff' : '#8b949e',
+              border: 'none',
+              fontSize: 10,
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            ZenMux Free
           </button>
         </div>
+
+        {/* AI Prompt Input (when ZenMux or OpenRouter selected) */}
+        {engine !== 'vtracer' && (
+          <div style={{ marginBottom: 10 }}>
+            <input
+              type="text"
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
+              placeholder="Describe SVG (e.g. Robot mascot, vector logo)..."
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                background: '#0d1117',
+                border: '1px solid #30363d',
+                borderRadius: 6,
+                padding: '6px 8px',
+                fontSize: 11,
+                color: '#f0f3f6',
+                outline: 'none'
+              }}
+            />
+          </div>
+        )}
 
         {/* View Tabs */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
