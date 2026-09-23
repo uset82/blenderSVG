@@ -1036,30 +1036,45 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
 #### R1 — Checkpoint first
 
 - [ ] R1.1 Stop every coding agent working on this folder.
-- [ ] R1.2 Create branch `chore/organize-repo` and commit the current work in logical commits. On 2026-09-23 there were 42 untracked and 43 modified files, and core files exist only on this disk: `StudioWebviewPanel.ts`, `openRouterChat.ts`, `openRouterConnection.ts`, `studioProjectStore.ts`, `svgSafety.ts`, `tokens.css`, the `apps/studio/src/ui/` primitives, the router and the tests. Push the branch as a backup.
-- [ ] R1.3 Fix the file-name case: Git tracks `agents.md`, but the file on disk is `AGENTS.md`, so edits to it never show in `git status`. Run `git mv -f agents.md AGENTS.md`.
+- [x] R1.2 Create branch `chore/organize-repo` and commit the current work in logical commits. On 2026-09-23 there were 42 untracked and 43 modified files, and core files exist only on this disk: `StudioWebviewPanel.ts`, `openRouterChat.ts`, `openRouterConnection.ts`, `studioProjectStore.ts`, `svgSafety.ts`, `tokens.css`, the `apps/studio/src/ui/` primitives, the router and the tests. Push the branch as a backup.
+- [x] R1.3 Fix the file-name case: Git tracks `agents.md`, but the file on disk is `AGENTS.md`, so edits to it never show in `git status`. Run `git mv -f agents.md AGENTS.md`.
 - [ ] R1.4 Review the ignored root `.env`: remove keys no longer used (ZenMux, now that remote engines are disabled) and rotate any key that was ever committed.
 
 #### R2 — Delete what is not needed
 
-- [ ] R2.1 `mcps/grok_com_figma/`: 26 Figma MCP tool-schema JSON files an agent saved. Nothing uses them except an exclusion in `biome.json`, so remove that entry too.
-- [ ] R2.2 Root `create-codex-avatar-project.sh` (identical to `scripts/github/create-codex-avatar-project.sh`) and root `CODEX_IDE_PROMPT.md` (a stub pointing to `docs/`).
-- [ ] R2.3 `optional/`: five README-only placeholders (Live2D, Inochi2D, VRM, Blender tools). Their intent is already in §7 Deferred backlog; also drop the matching comment in `pnpm-workspace.yaml`.
-- [ ] R2.4 Unused code:
+- [x] R2.1 `mcps/grok_com_figma/`: 26 Figma MCP tool-schema JSON files an agent saved. Nothing uses them except an exclusion in `biome.json`, so remove that entry too.
+- [x] R2.2 Root `create-codex-avatar-project.sh` (identical to `scripts/github/create-codex-avatar-project.sh`) and root `CODEX_IDE_PROMPT.md` (a stub pointing to `docs/`).
+- [x] R2.3 `optional/`: five README-only placeholders (Live2D, Inochi2D, VRM, Blender tools). Their intent is already in §7 Deferred backlog; also drop the matching comment in `pnpm-workspace.yaml`.
+- [x] R2.4 Unused code:
   - `apps/webview/src/renderers/RiveAvatarRenderer.tsx` and `Live2DAvatarRenderer.tsx`, which nothing imports.
   - `apps/studio/src/components/StudioHeader.tsx` and `FloatingPromptBar.tsx` (same as 14.9).
   - Commit the already-deleted `apps/studio/src/services/agentHarnessService.ts`.
-- [ ] R2.5 Disabled remote engines `packages/asset-pipeline/src/zenmuxEngine.ts` and `openRouterEngine.ts`: remove their exports and `VectorEngine` members and update `remote-engines-disabled.test.ts`. Keep `quiverVectorEngine.ts` for Phase 21.3.
-- [ ] R2.6 Studio dependencies nothing imports: `three`, `@types/three`, `@codex-avatar-studio/runtime-pixi`, and `@tldraw/tldraw` (the code uses `tldraw`). Remove them from `apps/studio/package.json`.
+- [x] R2.5 Disabled remote engines `packages/asset-pipeline/src/zenmuxEngine.ts` and `openRouterEngine.ts`: remove their exports and `VectorEngine` members and update `remote-engines-disabled.test.ts`. Keep `quiverVectorEngine.ts` for Phase 21.3.
+- [x] R2.6 Studio dependencies nothing imports: `three`, `@types/three`, `@codex-avatar-studio/runtime-pixi`, and `@tldraw/tldraw` (the code uses `tldraw`). Remove them from `apps/studio/package.json`.
 - [ ] R2.7 The stale Kilo worktree `.kilo/worktrees/skitter-carob`, detached at `f18a2d9`:
   - `git worktree remove .kilo/worktrees/skitter-carob`
   - delete `.kilo/`
   - add `.kilo/` to `.gitignore`
-- [ ] R2.8 Obsolete agent skills in `.agents/skills/`: `live2d-vtuber-rigger` and `rive-animation-engineer`, whose runtimes are deferred. Decide on `github-project-manager`. Move root `skills.md` to `.agents/README.md` and update its table.
-- [ ] R2.9 Ignored local clutter, which is not in Git:
+- [x] R2.8 Obsolete agent skills in `.agents/skills/`: `live2d-vtuber-rigger` and `rive-animation-engineer`, whose runtimes are deferred. Decide on `github-project-manager`. Move root `skills.md` to `.agents/README.md` and update its table.
+- [x] R2.9 Ignored local clutter, which is not in Git:
   - the old `dist/codex-avatar-studio-0.1.0-pre.1.vsix`;
   - `.codex-avatar/cache/`, 46 MB of disposable job data.
   - Keep `.codex-avatar/avatars/`, `exports/` and `previews/`, which are your assets and evidence.
+
+**R1–R2 evidence (2026-09-23):**
+
+- R1.1 is still open. Codex, Kilo and Cursor processes kept running, and files kept changing until 20:58 while this pass ran. The pass only touched files that agent was not editing, and left its three in-progress files uncommitted: `AgentHarnessSidebar.tsx`, `RecentsDashboard.tsx` and `studioProtocol.ts`.
+- R1.2: branch `chore/organize-repo` holds five checkpoint commits (`80f55c6`…`83afc7c`) covering every untracked and modified file. It is pushed to `origin`, and a secret-pattern scan of the committed files found nothing.
+- R1.3: `git mv -f agents.md AGENTS.md`; Git now tracks `AGENTS.md`.
+- R1.4 is still open. `.env` holds `ZENMUX_API_KEY`, which nothing uses, and `OPENROUTER_API_KEY`. The owner should delete the ZenMux line and revoke that key in the ZenMux account; values were not read or changed.
+- R2 was done in commit `c078c52`:
+  - removed `mcps/`, the root duplicate script, the root prompt stub, `optional/`, the Rive and Live2D renderers, and the OpenRouter and ZenMux engines;
+  - removed four unused Studio dependencies and the Rive and Live2D skills, and moved `skills.md` to `.agents/README.md`;
+  - kept `github-project-manager` because the GitHub templates still exist.
+- R2.7 is partly done: `git worktree remove` removed `.kilo/worktrees/skitter-carob`, which had no changes, and `.kilo/` is now ignored. The rest of `.kilo/` was left because `kilo.exe` was running.
+- R2.9: the old pre-release VSIX and `.codex-avatar/cache/` (46 MB) went to the Windows Recycle Bin, not permanent deletion.
+- R3.4: README rewritten in commit `3b96e24`.
+- Verification: `pnpm install`; `pnpm typecheck` passed in all 7 packages; `pnpm test:unit` passed 46 files and 196 tests; `pnpm validate:docs` passed; Biome check was clean on the touched source files.
 
 #### R3 — One clear docs tree
 
@@ -1083,7 +1098,7 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
   ```
 - [ ] R3.2 Rename `docs/plan/deep-research-report (11).md` to `docs/plan/2026-09-23-svg-research.md`, since spaces and brackets break scripts. Add `docs/plan/README.md` saying these files are history.
 - [ ] R3.3 Update every relative link. That includes `AGENTS.md`, the root `README.md`, and the required-docs list and exclusions in `scripts/validate-docs.mjs`. Exclude `docs/plan/` there the same way as this plan. Then write `docs/README.md`.
-- [ ] R3.4 Rewrite the root `README.md` for what the product is now. Put the avatar extension under "Also included".
+- [x] R3.4 Rewrite the root `README.md` for what the product is now. Put the avatar extension under "Also included".
 
 #### R4 — Scripts by purpose
 
