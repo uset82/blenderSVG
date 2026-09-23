@@ -1,16 +1,16 @@
 {
-  "name": "codex-avatar-studio",
+  "name": "blendersvg",
   "version": "0.1.0",
   "private": true,
-  "description": "VS Code/Codex-compatible animated assistant system with SVG fallback and optional richer avatar runtimes.",
-  "license": "UNLICENSED",
+  "description": "Agentic Infinite Canvas Studio with high-fidelity vectorization, open AI models, and Blender 3D/2D pipeline.",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/uset82/avatar-studio.git"
+    "url": "https://github.com/uset82/blenderSVG.git"
   },
-  "homepage": "https://github.com/uset82/avatar-studio#readme",
+  "homepage": "https://github.com/uset82/blenderSVG#readme",
   "bugs": {
-    "url": "https://github.com/uset82/avatar-studio/issues"
+    "url": "https://github.com/uset82/blenderSVG/issues"
   },
   "packageManager": "pnpm@11.7.0",
   "engines": {

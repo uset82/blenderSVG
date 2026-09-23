@@ -5,6 +5,7 @@ export default defineConfig({
     clearMocks: true,
     environment: "node",
     globals: false,
+    fileParallelism: false,
     include: [
       "packages/*/test/**/*.test.ts",
       "apps/extension/test/**/*.test.ts",

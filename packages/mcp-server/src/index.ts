@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -9,6 +9,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   DEFAULT_OPENROUTER_FREE_MODELS,
+  analyzeBlenderSvgCompatibility,
   generateSvgWithOpenRouter,
   previewImageToSvg
 } from "@codex-avatar-studio/asset-pipeline";
@@ -104,6 +105,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["state"]
+        }
+      },
+      {
+        name: "blender_capability_check",
+        description: "Perform loss-aware diagnostic analysis on an SVG file to determine its compatibility with Blender Curves (3D extrusion) vs Blender Grease Pencil (2D illustration and animation).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            svgPath: {
+              type: "string",
+              description: "Path to the SVG file to analyze."
+            }
+          },
+          required: ["svgPath"]
         }
       },
       {
@@ -235,6 +250,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           {
             type: "text",
             text: `Avatar state updated to '${state}'${speech ? ` with speech: "${speech}"` : ""}. Canvas event dispatched.`
+          }
+        ]
+      };
+    }
+
+    if (name === "blender_capability_check") {
+      const svgPath = String(args?.["svgPath"] ?? "");
+      const resolved = path.resolve(svgPath);
+      if (!existsSync(resolved)) {
+        throw new Error(`SVG file not found: ${svgPath}`);
+      }
+
+      const svgContent = readFileSync(resolved, "utf8");
+      const report = analyzeBlenderSvgCompatibility(svgContent);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Blender SVG Compatibility Diagnostic for '${path.basename(svgPath)}':\n\n` +
+              `• Recommended Adapter: ${report.recommendedAdapter.toUpperCase()}\n` +
+              `• Curve Adapter Score: ${report.curveCompatibility.score}/100 (${report.curveCompatibility.summary})\n` +
+              `• Grease Pencil Score: ${report.greasePencilCompatibility.score}/100 (${report.greasePencilCompatibility.summary})\n` +
+              `• Path Count: ${report.totalPaths}, Groups: ${report.totalGroups}\n` +
+              `• Fills: ${report.solidFills} solid, ${report.gradientFills} gradients\n` +
+              `• Strokes: ${report.strokes}\n\n` +
+              (report.warnings.length > 0 ? `Warnings:\n${report.warnings.map(w => `⚠️ ${w}`).join("\n")}` : "✓ 100% compatible without loss.")
           }
         ]
       };

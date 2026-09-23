@@ -668,15 +668,15 @@ describe("AvatarWebviewProvider asset manifests", () => {
         expect(await registry.listPackages()).toHaveLength(0);
         expect(await registry.getActivePackage()).toBeUndefined();
         expect(vscodeMock.state.config.get("character")).toBe("default");
+        const latestLibraryUpdate = smoke.messages
+          .filter((message): message is LibraryUpdateMessage => isRecord(message) && message.type === "library:updated")
+          .at(-1);
+        expect(latestLibraryUpdate?.avatars).toEqual([
+          expect.objectContaining({ id: "default-coder-orb", active: true, builtIn: true })
+        ]);
       });
-      const latestLibraryUpdate = smoke.messages
-        .filter((message): message is LibraryUpdateMessage => isRecord(message) && message.type === "library:updated")
-        .at(-1);
-      expect(latestLibraryUpdate?.avatars).toEqual([
-        expect.objectContaining({ id: "default-coder-orb", active: true, builtIn: true })
-      ]);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   });
 
