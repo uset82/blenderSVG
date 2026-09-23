@@ -3,16 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
-import {
-  DEFAULT_OPENROUTER_FREE_MODELS,
-  analyzeBlenderSvgCompatibility,
-  generateSvgWithOpenRouter,
-  previewImageToSvg
-} from "@codex-avatar-studio/asset-pipeline";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { analyzeBlenderSvgCompatibility, previewImageToSvg } from "@codex-avatar-studio/asset-pipeline";
 
 const server = new Server(
   {
@@ -31,7 +23,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "studio_status",
-        description: "Check the status of blenderSVG engines: local VTracer WASM, OpenRouter free models, and Blender 4.5.3 LTS.",
+        description: "Check the status of local blenderSVG image tracing and Blender.",
         inputSchema: {
           type: "object",
           properties: {}
@@ -39,7 +31,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "vectorize_image",
-        description: "Convert a raster image (PNG, JPG, WebP) into high-fidelity SVG vector graphics using local VTracer (Bézier splines, zero-cost WASM) or OpenRouter free vision models.",
+        description: "Trace a local PNG or JPEG image into an SVG using local VTracer or ImageTracer.",
         inputSchema: {
           type: "object",
           properties: {
@@ -49,13 +41,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             engine: {
               type: "string",
-              enum: ["vtracer", "openrouter"],
+              enum: ["vtracer", "imagetracer"],
               default: "vtracer",
-              description: "Vectorization engine to use. 'vtracer' runs locally via WebAssembly with zero API keys. 'openrouter' uses free multimodal vision AI."
-            },
-            model: {
-              type: "string",
-              description: "OpenRouter model name if engine is 'openrouter' (defaults to 'google/gemini-2.0-flash-exp:free')."
+              description: "Local image tracing engine."
             },
             outputPath: {
               type: "string",
@@ -66,31 +54,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
-        name: "generate_svg",
-        description: "Generate a clean, scalable SVG vector graphic from a natural language text prompt using OpenRouter free models (Gemini Flash, DeepSeek R1, Llama 3.3).",
-        inputSchema: {
-          type: "object",
-          properties: {
-            prompt: {
-              type: "string",
-              description: "Text prompt describing the desired vector icon, logo, illustration, or avatar component."
-            },
-            model: {
-              type: "string",
-              default: "google/gemini-2.0-flash-exp:free",
-              description: "OpenRouter model to use (default: google/gemini-2.0-flash-exp:free)."
-            },
-            outputPath: {
-              type: "string",
-              description: "Optional destination file path to save the SVG."
-            }
-          },
-          required: ["prompt"]
-        }
-      },
-      {
         name: "avatar_set_state",
-        description: "Control the animated 2D/3D avatar assistant state and speech on the infinite canvas and in the IDE.",
+        description:
+          "Control the animated 2D/3D avatar assistant state and speech on the infinite canvas and in the IDE.",
         inputSchema: {
           type: "object",
           properties: {
@@ -109,7 +75,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "blender_capability_check",
-        description: "Perform loss-aware diagnostic analysis on an SVG file to determine its compatibility with Blender Curves (3D extrusion) vs Blender Grease Pencil (2D illustration and animation).",
+        description:
+          "Perform loss-aware diagnostic analysis on an SVG file to determine its compatibility with Blender Curves (3D extrusion) vs Blender Grease Pencil (2D illustration and animation).",
         inputSchema: {
           type: "object",
           properties: {
@@ -123,7 +90,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "blender_export_lineart",
-        description: "Trigger Blender 4.5 line-art freestyle export from a 3D scene directly into clean 2D vector SVG lines.",
+        description:
+          "Trigger Blender 4.5 line-art freestyle export from a 3D scene directly into clean 2D vector SVG lines.",
         inputSchema: {
           type: "object",
           properties: {
@@ -149,7 +117,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "studio_status") {
       const blenderPath = "C:\\Program Files\\Blender Foundation\\Blender 4.5\\blender.exe";
       const hasBlender = existsSync(blenderPath);
-      const openRouterKeyPresent = Boolean(process.env["OPENROUTER_API_KEY"]);
 
       return {
         content: [
@@ -161,11 +128,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 status: "active",
                 engines: {
                   localVTracer: "Ready (@visioncortex/vtracer WASM Bézier splines, 100% free / local)",
-                  openRouterFreeTier: {
-                    active: true,
-                    apiKeyConfigured: openRouterKeyPresent,
-                    availableFreeModels: DEFAULT_OPENROUTER_FREE_MODELS
-                  },
+                  localImageTracer: "Ready (ImageTracer.js, local)",
                   blender45: {
                     detected: hasBlender,
                     path: blenderPath,
@@ -183,8 +146,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === "vectorize_image") {
       const imagePath = String(args?.["imagePath"] ?? "");
-      const engine = (args?.["engine"] ?? "vtracer") as "vtracer" | "openrouter";
-      const model = args?.["model"] ? String(args["model"]) : undefined;
+      const engine = args?.["engine"] ?? "vtracer";
+      if (engine !== "vtracer" && engine !== "imagetracer") {
+        throw new Error("Only local vtracer and imagetracer engines are available.");
+      }
       const outputPath = args?.["outputPath"] ? String(args["outputPath"]) : undefined;
 
       const resolvedImagePath = path.resolve(imagePath);
@@ -195,8 +160,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const preview = await previewImageToSvg({
         inputPath: resolvedImagePath,
         workspaceRoot: process.cwd(),
-        engine,
-        ...(model ? { openRouterModel: model } : {})
+        engine
       });
 
       const resultSvg = preview.optimizedSvg;
@@ -210,32 +174,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: `Successfully vectorized image using engine '${engine}'!\nOriginal: ${preview.inputPath}\nOutput saved: ${outputPath ?? preview.optimizedSvgPath}\nSVG preview (first 300 chars):\n${resultSvg.slice(0, 300)}...`
-          }
-        ]
-      };
-    }
-
-    if (name === "generate_svg") {
-      const prompt = String(args?.["prompt"] ?? "");
-      const model = args?.["model"] ? String(args["model"]) : "google/gemini-2.0-flash-exp:free";
-      const outputPath = args?.["outputPath"] ? String(args["outputPath"]) : undefined;
-
-      const svg = await generateSvgWithOpenRouter({
-        prompt,
-        model
-      });
-
-      if (outputPath) {
-        mkdirSync(path.dirname(path.resolve(outputPath)), { recursive: true });
-        writeFileSync(path.resolve(outputPath), svg, "utf8");
-      }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `SVG generated with OpenRouter free model '${model}'!\n${outputPath ? `Saved to: ${outputPath}\n` : ""}\nPreview:\n${svg.slice(0, 400)}...`
+            text: `Successfully vectorized image using local engine '${engine}'!\nOriginal: ${preview.inputPath}\n${outputPath ? `Output saved: ${outputPath}` : "Preview only; no file was saved."}\nSVG preview (first 300 chars):\n${resultSvg.slice(0, 300)}...`
           }
         ]
       };
@@ -269,14 +208,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: `Blender SVG Compatibility Diagnostic for '${path.basename(svgPath)}':\n\n` +
+            text:
+              `Blender SVG Compatibility Diagnostic for '${path.basename(svgPath)}':\n\n` +
               `• Recommended Adapter: ${report.recommendedAdapter.toUpperCase()}\n` +
               `• Curve Adapter Score: ${report.curveCompatibility.score}/100 (${report.curveCompatibility.summary})\n` +
               `• Grease Pencil Score: ${report.greasePencilCompatibility.score}/100 (${report.greasePencilCompatibility.summary})\n` +
               `• Path Count: ${report.totalPaths}, Groups: ${report.totalGroups}\n` +
               `• Fills: ${report.solidFills} solid, ${report.gradientFills} gradients\n` +
               `• Strokes: ${report.strokes}\n\n` +
-              (report.warnings.length > 0 ? `Warnings:\n${report.warnings.map(w => `⚠️ ${w}`).join("\n")}` : "✓ 100% compatible without loss.")
+              (report.warnings.length > 0
+                ? `Warnings:\n${report.warnings.map((w) => `⚠️ ${w}`).join("\n")}`
+                : "✓ 100% compatible without loss.")
           }
         ]
       };

@@ -10,6 +10,16 @@
       "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js",
       "default": "./dist/src/index.js"
+    },
+    "./svg-safety": {
+      "types": "./dist/src/svgSafety.d.ts",
+      "import": "./dist/src/svgSafety.js",
+      "default": "./dist/src/svgSafety.js"
+    },
+    "./trace-pixels": {
+      "types": "./dist/src/tracePixels.d.ts",
+      "import": "./dist/src/tracePixels.js",
+      "default": "./dist/src/tracePixels.js"
     }
   },
   "scripts": {
@@ -24,7 +34,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@quiverai/sdk": "^0.9.3",
     "@visioncortex/vtracer": "1.0.0-alpha.4",
     "fast-xml-parser": "^5.9.3",
     "imagetracerjs": "1.2.6",

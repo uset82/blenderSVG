@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { createManifestEntry, optimizeSvg, sanitizeSvg, validateSvgLayers } from "../src/index.js";
+import { createManifestEntry } from "../src/manifestGenerator.js";
+import { optimizeSvg } from "../src/optimizeSvg.js";
+import { prepareSvgPreview, sanitizeSvg } from "../src/svgSafety.js";
+import { validateSvgLayers } from "../src/validateSvgLayers.js";
 
 const layeredSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">
   <g id="avatar/root">
@@ -30,6 +33,41 @@ test("sanitizes executable and external SVG content", () => {
   assert.doesNotMatch(sanitized, /script|foreignObject|onload|@import|evil\.example|file:|blob:|data:|javascript:/i);
   assert.match(sanitized, /href="#safe"/);
   assert.match(sanitized, /fill="url\(#paint\)"/);
+});
+
+test("prepares a sanitized SVG as an inert image source", () => {
+  const preview = prepareSvgPreview(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" onload="alert(1)"><script>alert(1)</script><path d="M0 0h10v10z" fill="url(#paint)"/></svg>`
+  );
+  assert.match(preview.src, /^data:image\/svg\+xml;charset=utf-8,/);
+  assert.doesNotMatch(preview.svg, /onload|script/i);
+  assert.match(decodeURIComponent(preview.src.split(",")[1] ?? ""), /<path/);
+});
+
+test("rejects malformed, external, and unsupported SVG previews", () => {
+  const root = `xmlns="http://www.w3.org/2000/svg"`;
+  assert.throws(() => prepareSvgPreview(`<svg ${root}><path></svg>`), /malformed/);
+  assert.throws(
+    () => prepareSvgPreview(`<svg ${root}><a href="https://example.com"><path d="M0 0"/></a></svg>`),
+    /unsupported/
+  );
+  assert.throws(() => prepareSvgPreview(`<svg ${root}><use href="#local"/></svg>`), /unsupported/);
+  assert.throws(
+    () => prepareSvgPreview(`<svg ${root} data-leak="&#x68;ttps://example.com/a.svg"><path/></svg>`),
+    /encoded entity/
+  );
+  assert.throws(
+    () => prepareSvgPreview(`<svg ${root} data-leak="https&colon;//example.com"><path/></svg>`),
+    /encoded entity/
+  );
+  assert.throws(
+    () => prepareSvgPreview(`<svg ${root} xmlns:custom="https://example.com/ns"><path/></svg>`),
+    /unsafe attribute/
+  );
+  assert.throws(
+    () => prepareSvgPreview(`<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///secret">]><svg ${root}/>`),
+    /declaration or encoded entity/
+  );
 });
 
 test("reports layer warnings for unstructured traces", () => {

@@ -1,13 +1,11 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { convertPixels } from "@visioncortex/vtracer";
 import ImageTracer from "imagetracerjs";
 import Jimp from "jimp";
 import { assertTraceableImageFile, assertTraceableImageMetadata, readImageMetadata } from "./imageMetadata.js";
 import { createManifestEntry } from "./manifestGenerator.js";
 import { optimizeSvg } from "./optimizeSvg.js";
-import { vectorizeImageWithOpenRouterVision } from "./openRouterEngine.js";
 import { assertSupportedImagePath, createAvailableOutputPaths, getSvgExportDirectory } from "./paths.js";
-import { generateSvgWithQuiver } from "./quiverVectorEngine.js";
 import type {
   RasterPreprocessingOptions,
   VectorizeImageOptions,
@@ -28,6 +26,7 @@ export async function vectorizeImageToSvg(options: VectorizeImageOptions): Promi
 
 export async function previewImageToSvg(options: VectorizeImageOptions): Promise<VectorizePreview> {
   throwIfAborted(options.signal);
+  assertLocalVectorEngine(options.engine);
   options.onProgress?.("validating");
   assertSupportedImagePath(options.inputPath);
   await assertTraceableImageFile(options.inputPath);
@@ -123,29 +122,6 @@ function traceImage(
 ): Promise<string> {
   throwIfAborted(signal);
 
-  if (options?.engine === "quiverai" && options.quiverApiKey) {
-    onProgress?.("tracing");
-    return generateSvgWithQuiver({
-      apiKey: options.quiverApiKey,
-      prompt: options.quiverPrompt ?? "Vector avatar illustration, flat design",
-      model: options.quiverModel,
-      signal
-    });
-  }
-
-  if (options?.engine === "openrouter") {
-    onProgress?.("tracing");
-    return readFile(inputPath).then((buffer) =>
-      vectorizeImageWithOpenRouterVision({
-        apiKey: options.openRouterApiKey,
-        imageBase64: buffer.toString("base64"),
-        model: options.openRouterModel,
-        prompt: options.openRouterPrompt,
-        ...(signal ? { signal } : {})
-      })
-    );
-  }
-
   return Jimp.read(inputPath)
     .catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -191,6 +167,11 @@ function traceImage(
         throw new Error(`Unable to trace image locally: ${message}`);
       }
     });
+}
+
+function assertLocalVectorEngine(engine: unknown): void {
+  if (engine === undefined || engine === "vtracer" || engine === "imagetracer") return;
+  throw new Error("Remote SVG generation is disabled. Choose vtracer or imagetracer for local image tracing.");
 }
 
 function createVTracerOptions(preprocessing: RasterPreprocessingOptions) {

@@ -10,3 +10,4 @@ export * from "./runtime.js";
 export * from "./states.js";
 export * from "./stateMachine.js";
 export * from "./types.js";
+export * from "./studioProtocol.js";

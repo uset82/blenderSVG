@@ -2,7 +2,9 @@ export const supportedImageExtensions = [".png", ".jpg", ".jpeg"] as const;
 
 export type SupportedImageExtension = (typeof supportedImageExtensions)[number];
 
-export type VectorEngine = "vtracer" | "openrouter" | "imagetracer" | "quiverai";
+// Remote values remain in the type for callers migrating from older releases.
+// previewImageToSvg rejects them before reading the source image.
+export type VectorEngine = "vtracer" | "imagetracer" | "openrouter" | "quiverai";
 
 export type VectorizeImageOptions = {
   inputPath: string;
@@ -15,11 +17,17 @@ export type VectorizeImageOptions = {
   maxSvgBytes?: number;
   maxSvgPaths?: number;
   engine?: VectorEngine;
+  /** @deprecated Remote SVG and vision generation is disabled. */
   openRouterApiKey?: string;
+  /** @deprecated Remote SVG and vision generation is disabled. */
   openRouterModel?: string;
+  /** @deprecated Remote SVG and vision generation is disabled. */
   openRouterPrompt?: string;
+  /** @deprecated Remote SVG and vision generation is disabled. */
   quiverApiKey?: string;
+  /** @deprecated Remote SVG and vision generation is disabled. */
   quiverModel?: string;
+  /** @deprecated Remote SVG and vision generation is disabled. */
   quiverPrompt?: string;
   preprocessing?: RasterPreprocessingOptions;
 };
