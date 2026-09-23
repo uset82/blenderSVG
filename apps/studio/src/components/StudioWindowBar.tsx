@@ -1,28 +1,33 @@
-import React, { useState } from 'react'
+import { LayoutGrid, Minus, PanelRight, Plus, SunMoon } from "lucide-react";
+import { useEffect, useState } from "react";
+import brandMarkUrl from "../assets/brand-mark.svg?inline";
 
 export interface StudioWindowBarProps {
-  projectTitle: string
-  onTitleChange: (title: string) => void
-  activeMode: 'design' | 'agents' | 'blender'
-  onModeChange: (mode: 'design' | 'agents' | 'blender') => void
-  isRecentsOpen: boolean
-  onToggleRecents: () => void
-  isAgentSidebarOpen: boolean
-  onToggleAgentSidebar: () => void
-  isInspectorOpen: boolean
-  onToggleInspector: () => void
-  zoomLevel: number
-  onZoomIn: () => void
-  onZoomOut: () => void
-  onZoomReset: () => void
-  onExport: () => void
+  projectTitle: string;
+  saveStatus: string;
+  theme: "dark" | "light" | "contrast";
+  onCycleTheme: () => void;
+  onTitleChange: (title: string) => void;
+  isHome: boolean;
+  onShowHome: () => void;
+  isAgentSidebarOpen: boolean;
+  onToggleAgentSidebar: () => void;
+  isInspectorOpen: boolean;
+  onToggleInspector: () => void;
+  zoomLevel: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomReset: () => void;
 }
 
 export function StudioWindowBar({
   projectTitle,
+  saveStatus,
+  theme,
+  onCycleTheme,
   onTitleChange,
-  isRecentsOpen,
-  onToggleRecents,
+  isHome,
+  onShowHome,
   isAgentSidebarOpen,
   onToggleAgentSidebar,
   isInspectorOpen,
@@ -30,247 +35,121 @@ export function StudioWindowBar({
   zoomLevel,
   onZoomIn,
   onZoomOut,
-  onZoomReset,
-  onExport
+  onZoomReset
 }: StudioWindowBarProps) {
-  const [isEditingTitle, setIsEditingTitle] = useState(false)
-  const [titleInput, setTitleInput] = useState(projectTitle)
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState(projectTitle);
+
+  useEffect(() => {
+    if (!isEditingTitle) setTitleInput(projectTitle);
+  }, [isEditingTitle, projectTitle]);
 
   const handleTitleSubmit = () => {
-    setIsEditingTitle(false)
-    if (titleInput.trim()) {
-      onTitleChange(titleInput.trim())
-    } else {
-      setTitleInput(projectTitle)
-    }
-  }
+    setIsEditingTitle(false);
+    if (titleInput.trim()) onTitleChange(titleInput.trim());
+    else setTitleInput(projectTitle);
+  };
 
   return (
-    <header
-      style={{
-        height: 44,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 14px',
-        background: '#0c0d10',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-        zIndex: 100,
-        userSelect: 'none',
-        flexShrink: 0
-      }}
-    >
-      {/* Left: Project Brand & Auto-saved Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {/* Recents Dashboard Toggle */}
+    <header className="studio-windowbar">
+      <div className="studio-windowbar__left">
         <button
-          onClick={onToggleRecents}
-          title="All Projects (Paper style)"
-          style={{
-            background: isRecentsOpen ? '#20242e' : 'transparent',
-            border: 'none',
-            borderRadius: 6,
-            padding: '5px 7px',
-            color: '#c5cdd8',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            fontSize: 13
-          }}
+          className="studio-windowbar__recents studio-windowbar__control"
+          type="button"
+          onClick={onShowHome}
+          title="Home"
+          aria-label="Home"
+          aria-pressed={isHome}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
-          </svg>
+          <LayoutGrid size={16} strokeWidth={1.75} aria-hidden="true" />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#f0f3f6', letterSpacing: '-0.3px' }}>
-            blendersvg
+        <div className="studio-windowbar__project">
+          <span className="studio-windowbar__brand">
+            <img className="studio-windowbar__brand-mark" src={brandMarkUrl} alt="" aria-hidden="true" />
+            blenderSVG Studio
           </span>
-          <span style={{ color: '#57606e', fontSize: 12 }}>/</span>
+          <span className="studio-windowbar__separator">/</span>
 
           {isEditingTitle ? (
             <input
+              className="studio-windowbar__title-input"
               type="text"
               value={titleInput}
               autoFocus
-              onChange={(e) => setTitleInput(e.target.value)}
+              onChange={(event) => setTitleInput(event.target.value)}
               onBlur={handleTitleSubmit}
-              onKeyDown={(e) => e.key === 'Enter' && handleTitleSubmit()}
-              style={{
-                background: '#161920',
-                border: '1px solid #388bfd',
-                borderRadius: 5,
-                padding: '2px 6px',
-                color: '#f0f3f6',
-                fontSize: 12,
-                outline: 'none'
-              }}
+              onKeyDown={(event) => event.key === "Enter" && handleTitleSubmit()}
             />
           ) : (
-            <div
+            <button
+              className="studio-windowbar__rename"
+              type="button"
+              aria-label="Rename current canvas"
               onClick={() => setIsEditingTitle(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                cursor: 'pointer',
-                color: '#9aa4b2',
-                fontSize: 12
-              }}
             >
-              <span style={{ color: '#f0f3f6', fontWeight: 500 }}>{projectTitle}</span>
-              <span style={{ fontSize: 11, color: '#57606e' }}>— Auto-saved</span>
-            </div>
+              <span className="studio-windowbar__title">{projectTitle}</span>
+              <span className="studio-windowbar__unsaved" role="status">
+                — {saveStatus}
+              </span>
+            </button>
           )}
         </div>
       </div>
 
-      {/* Right Controls (pen.dev style) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {/* Agents Toggle */}
+      <div className="studio-windowbar__actions">
         <button
+          className="studio-windowbar__panel-toggle studio-windowbar__control"
+          type="button"
+          aria-pressed={isAgentSidebarOpen}
+          aria-label={isAgentSidebarOpen ? "Close AI setup" : "Open AI setup"}
           onClick={onToggleAgentSidebar}
-          style={{
-            background: isAgentSidebarOpen ? '#20242e' : 'transparent',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 6,
-            padding: '4px 10px',
-            color: isAgentSidebarOpen ? '#ffffff' : '#8c96a5',
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5
-          }}
         >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: isAgentSidebarOpen ? '#388bfd' : '#57606e' }} />
-          <span>Agents</span>
+          <span className="studio-windowbar__status-dot" aria-hidden="true" />
+          <span className="studio-windowbar__action-label">AI setup</span>
         </button>
 
-        {/* Inspector Toggle */}
         <button
+          className="studio-windowbar__panel-toggle studio-windowbar__control"
+          type="button"
+          aria-pressed={isInspectorOpen}
+          aria-label={isInspectorOpen ? "Close inspector" : "Open inspector"}
           onClick={onToggleInspector}
-          style={{
-            background: isInspectorOpen ? '#20242e' : 'transparent',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 6,
-            padding: '4px 10px',
-            color: isInspectorOpen ? '#ffffff' : '#8c96a5',
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
         >
-          Inspector
+          <span className="studio-windowbar__inspector-icon" aria-hidden="true">
+            <PanelRight size={15} strokeWidth={1.75} />
+          </span>
+          <span className="studio-windowbar__inspector-label">Inspector</span>
         </button>
 
-        {/* Share Button */}
         <button
-          style={{
-            background: 'transparent',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 6,
-            padding: '4px 10px',
-            color: '#c5cdd8',
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
+          className="studio-windowbar__theme studio-windowbar__control"
+          type="button"
+          aria-label={`Change theme, current theme ${theme}`}
+          title={`Theme: ${theme}`}
+          onClick={onCycleTheme}
         >
-          Share
+          <SunMoon size={17} strokeWidth={1.75} aria-hidden="true" />
+          <span className="sr-only">Theme: {theme}</span>
         </button>
 
-        {/* Export Button */}
-        <button
-          onClick={onExport}
-          style={{
-            background: '#ffffff',
-            border: 'none',
-            borderRadius: 6,
-            padding: '4px 10px',
-            color: '#0c0d10',
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
-          Export
-        </button>
-
-        {/* Zoom Controls */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: '#14161c',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 6,
-            padding: '1px 3px'
-          }}
-        >
-          <button
-            onClick={onZoomOut}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#8c96a5',
-              cursor: 'pointer',
-              padding: '1px 4px',
-              fontSize: 11
-            }}
-          >
-            −
+        <div className="studio-windowbar__zoom">
+          <button type="button" aria-label="Zoom out" onClick={onZoomOut}>
+            <Minus size={14} strokeWidth={1.75} aria-hidden="true" />
           </button>
-          <span
+          <button
+            className="studio-windowbar__zoom-level"
+            type="button"
+            aria-label="Reset zoom to 100%"
             onClick={onZoomReset}
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              color: '#c5cdd8',
-              padding: '1px 4px',
-              cursor: 'pointer'
-            }}
           >
             {Math.round(zoomLevel * 100)}%
-          </span>
-          <button
-            onClick={onZoomIn}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#8c96a5',
-              cursor: 'pointer',
-              padding: '1px 4px',
-              fontSize: 11
-            }}
-          >
-            +
           </button>
-        </div>
-
-        {/* User Avatar */}
-        <div
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: '50%',
-            background: '#262a36',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 10,
-            fontWeight: 700,
-            color: '#f0f3f6',
-            cursor: 'pointer'
-          }}
-          title="Carlos Carpio"
-        >
-          CC
+          <button type="button" aria-label="Zoom in" onClick={onZoomIn}>
+            <Plus size={14} strokeWidth={1.75} aria-hidden="true" />
+          </button>
         </div>
       </div>
     </header>
-  )
+  );
 }

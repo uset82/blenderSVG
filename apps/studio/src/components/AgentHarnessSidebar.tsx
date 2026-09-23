@@ -1,715 +1,840 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import {
-  OpenRouterModelInfo,
-  POPULAR_MODELS,
-  AgentChatMessage,
-  ZCodeAgentMode,
-  fetchAllOpenRouterModels
-} from '../services/agentHarnessService.js'
+  STUDIO_CHAT_SYSTEM_PROMPT,
+  type StudioChatHistoryMessage,
+  type StudioModel
+} from "@codex-avatar-studio/avatar-core";
+import { filterStudioModels, readCatalogPrice, type ModalityFilter, type PriceFilter } from "./modelFilters.js";
+import type { StudioChatRun, StudioModelCatalog, StudioImageAttachment } from "../bridge/studioHost.js";
+
+export type OpenRouterConnectionAction = "connect" | "replace" | "test" | "disconnect";
 
 export interface AgentHarnessSidebarProps {
-  isOpen: boolean
-  onClose: () => void
-  onInsertSvgToCanvas: (svg: string, label?: string) => void
-  onSendToBlender: (svg: string) => void
+  className?: string;
+  isOpen: boolean;
+  draftPrefill?: { id: string; text: string } | null;
+  draftImagePrefill?: { id: string; file: File } | null;
+  onClose: () => void;
+  connectionHost: "vscode" | "browser";
+  workspaceTrusted: boolean;
+  connection: {
+    status: "disconnected" | "connected" | "checking" | "error";
+    message: string;
+  };
+  modelCatalog: StudioModelCatalog;
+  chatRun: StudioChatRun | null;
+  panelWidth: number;
+  panelHeight: number;
+  onConnectionAction: (action: OpenRouterConnectionAction) => void;
+  onRefreshModels: () => void;
+  onSendChat: (
+    modelId: string,
+    history: StudioChatHistoryMessage[],
+    userMessage: string,
+    attachment?: StudioImageAttachment
+  ) => string | null;
+  onCancelChat: (requestId: string) => void;
+  onClearChatRun: () => void;
+}
+
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  status: "complete" | "streaming" | "error";
+  errorMessage?: string;
+  attachment?: { file: File; dataUrl: string };
+}
+
+interface OutboundPreview {
+  model: StudioModel;
+  history: StudioChatHistoryMessage[];
+  message: string;
+  omittedMessages: number;
+  attachment?: { file: File; dataUrl: string };
 }
 
 export function AgentHarnessSidebar({
+  className,
   isOpen,
-  onInsertSvgToCanvas,
-  onSendToBlender
+  draftPrefill,
+  draftImagePrefill,
+  onClose,
+  connectionHost,
+  workspaceTrusted,
+  connection,
+  modelCatalog,
+  chatRun,
+  panelWidth,
+  panelHeight,
+  onConnectionAction,
+  onRefreshModels,
+  onSendChat,
+  onCancelChat,
+  onClearChatRun
 }: AgentHarnessSidebarProps) {
-  const [activeTab, setActiveTab] = useState<'agent' | 'code' | 'inspector'>('agent')
-  const [mode, setMode] = useState<ZCodeAgentMode>('build')
-  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.0-flash-exp:free')
-  const [models, setModels] = useState<OpenRouterModelInfo[]>(POPULAR_MODELS)
-  const [modelSearch, setModelSearch] = useState('')
-  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false)
-  const [parallelAgents, setParallelAgents] = useState<1 | 2 | 3 | 4 | 6>(1)
-  const [distribution, setDistribution] = useState<'split' | 'side-by-side'>('split')
-  const [openRouterKey, setOpenRouterKey] = useState<string>(() => localStorage.getItem('blendersvg_openrouter_key') || '')
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false)
-
-  // Messages state
-  const [messages, setMessages] = useState<AgentChatMessage[]>([])
-  const [inputValue, setInputValue] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  // Pen.dev exact prompt suggestions
-  const promptSuggestions = [
-    'High contrast realtime trading terminal',
-    'Cozy mobile app for tracking houseplants',
-    'Vintage ticketing site for an independent ortho',
-    'Elegant reservation app for a Michelin-star sushi bar',
-    'Control panel for a humanoid robotics factory'
-  ]
-
-  // Fetch all OpenRouter models on mount
-  useEffect(() => {
-    fetchAllOpenRouterModels().then((data) => {
-      if (data && data.length > 0) {
-        setModels(data)
-      }
-    })
-  }, [])
+  const [selectedModelId, setSelectedModelId] = useState(readSelectedModelId);
+  const [modelQuery, setModelQuery] = useState("");
+  const [authorFilter, setAuthorFilter] = useState("all");
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>("all");
+  const [modalityFilter, setModalityFilter] = useState<ModalityFilter>("all");
+  const [minimumContext, setMinimumContext] = useState("all");
+  const [maximumInputPrice, setMaximumInputPrice] = useState("");
+  const [maximumOutputPrice, setMaximumOutputPrice] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [attachedImage, setAttachedImage] = useState<File | null>(null);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [outboundPreview, setOutboundPreview] = useState<OutboundPreview | null>(null);
+  const previewSendRef = useRef<HTMLButtonElement>(null);
+  const lastDraftPrefillIdRef = useRef<string | null>(null);
+  const lastImagePrefillIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (!draftPrefill || draftPrefill.id === lastDraftPrefillIdRef.current) return;
+    lastDraftPrefillIdRef.current = draftPrefill.id;
+    setDraft(draftPrefill.text);
+  }, [draftPrefill]);
 
-  const handleSaveApiKey = (key: string) => {
-    setOpenRouterKey(key)
-    localStorage.setItem('blendersvg_openrouter_key', key)
-    setIsKeyModalOpen(false)
-  }
+  useEffect(() => {
+    if (!draftImagePrefill || draftImagePrefill.id === lastImagePrefillIdRef.current) return;
+    lastImagePrefillIdRef.current = draftImagePrefill.id;
+    setAttachedImage(draftImagePrefill.file);
+    setAttachmentError(null);
+  }, [draftImagePrefill]);
 
-  const handleSendMessage = async (textToSend?: string) => {
-    const text = (textToSend || inputValue).trim()
-    if (!text || isProcessing) return
-
-    const userMsg: AgentChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: text,
-      timestamp: Date.now()
+  useEffect(() => {
+    if (!attachedImage) {
+      setAttachmentUrl(null);
+      return;
     }
+    const url = URL.createObjectURL(attachedImage);
+    setAttachmentUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [attachedImage]);
 
-    setMessages((prev) => [...prev, userMsg])
-    if (!textToSend) setInputValue('')
-    setIsProcessing(true)
+  const canManageConnection = connectionHost === "vscode" && workspaceTrusted && connection.status !== "checking";
+  const connected = connection.status === "connected";
+  const connectionLabel =
+    connection.status === "checking"
+      ? "Checking connection"
+      : connected
+        ? "Connected"
+        : connection.status === "error"
+          ? "Connection error"
+          : "Not connected";
+  const connectionMessage =
+    connectionHost === "browser"
+      ? "This local browser preview cannot store keys or send chat. Open Studio from VS Code to use SecretStorage and the trusted host."
+      : !workspaceTrusted
+        ? "Trust this workspace before connecting an OpenRouter account."
+        : connection.message || "Connect your own OpenRouter account through the VS Code host.";
 
+  const authors = useMemo(
+    () => [...new Set(modelCatalog.models.map((model) => model.author).filter(Boolean))].sort(),
+    [modelCatalog.models]
+  );
+  const matchingModels = useMemo(
+    () =>
+      filterStudioModels(modelCatalog.models, {
+        query: modelQuery,
+        author: authorFilter,
+        price: priceFilter,
+        modality: modalityFilter,
+        minimumContext: minimumContext === "all" ? null : Number(minimumContext),
+        maximumInputPricePerMillion: readOptionalNumber(maximumInputPrice),
+        maximumOutputPricePerMillion: readOptionalNumber(maximumOutputPrice)
+      }),
+    [
+      authorFilter,
+      maximumInputPrice,
+      maximumOutputPrice,
+      minimumContext,
+      modelCatalog.models,
+      modelQuery,
+      modalityFilter,
+      priceFilter
+    ]
+  );
+  const selectedModel = modelCatalog.models.find((model) => model.id === selectedModelId);
+  const canChat = connectionHost === "vscode" && workspaceTrusted && connected;
+  const canSend =
+    canChat &&
+    modelCatalog.status === "ready" &&
+    !!selectedModel?.textChatEligible &&
+    (!attachedImage || selectedModel.inputModalities.includes("image")) &&
+    !!draft.trim() &&
+    !isChatBusy(chatRun);
+
+  useEffect(() => {
     try {
-      const isZenMux = selectedModel.startsWith('z-ai/')
-      const isVTracer = selectedModel.includes('vtracer')
-
-      const response = await fetch('/api/vectorize-sample', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          engine: isZenMux ? 'zenmux' : isVTracer ? 'vtracer' : 'openrouter',
-          prompt: text,
-          model: selectedModel,
-          apiKey: openRouterKey || undefined
-        })
-      })
-
-      const data = await response.json()
-      const svg = data.svg || ''
-
-      const assistantMsg: AgentChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: `Generated vector specification for "${text}" using ${selectedModel}. Ready for placement on canvas frame.`,
-        thought: `Synthesized request into ${parallelAgents}x agent workflow under ${mode} mode. Produced clean SVG markup ready for artboard insertion.`,
-        toolCall: {
-          tool: 'vtracer',
-          status: 'success',
-          details: `Generated ${svg.length} bytes of clean SVG.`,
-          svgPayload: svg
-        },
-        timestamp: Date.now()
-      }
-
-      setMessages((prev) => [...prev, assistantMsg])
-      if (svg) {
-        onInsertSvgToCanvas(svg, text)
-      }
-    } catch (err: any) {
-      const errorMsg: AgentChatMessage = {
-        id: `error-${Date.now()}`,
-        role: 'assistant',
-        content: `Agent execution failed: ${err.message}. Retrying with local VTracer WASM fallback.`,
-        timestamp: Date.now()
-      }
-      setMessages((prev) => [...prev, errorMsg])
-    } finally {
-      setIsProcessing(false)
+      if (selectedModelId) window.localStorage.setItem("codex-avatar-studio-selected-model", selectedModelId);
+      else window.localStorage.removeItem("codex-avatar-studio-selected-model");
+    } catch {
+      // Keep model selection for this session when browser storage is unavailable.
     }
-  }
+  }, [selectedModelId]);
 
-  const filteredModels = models.filter(
-    (m) =>
-      m.name.toLowerCase().includes(modelSearch.toLowerCase()) ||
-      m.id.toLowerCase().includes(modelSearch.toLowerCase()) ||
-      m.provider?.toLowerCase().includes(modelSearch.toLowerCase())
-  )
+  useEffect(() => {
+    if (!chatRun) return;
+    setMessages((current) => {
+      const index = current.findIndex((message) => message.id === chatRun.requestId);
+      if (index < 0) return current;
+      const updated = current.slice();
+      updated[index] = {
+        ...updated[index]!,
+        content: chatRun.text,
+        status: chatRun.status === "complete" ? "complete" : chatRun.status === "error" ? "error" : "streaming",
+        ...(chatRun.status === "error" && chatRun.message ? { errorMessage: chatRun.message } : {})
+      };
+      return updated;
+    });
+  }, [chatRun]);
 
-  const activeModelObj = models.find((m) => m.id === selectedModel) || {
-    id: selectedModel,
-    name: selectedModel,
-    isFree: selectedModel.includes(':free') || selectedModel.startsWith('z-ai/')
-  }
+  useEffect(() => {
+    if (outboundPreview) previewSendRef.current?.focus();
+  }, [outboundPreview]);
 
-  if (!isOpen) return null
+  useEffect(() => {
+    if (!outboundPreview) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOutboundPreview(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [outboundPreview]);
+
+  if (!isOpen) return null;
+
+  const requestPreview = async () => {
+    if (!canSend || !selectedModel) return;
+    setAttachmentError(null);
+    const transcript = messages
+      .filter((message) => message.role === "user" || message.status === "complete")
+      .map(({ role, content }) => ({ role, content }) as StudioChatHistoryMessage);
+    const bounded = boundOutboundHistory(transcript);
+    let attachment: OutboundPreview["attachment"];
+    try {
+      if (attachedImage) attachment = { file: attachedImage, dataUrl: await readImageAsDataUrl(attachedImage) };
+    } catch {
+      setAttachmentError("Studio could not prepare this image locally. Remove it and attach it again.");
+      return;
+    }
+    setOutboundPreview({
+      model: selectedModel,
+      history: bounded.history,
+      message: draft.trim(),
+      omittedMessages: bounded.omittedMessages,
+      ...(attachment ? { attachment } : {})
+    });
+  };
+
+  const sendAfterPreview = () => {
+    if (!outboundPreview) return;
+    const requestId = onSendChat(
+      outboundPreview.model.id,
+      outboundPreview.history,
+      outboundPreview.message,
+      outboundPreview.attachment ? { dataUrl: outboundPreview.attachment.dataUrl } : undefined
+    );
+    if (!requestId) return;
+    setMessages((current) => [
+      ...current,
+      {
+        id: `user-${requestId}`,
+        role: "user",
+        content: outboundPreview.message,
+        status: "complete",
+        ...(outboundPreview.attachment ? { attachment: outboundPreview.attachment } : {})
+      },
+      { id: requestId, role: "assistant", content: "", status: "streaming" }
+    ]);
+    setDraft("");
+    setAttachedImage(null);
+    setOutboundPreview(null);
+  };
+
+  const startNewConversation = () => {
+    if (chatRun && isChatBusy(chatRun)) onCancelChat(chatRun.requestId);
+    setMessages([]);
+    setDraft("");
+    setAttachedImage(null);
+    onClearChatRun();
+  };
+
+  const stopGeneration = () => {
+    if (chatRun && isChatBusy(chatRun)) onCancelChat(chatRun.requestId);
+  };
+
+  const retryLastUserMessage = () => {
+    const lastUserIndex = messages.map((item) => item.role).lastIndexOf("user");
+    if (lastUserIndex < 0) return;
+    const lastUser = messages[lastUserIndex];
+    setMessages(messages.slice(0, lastUserIndex));
+    setDraft(lastUser?.content ?? "");
+    setAttachedImage(lastUser?.attachment?.file ?? null);
+  };
 
   return (
     <aside
-      style={{
-        width: 340,
-        height: '100%',
-        background: '#0f1115',
-        borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-        zIndex: 50,
-        display: 'flex',
-        flexDirection: 'column',
-        userSelect: 'none',
-        flexShrink: 0
-      }}
+      className={className}
+      id="studio-agent-sidebar"
+      aria-label="Agent conversation"
+      style={
+        {
+          "--studio-panel-width": `${panelWidth}px`,
+          "--studio-mobile-panel-size": `${panelHeight}px`
+        } as React.CSSProperties
+      }
     >
-      {/* Top Header & Tabs (pen.dev style) */}
-      <div
-        style={{
-          padding: '10px 14px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Tab Selector */}
-          <div style={{ display: 'flex', background: '#161920', borderRadius: 7, padding: 2, gap: 2 }}>
-            {(['agent', 'code', 'inspector'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  background: activeTab === tab ? '#262a36' : 'transparent',
-                  color: activeTab === tab ? '#ffffff' : '#8c96a5',
-                  border: 'none',
-                  borderRadius: 5,
-                  padding: '3px 9px',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  textTransform: 'capitalize'
-                }}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          {/* Agent Switcher & New */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 11, color: '#8c96a5' }}>New Agent ⌄</span>
-            <button
-              onClick={() => setMessages([])}
-              style={{
-                background: '#1a1d26',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                color: '#c5cdd8',
-                borderRadius: 5,
-                padding: '2px 7px',
-                fontSize: 11,
-                cursor: 'pointer'
-              }}
-            >
-              + New
-            </button>
+      <header className="studio-agent__header">
+        <div>
+          <div className="studio-agent__title">Conversation</div>
+          <div className="studio-agent__subtitle">
+            OpenRouter · {connectionLabel} · <span aria-label="Tool execution off">Tools off</span>
           </div>
         </div>
-
-        {/* ZCode Mode Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 10, fontWeight: 600, color: '#57606e' }}>MODE</span>
-          <div style={{ display: 'flex', background: '#14161c', borderRadius: 6, padding: 2, gap: 2 }}>
-            {(['plan', 'build', 'yolo'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                style={{
-                  background: mode === m ? '#262a36' : 'transparent',
-                  color: mode === m ? '#ffffff' : '#8c96a5',
-                  border: 'none',
-                  borderRadius: 4,
-                  padding: '2px 8px',
-                  fontSize: 10,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textTransform: 'uppercase'
-                }}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
+        <div className="studio-agent__header-actions">
+          <button className="studio-agent__button" type="button" onClick={startNewConversation}>
+            New chat
+          </button>
+          <button
+            className="studio-agent__button studio-agent__button--icon studio-panel-close"
+            type="button"
+            aria-label="Close conversation"
+            onClick={onClose}
+          >
+            <X size={17} strokeWidth={1.75} aria-hidden="true" />
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Main Body (Suggestions or Messages) */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '14px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12
-        }}
-      >
-        {messages.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: '#c5cdd8', marginBottom: 2 }}>
-              Ask me to design anything
-            </div>
-
-            {promptSuggestions.map((text, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSendMessage(text)}
-                style={{
-                  background: '#14161c',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  borderRadius: 8,
-                  padding: '8px 10px',
-                  color: '#9aa4b2',
-                  fontSize: 11,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  lineHeight: 1.4
-                }}
-              >
-                {text}
-              </button>
-            ))}
-
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#57606e', marginBottom: 4 }}>
-                How to export to code
-              </div>
-              <div style={{ fontSize: 10, color: '#7a8596', lineHeight: 1.4 }}>
-                Click Export in the titlebar to generate React/Tailwind code or send directly to Blender 4.5.
-              </div>
-            </div>
+      <div className="studio-agent__scroll">
+        <section className="studio-agent__section" aria-label="OpenRouter connection">
+          <div className="studio-agent__section-heading">
+            <span className="studio-agent__provider-name">OpenRouter</span>
+            <span role="status" className={`studio-agent__connection-status${connected ? " studio-agent__connection-status--connected" : ""}`}>
+              {connectionLabel}
+            </span>
           </div>
-        ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 5,
-                alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '92%'
-              }}
-            >
-              <div style={{ fontSize: 10, color: '#57606e' }}>
-                {msg.role === 'user' ? 'You' : 'Agent'}
-              </div>
-
-              <div
-                style={{
-                  background: msg.role === 'user' ? '#1f6feb' : '#161922',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: 10,
-                  padding: '8px 11px',
-                  fontSize: 12,
-                  lineHeight: 1.45,
-                  color: '#f0f3f6'
-                }}
+          <p className="studio-agent__connection-message">
+            {connectionMessage}
+          </p>
+          {connectionHost === "vscode" && (
+            <div className="studio-agent__connection-actions">
+              <button
+                className="studio-agent__button"
+                type="button"
+                disabled={!canManageConnection}
+                onClick={() => onConnectionAction(connected ? "replace" : "connect")}
               >
-                {msg.content}
-              </div>
-
-              {msg.toolCall?.svgPayload && (
-                <div
-                  style={{
-                    background: '#12141a',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 8,
-                    padding: 8,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6
-                  }}
-                >
-                  <div
-                    style={{
-                      height: 80,
-                      background: '#181b24',
-                      borderRadius: 6,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      overflow: 'hidden'
-                    }}
-                    dangerouslySetInnerHTML={{ __html: msg.toolCall.svgPayload }}
-                  />
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => onInsertSvgToCanvas(msg.toolCall!.svgPayload!)}
-                      style={{
-                        flex: 1,
-                        background: '#262a36',
-                        border: 'none',
-                        borderRadius: 5,
-                        padding: '4px',
-                        color: '#c5cdd8',
-                        fontSize: 10,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Insert to Canvas
-                    </button>
-                    <button
-                      onClick={() => onSendToBlender(msg.toolCall!.svgPayload!)}
-                      style={{
-                        flex: 1,
-                        background: '#262a36',
-                        border: 'none',
-                        borderRadius: 5,
-                        padding: '4px',
-                        color: '#c5cdd8',
-                        fontSize: 10,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Blender 3D
-                    </button>
-                  </div>
-                </div>
+                {connected ? "Replace key" : "Connect"}
+              </button>
+              {connected && (
+                <>
+                  <button
+                    className="studio-agent__button"
+                    type="button"
+                    disabled={!canManageConnection}
+                    onClick={() => onConnectionAction("test")}
+                  >
+                    Test
+                  </button>
+                  <button
+                    className="studio-agent__button"
+                    type="button"
+                    disabled={!canManageConnection}
+                    onClick={() => onConnectionAction("disconnect")}
+                  >
+                    Disconnect
+                  </button>
+                </>
               )}
             </div>
-          ))
-        )}
-        {isProcessing && (
-          <div style={{ fontSize: 11, color: '#8c96a5' }}>
-            Designing with {activeModelObj.name}...
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Bottom Section (pen.dev Parallel Agents + Chat Input) */}
-      <div
-        style={{
-          padding: '10px 14px',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          background: '#0c0d10',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10
-        }}
-      >
-        {/* Parallel Agents Multiplier (pen.dev exact) */}
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 700, color: '#57606e', letterSpacing: 0.5, marginBottom: 4 }}>
-            PARALLEL AGENTS
-          </div>
-          <div style={{ display: 'flex', gap: 3, marginBottom: 6 }}>
-            {([1, 2, 3, 4, 5, 6] as const).map((n) => (
-              <button
-                key={n}
-                onClick={() => setParallelAgents(n as any)}
-                style={{
-                  flex: 1,
-                  background: parallelAgents === n ? '#d29922' : '#14161c',
-                  color: parallelAgents === n ? '#000000' : '#8c96a5',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  borderRadius: 4,
-                  padding: '3px 0',
-                  fontSize: 10,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                {n}x
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button
-              onClick={() => setDistribution('split')}
-              style={{
-                flex: 1,
-                background: distribution === 'split' ? '#20242e' : 'transparent',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                borderRadius: 4,
-                padding: '3px 6px',
-                fontSize: 9,
-                color: distribution === 'split' ? '#c5cdd8' : '#57606e',
-                cursor: 'pointer'
-              }}
-            >
-              Split Work
-            </button>
-            <button
-              onClick={() => setDistribution('side-by-side')}
-              style={{
-                flex: 1,
-                background: distribution === 'side-by-side' ? '#20242e' : 'transparent',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                borderRadius: 4,
-                padding: '3px 6px',
-                fontSize: 9,
-                color: distribution === 'side-by-side' ? '#c5cdd8' : '#57606e',
-                cursor: 'pointer'
-              }}
-            >
-              Side by Side
-            </button>
-          </div>
-        </div>
-
-        {/* Input Bar (pen.dev style) */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: '#161920',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 8,
-            padding: '4px 6px',
-            gap: 6,
-            position: 'relative'
-          }}
+          )}
+        </section>
+        <section
+          className="studio-agent__section studio-agent-sidebar__privacy"
+          aria-label="Privacy and context"
         >
-          {/* Plus / Attach */}
-          <button
-            onClick={() => setIsKeyModalOpen(true)}
-            title="Configure API Keys"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#8c96a5',
-              cursor: 'pointer',
-              fontSize: 14,
-              padding: '0 2px'
-            }}
-          >
-            +
-          </button>
-
-          {/* Input Text */}
-          <input
-            type="text"
-            placeholder="Ask me to design..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: 'none',
-              color: '#f0f3f6',
-              fontSize: 11,
-              outline: 'none'
-            }}
-          />
-
-          {/* Model Selector Pill */}
-          <button
-            onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-            style={{
-              background: '#20242e',
-              border: 'none',
-              borderRadius: 4,
-              padding: '2px 6px',
-              color: '#c5cdd8',
-              fontSize: 10,
-              cursor: 'pointer',
-              maxWidth: 90,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}
-          >
-            {activeModelObj.name} ⌄
-          </button>
-
-          {/* Send Arrow */}
-          <button
-            onClick={() => handleSendMessage()}
-            disabled={isProcessing || !inputValue.trim()}
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: 4,
-              background: inputValue.trim() ? '#ffffff' : '#262a36',
-              color: '#0c0d10',
-              border: 'none',
-              cursor: inputValue.trim() ? 'pointer' : 'not-allowed',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              fontWeight: 700
-            }}
-          >
-            ↑
-          </button>
-
-          {/* Model Search Dropdown */}
-          {isModelDropdownOpen && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '100%',
-                left: 0,
-                right: 0,
-                marginBottom: 6,
-                background: '#161920',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: 8,
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.8)',
-                zIndex: 200,
-                maxHeight: 240,
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden'
-              }}
+          <div className="studio-agent__privacy-title">Review before sending</div>
+          <p className="studio-agent__privacy-copy">
+            Studio sends the visible conversation and its assistant instructions only after you review them. Canvas
+            files, images, SVG, Blender scenes, and local paths are not attached.
+          </p>
+        </section>
+        <section className="studio-agent__model-section" aria-label="Model selection">
+          <div className="studio-agent__section-heading">
+            <label className="studio-agent__model-title" htmlFor="studio-model-search">
+              Model
+            </label>
+            <button
+              className="studio-agent__button studio-agent__button--small"
+              type="button"
+              disabled={!canChat || modelCatalog.status === "loading"}
+              onClick={onRefreshModels}
             >
-              <div style={{ padding: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              Refresh models
+            </button>
+          </div>
+          <input
+            id="studio-model-search"
+            type="search"
+            value={modelQuery}
+            onChange={(event) => setModelQuery(event.target.value)}
+            disabled={modelCatalog.status !== "ready"}
+            placeholder="Search available models"
+            className="studio-agent__field"
+          />
+          <details className="studio-agent__filters">
+            <summary>
+              Filter catalog
+            </summary>
+            <div className="studio-agent__filter-grid">
+              <label className="studio-agent__filter-label">
+                Publisher
+                <select
+                  aria-label="Filter by publisher"
+                  value={authorFilter}
+                  onChange={(event) => setAuthorFilter(event.target.value)}
+                  className="studio-agent__field"
+                >
+                  <option value="all">All publishers</option>
+                  {authors.map((author) => (
+                    <option key={author} value={author}>
+                      {author}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="studio-agent__filter-label">
+                Price
+                <select
+                  aria-label="Filter by price"
+                  value={priceFilter}
+                  onChange={(event) => setPriceFilter(event.target.value as PriceFilter)}
+                  className="studio-agent__field"
+                >
+                  <option value="all">Any price</option>
+                  <option value="free">Listed as free</option>
+                  <option value="paid">Paid</option>
+                  <option value="unknown">Price unavailable</option>
+                </select>
+              </label>
+              <label className="studio-agent__filter-label">
+                Capability
+                <select
+                  aria-label="Filter by capability"
+                  value={modalityFilter}
+                  onChange={(event) => setModalityFilter(event.target.value as ModalityFilter)}
+                  className="studio-agent__field"
+                >
+                  <option value="all">All capabilities</option>
+                  <option value="text">Text chat</option>
+                  <option value="vision">Text + image input</option>
+                  <option value="image-output">Image output</option>
+                </select>
+              </label>
+              <label className="studio-agent__filter-label">
+                Minimum context
+                <select
+                  aria-label="Filter by minimum context"
+                  value={minimumContext}
+                  onChange={(event) => setMinimumContext(event.target.value)}
+                  className="studio-agent__field"
+                >
+                  <option value="all">Any context</option>
+                  <option value="32000">32K or more</option>
+                  <option value="128000">128K or more</option>
+                  <option value="256000">256K or more</option>
+                </select>
+              </label>
+              <label className="studio-agent__filter-label">
+                Max input · $/1M tokens
                 <input
-                  type="text"
-                  placeholder="Search 455+ models..."
-                  value={modelSearch}
-                  autoFocus
-                  onChange={(e) => setModelSearch(e.target.value)}
-                  style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    background: '#0c0d10',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 4,
-                    padding: '4px 6px',
-                    color: '#f0f3f6',
-                    fontSize: 10,
-                    outline: 'none'
-                  }}
+                  aria-label="Maximum input price per million tokens"
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  step="0.01"
+                  value={maximumInputPrice}
+                  onChange={(event) => setMaximumInputPrice(event.target.value)}
+                  placeholder="Any"
+                  className="studio-agent__field"
                 />
-              </div>
+              </label>
+              <label className="studio-agent__filter-label">
+                Max output · $/1M tokens
+                <input
+                  aria-label="Maximum output price per million tokens"
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  step="0.01"
+                  value={maximumOutputPrice}
+                  onChange={(event) => setMaximumOutputPrice(event.target.value)}
+                  placeholder="Any"
+                  className="studio-agent__field"
+                />
+              </label>
+            </div>
+          </details>
+          <select
+            aria-label="Choose an OpenRouter model"
+            value={selectedModelId}
+            onChange={(event) => setSelectedModelId(event.target.value)}
+            disabled={modelCatalog.status !== "ready" || !canChat}
+            className="studio-agent__field"
+          >
+            <option value="">Choose a model</option>
+            {matchingModels.map((model) => (
+              <option key={model.id} value={model.id} disabled={!model.textChatEligible}>
+                {model.name} · {model.author} · {modelCapabilities(model)} · {formatCatalogPrice(model)}
+              </option>
+            ))}
+          </select>
+          {selectedModelId && !selectedModel && modelCatalog.status === "ready" && (
+            <div role="status" className="studio-agent__notice">
+              Your saved model ({selectedModelId}) is no longer listed for this account. Choose another model to
+              continue; Studio has not switched it automatically.
+            </div>
+          )}
+          {selectedModelId && selectedModel && !selectedModel.textChatEligible && (
+            <div role="status" className="studio-agent__notice">
+              This model is listed by OpenRouter but does not advertise both text input and text output, so chat is
+              disabled.
+            </div>
+          )}
+          <div aria-live="polite" className="studio-agent__catalog-status">
+            {matchingModels.length.toLocaleString()} of {modelCatalog.models.length.toLocaleString()} models match these
+            filters.
+          </div>
+          <div aria-live="polite" className="studio-agent__catalog-status studio-agent__catalog-status--detail">
+            {modelCatalog.status === "loading" ? "Loading the account-filtered model catalog…" : modelCatalog.message}
+            {modelCatalog.status === "ready" && selectedModel
+              ? ` Selected: ${selectedModel.contextLength.toLocaleString()} token context · ${formatCatalogPrice(selectedModel)}.`
+              : ""}
+          </div>
+          {modelCatalog.status === "error" && connectionHost === "vscode" && (
+            <button className="studio-agent__button studio-agent__button--start" type="button" onClick={onRefreshModels}>
+              Try again
+            </button>
+          )}
+        </section>
 
-              <div style={{ overflowY: 'auto', flex: 1, padding: 3 }}>
-                {filteredModels.slice(0, 40).map((m) => (
-                  <div
-                    key={m.id}
-                    onClick={() => {
-                      setSelectedModel(m.id)
-                      setIsModelDropdownOpen(false)
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '5px 6px',
-                      borderRadius: 4,
-                      background: selectedModel === m.id ? '#262a36' : 'transparent',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <span style={{ fontSize: 10, color: '#f0f3f6', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {m.name}
-                    </span>
-                    {m.isFree && (
-                      <span style={{ fontSize: 8, background: '#238636', color: '#fff', padding: '1px 3px', borderRadius: 3 }}>
-                        FREE
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+        <div
+          className="studio-agent__messages"
+          aria-label="Conversation messages"
+          aria-live="polite"
+          aria-relevant="additions text"
+        >
+          {messages.length === 0 ? (
+            <div className="studio-agent__empty-message">
+              Choose an account-available text model. Each send opens a review of the exact instructions, history, and
+              message before the request reaches OpenRouter.
+            </div>
+          ) : (
+            messages.map((message) => (
+              <article
+                className={`studio-agent__message${message.role === "user" ? " studio-agent__message--user" : ""}`}
+                key={message.id}
+                aria-label={`${message.role === "user" ? "You" : "Assistant"}${message.status === "streaming" ? ", generating" : ""}`}
+              >
+                <div className="studio-agent__message-heading">
+                  <strong>
+                    {message.role === "user" ? "You" : "Assistant"}
+                  </strong>
+                  {message.status === "streaming" ? <span role="status">Generating…</span> : null}
+                </div>
+                <div className="studio-agent__message-content">
+                  {message.content || (message.status === "streaming" ? "Waiting for the first token…" : "")}
+                </div>
+                {message.attachment && (
+                  <img className="studio-agent__message-image" src={message.attachment.dataUrl} alt="Screenshot sent with this message" />
+                )}
+                {message.errorMessage && (
+                  <p role="alert" className="studio-agent__message-error">
+                    {message.errorMessage}
+                  </p>
+                )}
+              </article>
+            ))
+          )}
+          {chatRun?.status === "complete" && chatRun.usage && (
+            <div className="studio-agent__usage" role="status">
+              Usage returned by OpenRouter: {chatRun.usage.promptTokens ?? "—"} input ·{" "}
+              {chatRun.usage.completionTokens ?? "—"} output tokens.
             </div>
           )}
         </div>
       </div>
 
-      {/* API Key Modal */}
-      {isKeyModalOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-            zIndex: 300
+      <footer className="studio-agent-composer">
+        <label className="studio-agent__composer-label" htmlFor="studio-chat-composer">
+          Message
+        </label>
+        <textarea
+          id="studio-chat-composer"
+          className="studio-agent__field studio-agent-composer__input"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value.slice(0, 12_000))}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && canSend) {
+              event.preventDefault();
+              requestPreview();
+            }
           }}
-        >
-          <div
-            style={{
-              background: '#161920',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: 10,
-              padding: 14,
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#f0f3f6' }}>
-                OpenRouter Key
-              </span>
-              <button
-                onClick={() => setIsKeyModalOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: '#8c96a5', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p style={{ fontSize: 10, color: '#8c96a5', margin: 0, lineHeight: 1.4 }}>
-              Free models (Gemini 2.0 Flash, LLaMA 3.3, ZenMux) work without a key. Enter key for Claude 3.7 or GPT-4o.
-            </p>
-
-            <input
-              type="password"
-              placeholder="sk-or-v1-..."
-              value={openRouterKey}
-              onChange={(e) => setOpenRouterKey(e.target.value)}
-              style={{
-                background: '#0c0d10',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: 6,
-                padding: '6px 8px',
-                color: '#f0f3f6',
-                fontSize: 11,
-                outline: 'none'
-              }}
-            />
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-              <button
-                onClick={() => setIsKeyModalOpen(false)}
-                style={{
-                  background: '#20242e',
-                  border: 'none',
-                  borderRadius: 4,
-                  padding: '4px 10px',
-                  color: '#8c96a5',
-                  fontSize: 10,
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleSaveApiKey(openRouterKey)}
-                style={{
-                  background: '#ffffff',
-                  border: 'none',
-                  borderRadius: 4,
-                  padding: '4px 12px',
-                  color: '#0c0d10',
-                  fontSize: 10,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Save
-              </button>
-            </div>
+          disabled={
+            !canChat || modelCatalog.status !== "ready" || !selectedModel?.textChatEligible || isChatBusy(chatRun)
+          }
+          placeholder={getComposerPlaceholder(connectionHost, canChat, modelCatalog, selectedModel)}
+          rows={3}
+        />
+        {attachedImage && (
+          <div className="studio-agent__attachment" aria-label="Local screenshot attachment">
+            {attachmentUrl && <img src={attachmentUrl} alt="Screenshot attached for review" />}
+            <span title={attachedImage.name}>{attachedImage.name}</span>
+            <button type="button" aria-label="Remove screenshot attachment" onClick={() => setAttachedImage(null)}>
+              <X size={14} aria-hidden="true" />
+            </button>
           </div>
+        )}
+        {attachedImage && !selectedModel?.inputModalities.includes("image") && (
+          <p className="studio-agent__attachment-notice" role="status">Choose a model with image input before reviewing this request.</p>
+        )}
+        {attachmentError && <p className="studio-agent__attachment-notice" role="alert">{attachmentError}</p>}
+        <div className="studio-agent__composer-actions">
+          <span className="studio-agent__composer-count">
+            {draft.length.toLocaleString()} / 12,000 · Enter to review
+          </span>
+          {isChatBusy(chatRun) && chatRun ? (
+      <button
+              className="studio-agent__button studio-agent__button--danger"
+              type="button"
+              onClick={stopGeneration}
+            >
+              Stop
+            </button>
+          ) : chatRun?.status === "error" ? (
+            <button className="studio-agent__button" type="button" onClick={retryLastUserMessage}>
+              Retry
+            </button>
+          ) : (
+            <button
+              className="studio-agent__button studio-agent__button--primary"
+              type="button"
+              disabled={!canSend}
+              onClick={requestPreview}
+            >
+              Review &amp; send
+            </button>
+          )}
         </div>
+        {!canChat && (
+          <div className="studio-agent__composer-help">
+            {connectionHost === "browser"
+              ? "Use the VS Code editor tab to connect and chat."
+              : !workspaceTrusted
+                ? "Workspace trust is required for OpenRouter requests."
+                : "Connect OpenRouter to enable chat."}
+          </div>
+        )}
+      </footer>
+
+      {outboundPreview && (
+        <OutboundRequestDialog
+          preview={outboundPreview}
+          sendRef={previewSendRef}
+          onCancel={() => setOutboundPreview(null)}
+          onSend={sendAfterPreview}
+        />
       )}
     </aside>
-  )
+  );
+}
+
+function OutboundRequestDialog({
+  preview,
+  sendRef,
+  onCancel,
+  onSend
+}: {
+  preview: OutboundPreview;
+  sendRef: React.RefObject<HTMLButtonElement | null>;
+  onCancel: () => void;
+  onSend: () => void;
+}) {
+  const outboundMessages: StudioChatHistoryMessage[] = [
+    { role: "assistant", content: STUDIO_CHAT_SYSTEM_PROMPT },
+    ...preview.history,
+    { role: "user", content: preview.message }
+  ];
+
+  return (
+    <div
+      className="studio-outbound-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}
+    >
+      <section
+        className="studio-outbound-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="studio-outbound-title"
+      >
+        <header className="studio-outbound-dialog__header">
+          <h2 id="studio-outbound-title">
+            Review what leaves Studio
+          </h2>
+          <p className="studio-outbound-dialog__description">
+            {preview.attachment
+              ? `This request sends the exact messages below and the attached screenshot to OpenRouter for ${preview.model.name}. No tools, other canvas files, SVG, Blender scenes, or local paths are attached.`
+              : `This request sends the exact messages below to OpenRouter for ${preview.model.name}. No tools, canvas files, images, SVG, Blender scenes, or local paths are attached.`}
+          </p>
+          {preview.omittedMessages > 0 && (
+            <p className="studio-outbound-dialog__warning" role="status">
+              {preview.omittedMessages} earlier conversation message{preview.omittedMessages === 1 ? " was" : "s were"}{" "}
+              omitted to keep this request within the context limit.
+            </p>
+          )}
+          <div className="studio-outbound-dialog__model">
+            {formatCatalogPrice(preview.model)} · {preview.model.contextLength.toLocaleString()} token context ·
+            selected model only
+          </div>
+        </header>
+        <div className="studio-outbound-dialog__messages">
+          {outboundMessages.map((message, index) => (
+            <article
+              className="studio-outbound-dialog__message"
+              key={`${message.role}-${index}`}
+            >
+              <strong className="studio-outbound-dialog__message-role">
+                {index === 0
+                  ? "Studio instructions"
+                  : message.role === "user"
+                    ? "User message"
+                    : "Conversation history · assistant"}
+              </strong>
+              <pre className="studio-outbound-dialog__message-content">
+                {message.content}
+              </pre>
+            </article>
+          ))}
+          {preview.attachment && (
+            <figure className="studio-outbound-dialog__attachment">
+              <figcaption>Screenshot included in this request</figcaption>
+              <img src={preview.attachment.dataUrl} alt="Screenshot that will be sent to OpenRouter" />
+            </figure>
+          )}
+        </div>
+        <footer className="studio-outbound-dialog__footer">
+          <button className="studio-agent__button" type="button" onClick={onCancel}>
+            Back to chat
+          </button>
+          <button
+            className="studio-agent__button studio-agent__button--primary"
+            ref={sendRef}
+            type="button"
+            onClick={onSend}
+          >
+            Send to OpenRouter
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function isChatBusy(run: StudioChatRun | null): boolean {
+  return run?.status === "streaming" || run?.status === "stopping";
+}
+
+function readImageAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string" && /^data:image\/(?:png|jpeg|webp|gif);base64,/.test(reader.result)) {
+        resolve(reader.result);
+      } else reject(new Error("Unsupported image."));
+    }, { once: true });
+    reader.addEventListener("error", () => reject(new Error("Image read failed.")), { once: true });
+    reader.readAsDataURL(file);
+  });
+}
+
+function boundOutboundHistory(messages: StudioChatHistoryMessage[]): {
+  history: StudioChatHistoryMessage[];
+  omittedMessages: number;
+} {
+  const maxMessages = 40;
+  const maxHistoryCharacters = 48_000;
+  const perMessageLimit = 12_000;
+  const bounded = messages.map((message) => {
+    if (message.content.length <= perMessageLimit) return message;
+    const marker = "[Earlier content omitted from this long reply]\n";
+    return { ...message, content: marker + message.content.slice(-(perMessageLimit - marker.length)) };
+  });
+  const selected: StudioChatHistoryMessage[] = [];
+  let characters = 0;
+  for (let index = bounded.length - 1; index >= 0; index -= 1) {
+    const message = bounded[index]!;
+    if (selected.length >= maxMessages || characters + message.content.length > maxHistoryCharacters) break;
+    selected.push(message);
+    characters += message.content.length;
+  }
+  selected.reverse();
+  return { history: selected, omittedMessages: bounded.length - selected.length };
+}
+
+function getComposerPlaceholder(
+  host: "vscode" | "browser",
+  canChat: boolean,
+  catalog: StudioModelCatalog,
+  model?: StudioModel
+): string {
+  if (host === "browser") return "Open the VS Code editor tab to chat";
+  if (!canChat) return "Connect OpenRouter to begin";
+  if (catalog.status !== "ready") return "Loading available models…";
+  if (!model) return "Choose a text-chat model";
+  return "Describe what you want to design…";
+}
+
+function formatCatalogPrice(model: StudioModel): string {
+  const input = readCatalogPrice(model.promptPrice);
+  const output = readCatalogPrice(model.completionPrice);
+  if (input === null || output === null) return "Catalog price unavailable";
+  if (input === 0 && output === 0) return "Listed as free";
+  const format = (value: number) => {
+    const perMillion = value * 1_000_000;
+    return perMillion < 0.01
+      ? perMillion.toPrecision(2)
+      : perMillion.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  };
+  return `Catalog rate $${format(input)} input / $${format(output)} output per 1M tokens`;
+}
+
+function modelCapabilities(model: StudioModel): string {
+  const capabilities = [
+    ...(model.textChatEligible ? ["text chat"] : []),
+    ...(model.inputModalities.includes("image") ? ["image input"] : []),
+    ...(model.outputModalities.includes("image") ? ["image output"] : [])
+  ];
+  return capabilities.length ? capabilities.join(", ") : "other modality";
+}
+
+function readOptionalNumber(value: string): number | null {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function readSelectedModelId(): string {
+  try {
+    return window.localStorage.getItem("codex-avatar-studio-selected-model") ?? "";
+  } catch {
+    return "";
+  }
 }

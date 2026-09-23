@@ -1,357 +1,187 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from "react";
+import { X } from "lucide-react";
+
+export type GeometryProperty = "x" | "y" | "width" | "height";
+
+export interface InspectedShape {
+  id?: string;
+  type: string;
+  count: number;
+  x: number | null;
+  y: number | null;
+  width?: number | null;
+  height?: number | null;
+}
 
 export interface StudioInspectorProps {
-  isOpen: boolean
-  onClose: () => void
-  selectedShapeId?: string | null
-  activeSvg?: string
-  onRecolorLayer?: (layerId: string, color: string) => void
-  onVectorizeImage?: (imageBase64: string) => void
-  onExportToBlender?: (adapter: 'curve' | 'grease_pencil') => void
+  className?: string;
+  isOpen: boolean;
+  onClose: () => void;
+  selectedShape: InspectedShape | null;
+  onUpdate: (property: GeometryProperty, value: number) => void;
+  panelWidth: number;
+  panelHeight: number;
 }
 
 export function StudioInspector({
+  className,
   isOpen,
-  selectedShapeId,
-  onRecolorLayer,
-  onExportToBlender
+  onClose,
+  selectedShape,
+  onUpdate,
+  panelWidth,
+  panelHeight
 }: StudioInspectorProps) {
-  const [activeTab, setActiveTab] = useState<'properties' | 'web-import' | 'blender'>('web-import')
-  const [urlInput, setUrlInput] = useState('')
-
-  const palette = [
-    '#388bfd', '#238636', '#da3633', '#d29922', '#a371f7', '#ebbe9c', '#0d1117', '#f0f3f6'
-  ]
-
-  const suggestedLinks = [
-    { label: 'pen.dev', url: 'https://pen.dev' },
-    { label: 'docs.pen.dev', url: 'https://docs.pen.dev' },
-    { label: 'localhost:8080', url: 'http://localhost:8080' }
-  ]
-
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <aside
-      style={{
-        width: 320,
-        height: '100%',
-        background: '#0f1115',
-        borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
-        zIndex: 50,
-        display: 'flex',
-        flexDirection: 'column',
-        userSelect: 'none',
-        flexShrink: 0
-      }}
+      className={className}
+      id="studio-inspector"
+      aria-label="Canvas inspector"
+      style={
+        {
+          "--studio-panel-width": `${panelWidth}px`,
+          "--studio-mobile-panel-size": `${panelHeight}px`
+        } as React.CSSProperties
+      }
     >
-      {/* Tab Navigation */}
-      <div
-        style={{
-          padding: '10px 14px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}
-      >
-        <div style={{ display: 'flex', background: '#161920', borderRadius: 6, padding: 2, gap: 2 }}>
-          {(
-            [
-              { id: 'web-import', label: 'Web Import' },
-              { id: 'properties', label: 'Properties' },
-              { id: 'blender', label: 'Blender 3D' }
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              style={{
-                background: activeTab === t.id ? '#262a36' : 'transparent',
-                color: activeTab === t.id ? '#ffffff' : '#8c96a5',
-                border: 'none',
-                borderRadius: 4,
-                padding: '3px 8px',
-                fontSize: 10,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
+      <header className="studio-inspector__header">
+        <div>
+          <div className="studio-inspector__title">Inspector</div>
+          {selectedShape && (
+            <div className="studio-inspector__selection-count">
+              {selectedShape.count === 1 ? "1 object selected" : `${selectedShape.count} objects selected`}
+            </div>
+          )}
         </div>
-      </div>
+        <button
+          className="studio-panel-close"
+          type="button"
+          aria-label="Close inspector"
+          onClick={onClose}
+        >
+          <X size={17} strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      </header>
 
-      {/* Tab Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-        {activeTab === 'web-import' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Import From Web Header (pen.dev exact) */}
-            <div style={{ textAlign: 'center', padding: '12px 0 8px 0' }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  background: '#161920',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 8px auto',
-                  color: '#9aa4b2'
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="2" y1="12" x2="22" y2="12"/>
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                </svg>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f3f6' }}>Import from the web</div>
-              <p style={{ fontSize: 11, color: '#8c96a5', margin: '4px 0 12px 0', lineHeight: 1.4 }}>
-                Open a live site or your localhost dev server, then bring it onto the canvas as editable layers.
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                type="text"
-                placeholder="Enter a URL >"
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                style={{
-                  flex: 1,
-                  background: '#0c0d10',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: 6,
-                  padding: '6px 10px',
-                  color: '#f0f3f6',
-                  fontSize: 11,
-                  outline: 'none'
-                }}
+      {selectedShape ? (
+        <div className="studio-inspector__body">
+          <div className="studio-inspector__section-title">
+            Position and size
+          </div>
+          <div className="studio-inspector__geometry">
+            <NumericProperty
+              label="X position"
+              value={selectedShape.x}
+              min={-1_000_000}
+              max={1_000_000}
+              onCommit={(value) => onUpdate("x", value)}
+            />
+            <NumericProperty
+              label="Y position"
+              value={selectedShape.y}
+              min={-1_000_000}
+              max={1_000_000}
+              onCommit={(value) => onUpdate("y", value)}
+            />
+            {selectedShape.width !== undefined && (
+              <NumericProperty
+                label="Width"
+                value={selectedShape.width}
+                min={1}
+                max={1_000_000}
+                onCommit={(value) => onUpdate("width", value)}
               />
-            </div>
-
-            {/* Action buttons list (pen.dev exact) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
-              <button
-                style={{
-                  background: '#14161c',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  borderRadius: 6,
-                  padding: '8px 10px',
-                  color: '#c5cdd8',
-                  fontSize: 11,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8
-                }}
-              >
-                <span style={{ color: '#8c96a5' }}>&lt;/&gt;</span>
-                <div>
-                  <div style={{ fontWeight: 600 }}>Import the full page</div>
-                  <div style={{ fontSize: 9, color: '#57606e' }}>Reproduce it as frames, text, and images.</div>
-                </div>
-              </button>
-
-              <button
-                style={{
-                  background: '#14161c',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  borderRadius: 6,
-                  padding: '8px 10px',
-                  color: '#c5cdd8',
-                  fontSize: 11,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8
-                }}
-              >
-                <span style={{ color: '#8c96a5' }}>⧉</span>
-                <div>
-                  <div style={{ fontWeight: 600 }}>Import an element</div>
-                  <div style={{ fontSize: 9, color: '#57606e' }}>Pick one element instead of the whole page.</div>
-                </div>
-              </button>
-
-              <button
-                style={{
-                  background: '#14161c',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  borderRadius: 6,
-                  padding: '8px 10px',
-                  color: '#c5cdd8',
-                  fontSize: 11,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8
-                }}
-              >
-                <span style={{ color: '#8c96a5' }}>📷</span>
-                <div>
-                  <div style={{ fontWeight: 600 }}>Import a screenshot</div>
-                  <div style={{ fontSize: 9, color: '#57606e' }}>Drop a PNG onto the canvas or send to the agent.</div>
-                </div>
-              </button>
-            </div>
-
-            {/* Suggested Bookmarks */}
-            <div style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#57606e', marginBottom: 6 }}>
-                Suggested
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {suggestedLinks.map((item, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => setUrlInput(item.url)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: '#12141a',
-                      padding: '6px 10px',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      color: '#9aa4b2',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <span>{item.label}</span>
-                    <span style={{ fontSize: 10, color: '#57606e' }}>→</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            )}
+            {selectedShape.height !== undefined && (
+              <NumericProperty
+                label="Height"
+                value={selectedShape.height}
+                min={1}
+                max={1_000_000}
+                onCommit={(value) => onUpdate("height", value)}
+              />
+            )}
           </div>
-        )}
-
-        {activeTab === 'properties' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#57606e', letterSpacing: 0.5 }}>
-              SELECTION
-            </div>
-            <div
-              style={{
-                background: '#14161c',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                borderRadius: 6,
-                padding: 10,
-                fontSize: 11,
-                color: '#c5cdd8'
-              }}
-            >
-              {selectedShapeId ? (
-                <div>Selected: <code>{selectedShapeId}</code></div>
-              ) : (
-                <div style={{ color: '#7a8596' }}>Select any shape on canvas to inspect</div>
-              )}
-            </div>
-
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#57606e', letterSpacing: 0.5 }}>
-              PALETTE
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {palette.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => onRecolorLayer && onRecolorLayer('fill', c)}
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: '50%',
-                    background: c,
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    cursor: 'pointer'
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'blender' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#f0f3f6' }}>Blender 4.5.3 LTS</div>
-              <div style={{ fontSize: 10, color: '#3fb950', marginTop: 2 }}>Connected</div>
-            </div>
-
-            <div
-              style={{
-                background: '#14161c',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                borderRadius: 6,
-                padding: 10,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8
-              }}
-            >
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#8c96a5' }}>
-                CAPABILITY FIT
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                <span style={{ color: '#c5cdd8' }}>Grease Pencil (2D Animation)</span>
-                <span style={{ color: '#3fb950', fontWeight: 600 }}>95%</span>
-              </div>
-              <div style={{ height: 3, background: '#0c0d10', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ width: '95%', height: '100%', background: '#238636' }} />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginTop: 2 }}>
-                <span style={{ color: '#c5cdd8' }}>Curve Geometry (3D Extrusion)</span>
-                <span style={{ color: '#d29922', fontWeight: 600 }}>85%</span>
-              </div>
-              <div style={{ height: 3, background: '#0c0d10', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ width: '85%', height: '100%', background: '#d29922' }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <button
-                onClick={() => onExportToBlender && onExportToBlender('grease_pencil')}
-                style={{
-                  background: '#1e222b',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: 6,
-                  padding: '7px 10px',
-                  color: '#f0f3f6',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  cursor: 'pointer'
-                }}
-              >
-                Export to Grease Pencil (.blend)
-              </button>
-              <button
-                onClick={() => onExportToBlender && onExportToBlender('curve')}
-                style={{
-                  background: '#1e222b',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: 6,
-                  padding: '7px 10px',
-                  color: '#f0f3f6',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  cursor: 'pointer'
-                }}
-              >
-                Export to 3D Curves (.blend)
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+          <dl className="studio-inspector__metadata">
+            <dt>Type</dt>
+            <dd>{selectedShape.type}</dd>
+            {selectedShape.id && (
+              <>
+                <dt>ID</dt>
+                <dd>{selectedShape.id}</dd>
+              </>
+            )}
+          </dl>
+        </div>
+      ) : (
+        <p className="studio-inspector__empty">
+          Select a shape on the canvas to inspect and edit its geometry.
+        </p>
+      )}
     </aside>
-  )
+  );
+}
+
+function NumericProperty({
+  label,
+  value,
+  min,
+  max,
+  onCommit
+}: {
+  label: string;
+  value: number | null;
+  min: number;
+  max: number;
+  onCommit: (value: number) => void;
+}) {
+  const serializedValue = value === null ? "" : String(Math.round(value));
+  const [draft, setDraft] = useState(serializedValue);
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) setDraft(serializedValue);
+  }, [isEditing, serializedValue]);
+
+  const commit = () => {
+    setIsEditing(false);
+    if (!draft.trim()) {
+      setDraft(serializedValue);
+      return;
+    }
+    const nextValue = Number(draft);
+    if (Number.isFinite(nextValue) && nextValue >= min && nextValue <= max) {
+      onCommit(nextValue);
+      return;
+    }
+    setDraft(serializedValue);
+  };
+
+  return (
+    <label className="studio-inspector__field-label">
+      {label}
+      <input
+        aria-label={label}
+        type="number"
+        min={min}
+        max={max}
+        step={1}
+        value={draft}
+        placeholder={value === null ? "Mixed" : ""}
+        onFocus={() => setIsEditing(true)}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") {
+            setDraft(serializedValue);
+            event.currentTarget.blur();
+          }
+        }}
+        className="studio-inspector__field"
+      />
+    </label>
+  );
 }

@@ -5,19 +5,26 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/copy-studio-build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
     "@codex-avatar-studio/asset-pipeline": "workspace:*",
+    "@visioncortex/vtracer": "1.0.0-alpha.4",
+    "imagetracerjs": "1.2.6",
     "@codex-avatar-studio/avatar-core": "workspace:*",
     "@codex-avatar-studio/runtime-pixi": "workspace:*",
+    "@fontsource/geist-mono": "^5.3.0",
+    "@fontsource/geist-sans": "^5.3.0",
+    "@tldraw/assets": "5.4.2",
     "@tldraw/tldraw": "^5.4.2",
-    "tldraw": "^5.4.2",
+    "lucide-react": "^1.47.0",
+    "radix-ui": "1.6.7",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "three": "0.185.1"
+    "three": "0.185.1",
+    "tldraw": "^5.4.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.14",

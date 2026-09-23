@@ -1,407 +1,423 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  Clock3,
+  FolderOpen,
+  Image,
+  LayoutGrid,
+  List,
+  Menu,
+  MoreHorizontal,
+  Plus,
+  ScanLine,
+  Search,
+  Upload,
+  X
+} from "lucide-react";
+import brandMarkUrl from "../assets/brand-mark.svg?inline";
+import type { StudioProjectMeta } from "../bridge/studioHost.js";
+import { formatEditedLabel } from "./recentCanvas.js";
+import { HOME_CATEGORY_PRESETS, StudioComposer, type HomeCategory } from "./StudioComposer.js";
+import { Button, Dialog } from "../ui/index.js";
 
-export interface ProjectCard {
-  id: string
-  title: string
-  subtitle: string
-  updatedAt: string
-  thumbnailColor?: string
+export interface SessionCanvas {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
+export const SCRATCHPAD_PROJECT_ID = "00000000-0000-4000-8000-000000000001";
+
+type HomeRoute = "home" | "settings" | "connectors";
+type Layout = "grid" | "list";
+type SortOrder = "updated" | "name" | "created";
+
 export interface RecentsDashboardProps {
-  isOpen: boolean
-  onClose: () => void
-  onOpenProject: (projectId: string) => void
-  onNewFile: () => void
+  isOpen: boolean;
+  canvases: SessionCanvas[];
+  currentCanvasId: string | null;
+  projects: StudioProjectMeta[];
+  projectMode: boolean;
+  projectStatus: "idle" | "loading" | "ready" | "error";
+  projectMessage: string;
+  activeProjectId: string | null;
+  projectActionMessage?: string | undefined;
+  corruptCount?: number;
+  thumbnailUrls?: Readonly<Record<string, string>> | undefined;
+  onClose: () => void;
+  onOpenCanvas: (canvasId: string) => void;
+  onOpenProject: (projectId: string) => void;
+  onDuplicateProject: (projectId: string) => void;
+  onDeleteProject: (projectId: string) => void;
+  onRefreshProjects: () => void;
+  onNewCanvas: () => void;
+  onOpenFile?: (() => void) | undefined;
+  onNavigate?: ((route: HomeRoute) => void) | undefined;
+  onStartDesign?: ((categoryId: string, prompt: string) => void) | undefined;
+  onRenameProject?: ((projectId: string, title: string) => void) | undefined;
+  onRevealProject?: ((projectId: string) => void) | undefined;
+  onRenameCanvas?: ((canvasId: string, title: string) => void) | undefined;
+  onDuplicateCanvas?: ((canvasId: string) => void) | undefined;
+  onDeleteCanvas?: ((canvasId: string) => void) | undefined;
+  onImageToSvg?: (() => void) | undefined;
+  onRecreateScreenshot?: (() => void) | undefined;
+  onImportAsset?: (() => void) | undefined;
+}
+
+const LAYOUT_KEY = "codex-avatar-studio-home-layout";
+const SORT_KEY = "codex-avatar-studio-home-sort";
+
+function readPreference<T extends string>(key: string, values: readonly T[], fallback: T): T {
+  try {
+    const stored = window.localStorage.getItem(key);
+    return values.find((value) => value === stored) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function rememberPreference(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // The dashboard remains usable when Webview storage is unavailable.
+  }
+}
+
+function closeCardMenu(event: React.MouseEvent<HTMLButtonElement>): void {
+  event.currentTarget.closest("details")?.removeAttribute("open");
 }
 
 export function RecentsDashboard({
   isOpen,
+  canvases,
+  currentCanvasId,
+  projects,
+  projectMode,
+  projectStatus,
+  projectMessage,
+  activeProjectId,
+  projectActionMessage,
+  corruptCount = 0,
+  thumbnailUrls,
   onClose,
+  onOpenCanvas,
   onOpenProject,
-  onNewFile
+  onDuplicateProject,
+  onDeleteProject,
+  onRefreshProjects,
+  onNewCanvas,
+  onOpenFile,
+  onStartDesign,
+  onRenameProject,
+  onRevealProject,
+  onRenameCanvas,
+  onDuplicateCanvas,
+  onDeleteCanvas,
+  onImageToSvg,
+  onRecreateScreenshot,
+  onImportAsset
 }: RecentsDashboardProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [activeNav, setActiveNav] = useState<'recents' | 'learn' | 'files' | 'archive' | 'settings'>('recents')
+  const [query, setQuery] = useState("");
+  const [layout, setLayout] = useState<Layout>(() => readPreference(LAYOUT_KEY, ["grid", "list"], "grid"));
+  const [sortOrder, setSortOrder] = useState<SortOrder>(() =>
+    readPreference(SORT_KEY, ["updated", "name", "created"], "updated")
+  );
+  const [categoryId, setCategoryId] = useState<HomeCategory["id"]>("landing-page");
+  const [prompt, setPrompt] = useState<string>(HOME_CATEGORY_PRESETS[0].starterPrompt);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [renamingProject, setRenamingProject] = useState<StudioProjectMeta | null>(null);
+  const [renamingCanvas, setRenamingCanvas] = useState<SessionCanvas | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const recentsRef = useRef<HTMLDivElement>(null);
 
-  const projects: ProjectCard[] = [
-    {
-      id: 'scratchpad',
-      title: 'Scratchpad',
-      subtitle: 'Your permanent draft',
-      updatedAt: 'Just now',
-      thumbnailColor: '#1e222b'
-    },
-    {
-      id: 'avatar-rig-3d',
-      title: 'Avatar Stage 3D',
-      subtitle: 'Cholita Live2D & Three.js Rig',
-      updatedAt: '12m ago',
-      thumbnailColor: '#171b22'
-    },
-    {
-      id: 'vector-bezier-icons',
-      title: 'Vector Splines & Icons',
-      subtitle: 'Cubic Béziers from VTracer WASM',
-      updatedAt: '2h ago',
-      thumbnailColor: '#1c1f26'
-    },
-    {
-      id: 'trading-terminal',
-      title: 'Realtime Trading Terminal',
-      subtitle: 'High contrast agentic canvas',
-      updatedAt: 'Yesterday',
-      thumbnailColor: '#12151c'
-    }
-  ]
+  useEffect(() => rememberPreference(LAYOUT_KEY, layout), [layout]);
+  useEffect(() => rememberPreference(SORT_KEY, sortOrder), [sortOrder]);
 
-  if (!isOpen) return null
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setDrawerOpen(false);
+        searchRef.current?.focus();
+      }
+      if (event.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [isOpen]);
+
+  const visibleProjects = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    return projects
+      .filter((project) => project.title.toLocaleLowerCase().includes(normalizedQuery))
+      .sort((left, right) => {
+        if (left.id === SCRATCHPAD_PROJECT_ID) return -1;
+        if (right.id === SCRATCHPAD_PROJECT_ID) return 1;
+        if (sortOrder === "name") return left.title.localeCompare(right.title);
+        const field = sortOrder === "created" ? "createdAt" : "updatedAt";
+        return right[field].localeCompare(left[field]);
+      });
+  }, [projects, query, sortOrder]);
+
+  const visibleCanvases = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const matching = canvases.filter((canvas) => canvas.title.toLocaleLowerCase().includes(normalizedQuery));
+    return [...matching].sort((left, right) => {
+      if (sortOrder === "name") return left.title.localeCompare(right.title);
+      const field = sortOrder === "created" ? "createdAt" : "updatedAt";
+      return right[field].localeCompare(left[field]);
+    });
+  }, [canvases, query, sortOrder]);
+
+  if (!isOpen) return null;
+
+  const goToRecents = () => {
+    setDrawerOpen(false);
+    recentsRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+  };
+  const category = HOME_CATEGORY_PRESETS.find((preset) => preset.id === categoryId) ?? HOME_CATEGORY_PRESETS[0];
+  const selectCategory = (preset: HomeCategory) => {
+    const previous = HOME_CATEGORY_PRESETS.find((item) => item.id === categoryId);
+    setCategoryId(preset.id);
+    setPrompt((current) => current === previous?.starterPrompt || current.trim() === "" ? preset.starterPrompt : current);
+  };
+  const hasCurrentCanvas = projectMode ? Boolean(activeProjectId) : Boolean(currentCanvasId);
+  const currentSort = sortOrder;
+  const visibleCount = projectMode ? visibleProjects.length : visibleCanvases.length;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        background: '#090a0d',
-        zIndex: 500,
-        display: 'flex',
-        color: '#f3f5f8',
-        userSelect: 'none'
-      }}
-    >
-      {/* Left Sidebar (Paper.design style) */}
-      <aside
-        style={{
-          width: 240,
-          background: '#0e1015',
-          borderRight: '1px solid rgba(255, 255, 255, 0.07)',
-          padding: '16px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between'
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* User Profile Dropdown */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '6px 8px',
-              borderRadius: 8,
-              cursor: 'pointer'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #388bfd, #0969da)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 10,
-                  fontWeight: 700
-                }}
-              >
-                CC
-              </div>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Carlos Carpio</span>
-            </div>
-            <span style={{ fontSize: 10, color: '#8c96a5' }}>⌄</span>
-          </div>
-
-          {/* Search Input (⌘F) */}
-          <div
-            style={{
-              background: '#151820',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: 8,
-              padding: '6px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-              <span style={{ fontSize: 11, color: '#8c96a5' }}>🔍</span>
-              <input
-                type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#f3f5f8',
-                  fontSize: 12,
-                  outline: 'none',
-                  width: '100%'
-                }}
-              />
-            </div>
-            <span style={{ fontSize: 10, color: '#5e6878', background: '#1e222b', padding: '2px 5px', borderRadius: 4 }}>
-              ⌘F
-            </span>
-          </div>
-
-          {/* Main Navigation */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <button
-              onClick={() => setActiveNav('recents')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '7px 10px',
-                borderRadius: 8,
-                background: activeNav === 'recents' ? '#212631' : 'transparent',
-                color: activeNav === 'recents' ? '#ffffff' : '#8c96a5',
-                border: 'none',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <span>⏱</span>
-              <span>Recents</span>
-            </button>
-            <button
-              onClick={() => setActiveNav('learn')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '7px 10px',
-                borderRadius: 8,
-                background: activeNav === 'learn' ? '#212631' : 'transparent',
-                color: activeNav === 'learn' ? '#ffffff' : '#8c96a5',
-                border: 'none',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>💡</span>
-                <span>Learn</span>
-              </div>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#388bfd' }} />
-            </button>
-          </div>
-
-          {/* Team Section */}
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#5e6878', padding: '4px 10px' }}>
-              Carlos's Team
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
-              <button
-                onClick={() => setActiveNav('files')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '7px 10px',
-                  borderRadius: 8,
-                  background: activeNav === 'files' ? '#212631' : 'transparent',
-                  color: activeNav === 'files' ? '#ffffff' : '#8c96a5',
-                  border: 'none',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <span>📁</span>
-                <span>Files</span>
-              </button>
-              <button
-                onClick={() => setActiveNav('archive')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '7px 10px',
-                  borderRadius: 8,
-                  background: activeNav === 'archive' ? '#212631' : 'transparent',
-                  color: activeNav === 'archive' ? '#ffffff' : '#8c96a5',
-                  border: 'none',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <span>📦</span>
-                <span>Archive</span>
-              </button>
-              <button
-                onClick={() => setActiveNav('settings')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '7px 10px',
-                  borderRadius: 8,
-                  background: activeNav === 'settings' ? '#212631' : 'transparent',
-                  color: activeNav === 'settings' ? '#ffffff' : '#8c96a5',
-                  border: 'none',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <span>⚙</span>
-                <span>Settings</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Add Members Card */}
-          <div
-            style={{
-              background: '#151820',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: 10,
-              padding: 12,
-              marginTop: 10
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#f3f5f8', marginBottom: 4 }}>
-              Add members to your team
-            </div>
-            <div style={{ fontSize: 10, color: '#8c96a5', marginBottom: 10, lineHeight: 1.4 }}>
-              Paper is better with others. Add your colleagues for free.
-            </div>
-            <button
-              style={{
-                width: '100%',
-                background: '#212631',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: 6,
-                padding: '5px 8px',
-                color: '#f3f5f8',
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              👥 Invite members
-            </button>
-          </div>
+    <section className="recents" aria-labelledby="recents-title">
+      {drawerOpen && (
+        <button className="recents__drawer-scrim" type="button" aria-label="Close navigation" onClick={() => setDrawerOpen(false)} />
+      )}
+      <aside className={`recents__rail${drawerOpen ? " recents__rail--open" : ""}`} aria-label="Studio navigation">
+        <div className="recents__brand">
+          <img className="recents__brand-mark" src={brandMarkUrl} alt="" aria-hidden="true" />
+          <span className="recents__rail-text">blenderSVG Studio</span>
+          <button className="recents__drawer-close" type="button" aria-label="Close navigation" onClick={() => setDrawerOpen(false)}>
+            <X size={18} aria-hidden="true" />
+          </button>
         </div>
-
-        {/* Footer */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
-          <div style={{ fontSize: 11, color: '#8c96a5', cursor: 'pointer' }}>↓ Get desktop app</div>
-          <div style={{ fontSize: 10, color: '#5e6878' }}>What's new • Feedback</div>
+        <button className="recents__nav-search" type="button" onClick={() => { setDrawerOpen(false); searchRef.current?.focus(); }} title="Search (Ctrl+K)" aria-keyshortcuts="Control+K">
+          <Search size={16} strokeWidth={1.75} aria-hidden="true" />
+          <span className="recents__rail-text">Search</span>
+          <kbd className="recents__rail-text">Ctrl K</kbd>
+        </button>
+        <nav className="recents__nav" aria-label="Workspace">
+          <button className="recents__nav-item recents__nav-item--active" type="button" onClick={goToRecents} aria-current="page" title="Recents">
+            <Clock3 size={17} strokeWidth={1.75} aria-hidden="true" />
+            <span className="recents__rail-text">Recents</span>
+          </button>
+        </nav>
+        <div className="recents__rail-bottom">
+          {hasCurrentCanvas && (
+            <button className="recents__nav-item" type="button" onClick={onClose} title="Return to canvas">
+              <ArrowLeft size={17} strokeWidth={1.75} aria-hidden="true" />
+              <span className="recents__rail-text">Return to canvas</span>
+            </button>
+          )}
+          <p className="recents__rail-note recents__rail-text">
+            {projectMode ? "Projects save in this trusted workspace." : "Canvases stay in this browser session."}
+          </p>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main style={{ flex: 1, padding: 32, overflowY: 'auto' }}>
-        {/* Top Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Recents</h1>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              onClick={() => {
-                onNewFile()
-                onClose()
-              }}
-              style={{
-                background: '#f3f5f8',
-                color: '#090a0d',
-                border: 'none',
-                borderRadius: 8,
-                padding: '7px 14px',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}
-            >
-              <span>+</span>
-              <span>New file</span>
-            </button>
-
-            <button
-              onClick={onClose}
-              title="Return to Canvas"
-              style={{
-                background: '#151820',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: 8,
-                padding: '7px 12px',
-                color: '#8c96a5',
-                fontSize: 12,
-                cursor: 'pointer'
-              }}
-            >
-              Back to Canvas ✕
+      <main className="recents__main">
+        <header className="recents__header">
+          <button className="recents__mobile-nav" type="button" aria-label="Open navigation" onClick={() => setDrawerOpen(true)}>
+            <Menu size={20} aria-hidden="true" />
+          </button>
+          <h1 id="recents-title">Home</h1>
+          <div className="recents__header-actions">
+            {onOpenFile && (
+              <button className="recents__button recents__button--quiet" type="button" onClick={onOpenFile}>
+                <FolderOpen size={16} strokeWidth={1.75} aria-hidden="true" /> Open file
+              </button>
+            )}
+            <button className="recents__button recents__button--primary" type="button" onClick={onNewCanvas}>
+              <Plus size={16} strokeWidth={2} aria-hidden="true" /> New file
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Project Cards Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
-          {projects.map((p, idx) => {
-            const isSelected = idx === 0
-            return (
-              <div
-                key={p.id}
-                onClick={() => {
-                  onOpenProject(p.id)
-                  onClose()
-                }}
-                style={{
-                  background: '#0e1015',
-                  border: isSelected ? '2px solid #388bfd' : '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: 14,
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  boxShadow: isSelected ? '0 0 0 1px #388bfd, 0 12px 32px rgba(0, 0, 0, 0.6)' : '0 4px 16px rgba(0, 0, 0, 0.3)'
-                }}
-              >
-                {/* Thumbnail Area */}
-                <div
-                  style={{
-                    height: 160,
-                    background: p.thumbnailColor || '#151820',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-                    position: 'relative'
-                  }}
-                >
-                  <span style={{ fontSize: 36, opacity: 0.7 }}>
-                    {idx === 0 ? '📝' : idx === 1 ? '🎭' : idx === 2 ? '⚡' : '📈'}
-                  </span>
-                </div>
+        <div className="recents__content">
+          <div className="recents__content-inner">
+            <StudioComposer
+              className="studio-composer--home"
+              prompt={prompt}
+              onPromptChange={setPrompt}
+              categories={HOME_CATEGORY_PRESETS}
+              categoryId={categoryId}
+              onCategoryChange={selectCategory}
+              onSubmit={onStartDesign ? () => onStartDesign(categoryId, prompt.trim()) : undefined}
+              submitEnabled={Boolean(onStartDesign && prompt.trim() !== category.starterPrompt.trim())}
+              submitHelp={onStartDesign ? "Open this prompt in the editor" : "Prompt handoff is coming soon. Use New file to start a canvas."}
+              footnote={
+                <>
+                  <span>New frame: {category.label} · {category.width} × {category.height}</span>
+                  <span>{onStartDesign ? "Opens in editor · review before sending" : "Use New file to start a canvas"}</span>
+                </>
+              }
+            />
 
-                {/* Card Info */}
-                <div style={{ padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f3f5f8' }}>{p.title}</span>
-                    <span style={{ fontSize: 10, color: '#5e6878' }}>{p.updatedAt}</span>
+            <div className="recents__start-cards" aria-label="Other ways to start">
+              <StartCard title="Image → SVG" description="Trace a picture into editable vectors on this computer." icon={<ScanLine size={20} strokeWidth={1.7} aria-hidden="true" />} onClick={onImageToSvg} />
+              <StartCard title="Recreate a screenshot" description="Attach a screenshot and rebuild it as canvas layers." icon={<Image size={20} strokeWidth={1.7} aria-hidden="true" />} onClick={onRecreateScreenshot} />
+              <StartCard title="Import SVG or image" description="Bring a local file in as a sanitized canvas asset." icon={<Upload size={20} strokeWidth={1.7} aria-hidden="true" />} onClick={onImportAsset} />
+            </div>
+
+            <div className="recents__recents" id="recents" ref={recentsRef}>
+              <div className="recents__section-heading">
+                <h2>Recents</h2>
+                <span>{visibleCount} {visibleCount === 1 ? (projectMode ? "project" : "canvas") : (projectMode ? "projects" : "canvases")}</span>
+                <div className="recents__section-controls">
+                  <label className="recents__sort">
+                    <span className="sr-only">Sort recents</span>
+                    <select value={currentSort} onChange={(event) => setSortOrder(event.currentTarget.value as SortOrder)}>
+                      <option value="updated">Last edited</option>
+                      <option value="name">Name</option>
+                      <option value="created">Created</option>
+                    </select>
+                  </label>
+                  <div className="recents__layout" role="group" aria-label="Layout">
+                    <button type="button" aria-label="Grid view" aria-pressed={layout === "grid"} onClick={() => setLayout("grid")}><LayoutGrid size={16} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button type="button" aria-label="List view" aria-pressed={layout === "list"} onClick={() => setLayout("list")}><List size={16} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
-                  <div style={{ fontSize: 11, color: '#8c96a5' }}>{p.subtitle}</div>
                 </div>
               </div>
-            )
-          })}
+
+              <label className="recents__search">
+                <Search size={16} strokeWidth={1.75} aria-hidden="true" />
+                <span className="sr-only">Search {projectMode ? "projects" : "canvases"}</span>
+                <input ref={searchRef} type="search" placeholder={`Search ${projectMode ? "projects" : "canvases"}`} value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+                {query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={15} strokeWidth={1.75} aria-hidden="true" /></button>}
+              </label>
+
+              {projectActionMessage && <p className="recents__notice" role="status">{projectActionMessage}</p>}
+              {projectMode && (projectStatus === "error" || corruptCount > 0) && (
+                <div className="recents__notice recents__notice--error" role="alert">
+                  <strong>{corruptCount > 0 ? `${corruptCount} project ${corruptCount === 1 ? "file needs" : "files need"} attention` : "Could not load projects"}</strong>
+                  <p>Existing files were left in place so they can be recovered.</p>
+                  {projectMessage && <details><summary>Details</summary><p>{projectMessage}</p></details>}
+                  <button className="recents__notice-retry" type="button" onClick={onRefreshProjects}>Try again</button>
+                </div>
+              )}
+
+              {projectMode && projectStatus === "loading" ? (
+                <div className="recents__canvases recents__canvases--grid" role="status" aria-label="Loading workspace projects">
+                  {[0, 1, 2, 3].map((index) => <div className="recents__skeleton" key={index} aria-hidden="true"><span /><span /><span /></div>)}
+                  <span className="sr-only">Loading workspace projects…</span>
+                </div>
+              ) : projectMode && visibleProjects.length > 0 ? (
+                <div className={`recents__canvases recents__canvases--${layout}`}>
+                  {visibleProjects.map((project) => (
+                    <div className="recents__project-card" key={project.id}>
+                      <button className={`recents__canvas${project.id === activeProjectId ? " recents__canvas--current" : ""}`} type="button" onClick={() => onOpenProject(project.id)}>
+                        <Preview thumbnailUrl={thumbnailUrls?.[project.id]} />
+                        <span className="recents__canvas-details">
+                          <span className="recents__canvas-title">{project.title}{project.id === SCRATCHPAD_PROJECT_ID && <span className="recents__pinned">Pinned</span>}</span>
+                          <time className="recents__canvas-meta" dateTime={project.updatedAt}>{formatEditedLabel(project.updatedAt)}</time>
+                        </span>
+                      </button>
+                      <details className="recents__card-menu">
+                        <summary aria-label={`More actions for ${project.title}`} title="More actions"><MoreHorizontal size={19} strokeWidth={1.8} aria-hidden="true" /></summary>
+                        <div className="recents__card-menu-items">
+                          <button type="button" onClick={(event) => { closeCardMenu(event); onOpenProject(project.id); }}>Open</button>
+                          {onRenameProject && project.id !== SCRATCHPAD_PROJECT_ID && <button type="button" onClick={(event) => { closeCardMenu(event); setRenamingProject(project); setRenameTitle(project.title); }}>Rename</button>}
+                          <button type="button" onClick={(event) => { closeCardMenu(event); onDuplicateProject(project.id); }}>Duplicate</button>
+                          {onRevealProject && <button type="button" onClick={(event) => { closeCardMenu(event); onRevealProject(project.id); }}>Reveal in folder</button>}
+                          {project.id !== SCRATCHPAD_PROJECT_ID && <button className="recents__delete-action" type="button" onClick={(event) => { closeCardMenu(event); onDeleteProject(project.id); }}>Delete…</button>}
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              ) : !projectMode && visibleCanvases.length > 0 ? (
+                <div className={`recents__canvases recents__canvases--${layout}`}>
+                  {visibleCanvases.map((canvas) => (
+                    <div className="recents__project-card" key={canvas.id}>
+                      <button className={`recents__canvas${canvas.id === currentCanvasId ? " recents__canvas--current" : ""}`} type="button" onClick={() => onOpenCanvas(canvas.id)}>
+                        <Preview thumbnailUrl={thumbnailUrls?.[canvas.id]} />
+                        <span className="recents__canvas-details">
+                          <span className="recents__canvas-title">{canvas.title}</span>
+                          <time className="recents__canvas-meta" dateTime={canvas.updatedAt}>{formatEditedLabel(canvas.updatedAt)}</time>
+                        </span>
+                      </button>
+                      <details className="recents__card-menu">
+                        <summary aria-label={`More actions for ${canvas.title}`} title="More actions"><MoreHorizontal size={19} strokeWidth={1.8} aria-hidden="true" /></summary>
+                        <div className="recents__card-menu-items">
+                          <button type="button" onClick={(event) => { closeCardMenu(event); onOpenCanvas(canvas.id); }}>Open</button>
+                          {onRenameCanvas && <button type="button" onClick={(event) => { closeCardMenu(event); setRenamingCanvas(canvas); setRenameTitle(canvas.title); }}>Rename</button>}
+                          {onDuplicateCanvas && <button type="button" onClick={(event) => { closeCardMenu(event); onDuplicateCanvas(canvas.id); }}>Duplicate</button>}
+                          {onDeleteCanvas && canvases.length > 1 && <button className="recents__delete-action" type="button" onClick={(event) => { closeCardMenu(event); onDeleteCanvas(canvas.id); }}>Delete</button>}
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              ) : projectStatus !== "error" || !projectMode ? (
+                <div className="recents__empty" role="status">
+                  <span className="recents__empty-mark" aria-hidden="true"><FolderOpen size={24} strokeWidth={1.5} /></span>
+                  <h3>{query ? "No matches found" : projectMode ? "No projects yet" : "No canvases yet"}</h3>
+                  <p>{query ? "Try another name or clear the search." : "Create a file to start designing."}</p>
+                  {query ? <button className="recents__button recents__button--quiet" type="button" onClick={() => setQuery("")}>Clear search</button> : <button className="recents__button recents__button--primary" type="button" onClick={onNewCanvas}><Plus size={16} aria-hidden="true" /> New file</button>}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </main>
-    </div>
-  )
+      <Dialog.Root open={renamingProject !== null || renamingCanvas !== null} onOpenChange={(open) => { if (!open) { setRenamingProject(null); setRenamingCanvas(null); } }}>
+        <Dialog.Content aria-describedby="rename-project-description">
+          <form className="recents__rename-form" onSubmit={(event) => {
+            event.preventDefault();
+            const title = renameTitle.trim();
+            const currentTitle = renamingProject?.title ?? renamingCanvas?.title;
+            if (!currentTitle || !title || title.length > 120 || title === currentTitle) return;
+            if (renamingProject) onRenameProject?.(renamingProject.id, title);
+            if (renamingCanvas) onRenameCanvas?.(renamingCanvas.id, title);
+            setRenamingProject(null);
+            setRenamingCanvas(null);
+          }}>
+            <Dialog.Title>{renamingCanvas ? "Rename canvas" : "Rename project"}</Dialog.Title>
+            <Dialog.Description id="rename-project-description">Choose a title up to 120 characters.</Dialog.Description>
+            <label className="recents__rename-label" htmlFor="rename-project-title">Name</label>
+            <input
+              autoFocus
+              className="recents__rename-field"
+              id="rename-project-title"
+              maxLength={120}
+              value={renameTitle}
+              onChange={(event) => setRenameTitle(event.currentTarget.value)}
+            />
+            <div className="recents__rename-actions">
+              <Button type="button" onClick={() => { setRenamingProject(null); setRenamingCanvas(null); }}>Cancel</Button>
+              <Button variant="primary" type="submit" disabled={!renameTitle.trim() || renameTitle.trim() === (renamingProject?.title ?? renamingCanvas?.title)}>Save name</Button>
+            </div>
+          </form>
+        </Dialog.Content>
+      </Dialog.Root>
+    </section>
+  );
+}
+
+function Preview({ thumbnailUrl }: { thumbnailUrl?: string | undefined }) {
+  return (
+    <span className="recents__canvas-preview" aria-hidden="true">
+      {thumbnailUrl ? <img className="recents__preview-image" src={thumbnailUrl} alt="" /> : <span className="recents__preview-caption">Preview unavailable</span>}
+    </span>
+  );
+}
+
+function StartCard({ title, description, icon, onClick }: { title: string; description: string; icon: React.ReactNode; onClick?: (() => void) | undefined }) {
+  return (
+    <button className="recents__start-card" type="button" onClick={onClick} disabled={!onClick} title={onClick ? undefined : `${title} is coming soon`}>
+      <span className="recents__start-icon">{icon}</span>
+      <span className="recents__start-copy"><strong>{title}</strong><span>{description}</span>{!onClick && <em>Coming soon</em>}</span>
+    </button>
+  );
 }

@@ -1,85 +1,13 @@
-:root {
-  --canvas-bg: #090a0d;
-  --surface-0: #0e1015;
-  --surface-1: #151820;
-  --surface-2: #1e222b;
-  --surface-hover: #262b37;
-  --surface-active: #2f3545;
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --border-focus: #388bfd;
-  --text-primary: #f3f5f8;
-  --text-secondary: #9aa4b2;
-  --text-muted: #5e6878;
-  --accent-blue: #388bfd;
-  --accent-orange: #f97316;
-  --accent-purple: #a855f7;
-  --accent-green: #238636;
-  --accent-amber: #d29922;
-  --glass-bg: rgba(14, 16, 21, 0.78);
-  --glass-blur: blur(20px);
-}
+@import "@fontsource/geist-sans/latin-400.css";
+@import "@fontsource/geist-sans/latin-500.css";
+@import "@fontsource/geist-sans/latin-600.css";
+@import "@fontsource/geist-sans/latin-700.css";
+@import "@fontsource/geist-mono/latin-400.css";
+@import "@fontsource/geist-mono/latin-500.css";
+@import "./tokens.css";
+@import "../ui/ui.css";
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--canvas-bg);
-  color: var(--text-primary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Ambient canvas top glow */
-.ambient-top-glow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 280px;
-  background: radial-gradient(ellipse 70% 45% at 50% -10%, rgba(249, 115, 22, 0.14), rgba(168, 85, 247, 0.05), transparent 75%);
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* Glassmorphism panel container */
-.glass-panel {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.03);
-}
-
-/* Custom sleek scrollbar */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
-}
-
-/* Tldraw Dark Canvas Theme Overrides */
-.tl-container {
-  background-color: var(--canvas-bg) !important;
-}
-.tl-background {
-  background-color: var(--canvas-bg) !important;
-}
-
-/* Interactive transitions */
-button, input, select, textarea {
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-}
+@import "./shell.css";
+@import "./home.css";
+@import "./editor.css";
+@import "./agent.css";
