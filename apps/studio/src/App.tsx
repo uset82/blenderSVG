@@ -3,7 +3,6 @@ import { type Editor, type TLPageId, Tldraw } from "tldraw";
 import "tldraw/tldraw.css";
 import "./styles/studio.css";
 import { useStudioHost } from "./bridge/studioHost.js";
-import { AgentHarnessSidebar } from "./components/AgentHarnessSidebar.js";
 import { summarizeShapeSelection } from "./components/inspectorSelection.js";
 import {
   clampPanelSize,
@@ -18,12 +17,15 @@ import {
   readProjectThumbnails,
   removeProjectThumbnail
 } from "./components/projectThumbnail.js";
-import { readCanvasTimes, rememberCanvasTimes, stampCanvasTimes } from "./components/recentCanvas.js";
 import { RecentsDashboard, SCRATCHPAD_PROJECT_ID, type SessionCanvas } from "./components/RecentsDashboard.js";
+import { readCanvasTimes, rememberCanvasTimes, stampCanvasTimes } from "./components/recentCanvas.js";
 import { HOME_CATEGORY_PRESETS } from "./components/StudioComposer.js";
 import { type GeometryProperty, type InspectedShape, StudioInspector } from "./components/StudioInspector.js";
+import { StudioLeftPanel } from "./components/StudioLeftPanel.js";
 import { StudioToolbar } from "./components/StudioToolbar.js";
 import { StudioWindowBar } from "./components/StudioWindowBar.js";
+import { ensureSessionScratchpad, isSessionScratchpad } from "./components/sessionScratchpad.js";
+import { buildStudioProjectExport, studioExportFileName } from "./projects/exportProjectFile.js";
 import { parseImportedStudioProject } from "./projects/importProjectFile.js";
 import {
   assertChatImageAttachment,
@@ -137,7 +139,10 @@ export function App() {
   const traceInputRef = useRef<HTMLInputElement | null>(null);
   const screenshotInputRef = useRef<HTMLInputElement | null>(null);
   const [importNotice, setImportNotice] = useState<string | undefined>(undefined);
-  const [activeSidePanel, setActiveSidePanel] = useState<"chat" | "inspector" | null>(null);
+  const [isAgentSidebarOpen, setAgentSidebarOpen] = useState(false);
+  const [isAgentPanelCollapsed, setAgentPanelCollapsed] = useState(false);
+  const [canvasEpoch, setCanvasEpoch] = useState(0);
+  const [isInspectorOpen, setInspectorOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedShape, setSelectedShape] = useState<InspectedShape | null>(null);
   const [chatPanelWidth, setChatPanelWidth] = useState(() => readPanelSize("chat", "width"));
@@ -145,14 +150,12 @@ export function App() {
   const [inspectorPanelWidth, setInspectorPanelWidth] = useState(() => readPanelSize("inspector", "width"));
   const [inspectorPanelHeight, setInspectorPanelHeight] = useState(() => readPanelSize("inspector", "height"));
   const [isCompactViewport, setIsCompactViewport] = useState(() => window.innerWidth <= 900);
-  const [workspaceHeight, setWorkspaceHeight] = useState(() => Math.max(0, window.innerHeight - 44));
+  const [workspaceHeight, setWorkspaceHeight] = useState(() => window.innerHeight);
   const [canvases, setCanvases] = useState<SessionCanvas[]>([]);
   const [currentCanvasId, setCurrentCanvasId] = useState<string | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState(readProjectThumbnails);
   const [draftPrefill, setDraftPrefill] = useState<{ id: string; text: string } | null>(null);
   const [draftImagePrefill, setDraftImagePrefill] = useState<{ id: string; file: File } | null>(null);
-  const isAgentSidebarOpen = activeSidePanel === "chat";
-  const isInspectorOpen = activeSidePanel === "inspector";
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const panelResizeRef = useRef<ActivePanelResize | null>(null);
   const panelSizesRef = useRef({
@@ -407,7 +410,8 @@ export function App() {
   const refreshCanvases = (editor: Editor, touchCurrent = false) => {
     const pages = editor.getPages().map((page) => ({
       id: String(page.id),
-      title: page.name
+      title: page.name,
+      pinned: isSessionScratchpad(page)
     }));
     const currentId = String(editor.getCurrentPageId());
     const stamped = stampCanvasTimes(readCanvasTimes(), pages, currentId, touchCurrent);
@@ -474,7 +478,10 @@ export function App() {
       window.clearTimeout(stampCanvasTimerRef.current);
       stampCanvasTimerRef.current = window.setTimeout(() => {
         const current = editorRef.current;
-        if (current) refreshCanvasesRef.current(current, true);
+        if (current) {
+          refreshCanvasesRef.current(current, true);
+          setCanvasEpoch((epoch) => epoch + 1);
+        }
       }, 500);
     }, { scope: "document" });
     stopInspectorListenerRef.current?.();
@@ -482,6 +489,7 @@ export function App() {
       scope: "document"
     });
     requestAnimationFrame(() => requestAnimationFrame(() => setZoomLevel(fitCurrentFrame(editor))));
+    if (hostState.host !== "vscode") ensureSessionScratchpad(editor);
     refreshCanvases(editor);
     setEditorReady(true);
     if (pendingNewCanvasRef.current !== null) {
@@ -501,6 +509,52 @@ export function App() {
     scheduleProjectSave();
   };
 
+  const handleExportProject = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const title = projectTitleRef.current.trim() || "Untitled";
+    const storedId = activeProjectId ?? projectIdRef.current;
+    const id = storedId && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(storedId)
+      ? storedId
+      : crypto.randomUUID();
+    const json = buildStudioProjectExport({ id, title, snapshot: JSON.stringify(editor.getSnapshot()) });
+    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = studioExportFileName(title);
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
+  const handleDuplicateCurrent = () => {
+    if (hostState.host === "vscode" && hostState.workspaceTrusted && activeProjectId) {
+      handleDuplicateProject(activeProjectId);
+      return;
+    }
+    if (currentCanvasId) handleDuplicateCanvas(currentCanvasId);
+  };
+
+  const handleDeleteCurrent = () => {
+    if (hostState.host === "vscode" && hostState.workspaceTrusted && activeProjectId) {
+      handleDeleteProject(activeProjectId);
+      return;
+    }
+    const editor = editorRef.current;
+    const currentId = currentCanvasId;
+    const page = editor?.getCurrentPage();
+    if (!editor || !currentId || !page || isSessionScratchpad(page) || editor.getPages().length < 2) return;
+    if (!window.confirm(`Delete “${projectTitleRef.current}”? This cannot be undone.`)) return;
+    handleDeleteCanvas(currentId);
+    navigateRoute({ name: "project", projectId: String(editor.getCurrentPageId()) });
+  };
+
+  const canDeleteCurrent = (() => {
+    if (hostState.host === "vscode" && hostState.workspaceTrusted) return Boolean(activeProjectId && activeProjectId !== SCRATCHPAD_PROJECT_ID);
+    const editor = editorRef.current;
+    const page = editor?.getCurrentPage();
+    return Boolean(editor && editor.getPages().length > 1 && page && !isSessionScratchpad(page));
+  })();
+
   const handleOpenCanvas = (canvasId: string) => {
     const editor = editorRef.current;
     const page = editor?.getPages().find((candidate) => String(candidate.id) === canvasId);
@@ -510,6 +564,7 @@ export function App() {
     setZoomLevel(fitCurrentFrame(editor));
     projectTitleRef.current = page.name;
     setProjectTitle(page.name);
+    if (hostState.host !== "vscode") setProjectSaveStatus("Browser session only");
     refreshCanvases(editor);
     scheduleProjectSave();
     routedProjectRef.current = canvasId;
@@ -587,7 +642,7 @@ export function App() {
     if (!prompt.trim()) return;
     handleNewCanvas(categoryId);
     setDraftPrefill({ id: crypto.randomUUID(), text: prompt.trim() });
-    setActiveSidePanel("chat");
+    setAgentSidebarOpen(true);
   };
 
   const openLocalAsset = async (file: File | undefined, mode: "trace" | "screenshot" | "import") => {
@@ -622,7 +677,7 @@ export function App() {
           text: "Recreate the attached screenshot as an editable design."
         });
         setDraftImagePrefill({ id: crypto.randomUUID(), file });
-        setActiveSidePanel("chat");
+        setAgentSidebarOpen(true);
         setProjectSaveStatus("Screenshot added locally. It will only be sent after you review and confirm the request.");
         setImportNotice(undefined);
         return;
@@ -642,8 +697,8 @@ export function App() {
     }
   };
 
-  const handleToggleAgentSidebar = () => setActiveSidePanel((current) => (current === "chat" ? null : "chat"));
-  const handleToggleInspector = () => setActiveSidePanel((current) => (current === "inspector" ? null : "inspector"));
+  const handleToggleAgentSidebar = () => setAgentSidebarOpen((current) => !current);
+  const handleToggleInspector = () => setInspectorOpen((current) => !current);
   const handleCycleTheme = () =>
     setTheme((current) => (current === "dark" ? "light" : current === "light" ? "contrast" : "dark"));
 
@@ -787,6 +842,7 @@ export function App() {
     editor.setCurrentPage(page);
     projectTitleRef.current = page.name;
     setProjectTitle(page.name);
+    setProjectSaveStatus("Browser session only");
     setZoomLevel(fitCurrentFrame(editor));
     refreshCanvases(editor);
   }, [route, hostState.host, hostState.workspaceTrusted, editorReady, openProject, persistProjectNow]);
@@ -795,7 +851,7 @@ export function App() {
     const editor = editorRef.current;
     const page = editor?.getPages().find((candidate) => String(candidate.id) === canvasId);
     const nextTitle = title.trim();
-    if (!editor || !page || !nextTitle || nextTitle.length > 120) return;
+    if (!editor || !page || isSessionScratchpad(page) || !nextTitle || nextTitle.length > 120) return;
     editor.renamePage(page.id, nextTitle);
     if (String(editor.getCurrentPageId()) === canvasId) {
       projectTitleRef.current = nextTitle;
@@ -812,6 +868,7 @@ export function App() {
     editor.duplicatePage(page.id, newId);
     const created = editor.getPage(newId);
     if (created) {
+      if (isSessionScratchpad(page)) editor.updatePage({ id: created.id, meta: { ...created.meta, studioScratchpad: false } });
       editor.setCurrentPage(created);
       projectTitleRef.current = created.name;
       setProjectTitle(created.name);
@@ -823,7 +880,7 @@ export function App() {
     const editor = editorRef.current;
     if (!editor || editor.getPages().length < 2) return;
     const page = editor.getPages().find((candidate) => String(candidate.id) === canvasId);
-    if (!page) return;
+    if (!page || isSessionScratchpad(page)) return;
     const wasCurrent = String(editor.getCurrentPageId()) === canvasId;
     editor.deletePage(page.id);
     if (wasCurrent) {
@@ -909,28 +966,23 @@ export function App() {
     if (editorRef.current) setZoomLevel(editorRef.current.getZoomLevel());
   };
 
+  const handlePresentFrame = () => {
+    const editor = editorRef.current;
+    const frame = editor?.getSelectedShapes().find((shape) => shape.type === "frame");
+    if (!editor || !frame) return;
+    const bounds = editor.getShapePageBounds(frame.id);
+    if (!bounds) return;
+    editor.centerOnPoint({ x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 });
+    editor.zoomToBounds(bounds, { inset: 24 });
+    setZoomLevel(editor.getZoomLevel());
+    const canvas = document.querySelector(".studio-canvas");
+    if (canvas instanceof HTMLElement && document.fullscreenElement !== canvas) {
+      void canvas.requestFullscreen().catch(() => undefined);
+    }
+  };
+
   return (
     <div className="studio-app" data-theme={theme}>
-      {route.name === "project" && (
-        <StudioWindowBar
-          projectTitle={projectTitle}
-          saveStatus={projectSaveStatus}
-          theme={theme}
-          onCycleTheme={handleCycleTheme}
-          onTitleChange={handleTitleChange}
-          isHome={false}
-          onShowHome={() => navigateRoute({ name: "home" })}
-          isAgentSidebarOpen={isAgentSidebarOpen}
-          onToggleAgentSidebar={handleToggleAgentSidebar}
-          isInspectorOpen={isInspectorOpen}
-          onToggleInspector={handleToggleInspector}
-          zoomLevel={zoomLevel}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
-          onZoomReset={handleZoomReset}
-        />
-      )}
-
       {/* Keep the canvas mounted across routes, but remove it from interaction outside a project. */}
       <div
         ref={workspaceRef}
@@ -939,13 +991,13 @@ export function App() {
         inert={route.name !== "project"}
         aria-hidden={route.name !== "project"}
       >
-        {/* Agent conversation */}
-        <AgentHarnessSidebar
-          className="studio-agent-sidebar"
-          isOpen={isAgentSidebarOpen}
+        {/* Conversation and canvas utility tabs share one resizable left panel. */}
+        {isAgentSidebarOpen && <StudioLeftPanel
+          panelCollapsed={isAgentPanelCollapsed}
+          onPanelCollapsedChange={setAgentPanelCollapsed}
           draftPrefill={draftPrefill}
           draftImagePrefill={draftImagePrefill}
-          onClose={() => setActiveSidePanel(null)}
+          onClose={() => setAgentSidebarOpen(false)}
           connectionHost={hostState.host}
           connection={hostState.connection}
           workspaceTrusted={hostState.workspaceTrusted}
@@ -958,8 +1010,9 @@ export function App() {
           onSendChat={sendChat}
           onCancelChat={cancelChat}
           onClearChatRun={clearChatRun}
-        />
-        {isAgentSidebarOpen && (
+          editor={canvasEpoch >= 0 ? editorRef.current : null}
+        />}
+        {isAgentSidebarOpen && !isAgentPanelCollapsed && (
           <PanelResizer
             panel="chat"
             compact={isCompactViewport}
@@ -972,7 +1025,31 @@ export function App() {
 
         {/* Central Infinite Canvas Container */}
         <div className="studio-canvas">
-          {/* Floating Canvas Toolbar */}
+          <StudioWindowBar
+            projectTitle={projectTitle}
+            saveStatus={projectSaveStatus}
+            theme={theme}
+            onCycleTheme={handleCycleTheme}
+            onTitleChange={handleTitleChange}
+            onOpenFile={handleOpenFile}
+            onDuplicate={handleDuplicateCurrent}
+            onExport={handleExportProject}
+            onDelete={handleDeleteCurrent}
+            canDelete={canDeleteCurrent}
+            onRetrySave={persistProjectNow}
+            isHome={false}
+            onShowHome={() => navigateRoute({ name: "home" })}
+            isAgentSidebarOpen={isAgentSidebarOpen}
+            onToggleAgentSidebar={handleToggleAgentSidebar}
+            isInspectorOpen={isInspectorOpen}
+            onToggleInspector={handleToggleInspector}
+            canPresent={selectedShape?.type === "frame" && selectedShape.count === 1}
+            onPresent={handlePresentFrame}
+            zoomLevel={zoomLevel}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onZoomReset={handleZoomReset}
+          />
           <StudioToolbar activeTool={activeTool} onSelectTool={handleSelectTool} onAddShape={handleAddShape} />
 
           {/* Tldraw Canvas with default UI disabled */}
@@ -1015,7 +1092,7 @@ export function App() {
           <StudioInspector
             className="studio-inspector"
             isOpen={isInspectorOpen}
-            onClose={() => setActiveSidePanel(null)}
+            onClose={() => setInspectorOpen(false)}
             selectedShape={selectedShape}
             onUpdate={handleInspectorUpdate}
             panelWidth={inspectorPanelWidth}

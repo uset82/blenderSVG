@@ -10,7 +10,7 @@ import { traceImageBuffer } from "@codex-avatar-studio/asset-pipeline/trace-pixe
 import * as vscode from "vscode";
 import { OpenRouterChatController } from "./openRouterChat.js";
 import { OpenRouterConnectionController, type OpenRouterConnectionState } from "./openRouterConnection.js";
-import { SCRATCHPAD_PROJECT_ID, StudioProjectStore, StudioProjectStoreError } from "./studioProjectStore.js";
+import { formatCorruptProjectMessage, SCRATCHPAD_PROJECT_ID, StudioProjectStore, StudioProjectStoreError } from "./studioProjectStore.js";
 
 type StudioProjectMessage = Extract<
   StudioToHostMessage,
@@ -191,7 +191,7 @@ export class StudioWebviewPanel implements vscode.Disposable {
           type: "studio:projectList",
           status: "ready",
           message: result.corruptCount
-            ? `${result.corruptCount} damaged project file${result.corruptCount === 1 ? " was" : "s were"} left in place for recovery.`
+            ? formatCorruptProjectMessage(result.corruptCount, result.corruptNames)
             : "Projects are stored in .codex-avatar/studio/projects.",
           projects: result.projects,
           corruptCount: result.corruptCount

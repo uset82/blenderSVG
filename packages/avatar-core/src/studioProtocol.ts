@@ -30,8 +30,14 @@ const chatHistoryMessage = z.strictObject({
 const chatImageAttachment = z
   .strictObject({ dataUrl: z.string().max(2_100_000) })
   .superRefine((attachment, context) => {
-    const match = /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.exec(attachment.dataUrl);
-    if (!match) context.addIssue({ code: "custom", message: "The image attachment must be a supported base64 image." });
+    const match = /^data:image\/(?:png|jpeg|webp|gif);base64,([A-Za-z0-9+/]+={0,2})$/.exec(attachment.dataUrl);
+    const payload = match?.[1] ?? "";
+    const validBase64 =
+      payload.length % 4 === 0 &&
+      /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})$/.test(payload);
+    if (!validBase64) {
+      context.addIssue({ code: "custom", message: "The image attachment must be a supported base64 image." });
+    }
   });
 const usage = z.strictObject({
   promptTokens: z.number().int().nonnegative().max(100_000_000).optional(),

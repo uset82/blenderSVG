@@ -3,7 +3,8 @@ import { clampPanelSize, readPanelSize, writePanelSize } from "../src/components
 
 describe("Studio panel sizing", () => {
   it("clamps saved and requested sizes to accessible panel ranges", () => {
-    expect(clampPanelSize("chat", "width", 100)).toBe(280);
+    expect(clampPanelSize("chat", "width", 100)).toBe(260);
+    expect(clampPanelSize("chat", "width", 900)).toBe(480);
     expect(clampPanelSize("inspector", "width", 900)).toBe(420);
     expect(clampPanelSize("chat", "height", Number.NaN)).toBe(380);
     expect(clampPanelSize("chat", "height", 520, 596)).toBe(286);
@@ -19,6 +20,7 @@ describe("Studio panel sizing", () => {
 
     expect(readPanelSize("chat", "width", storage)).toBe(444);
     expect(readPanelSize("inspector", "height", storage)).toBe(260);
+    expect(readPanelSize("chat", "width", { getItem: () => null })).toBe(320);
     expect(readPanelSize("inspector", "width", { getItem: () => null })).toBe(280);
   });
 

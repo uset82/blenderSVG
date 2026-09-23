@@ -34,14 +34,26 @@ const MAX_PROJECTS = 2_000;
 export const SCRATCHPAD_PROJECT_ID = "00000000-0000-4000-8000-000000000001";
 
 /** Local, workspace-trusted project storage with a versioned envelope and atomic replacement. */
+const CORRUPT_PROJECT_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/i;
+
+/** Host message for damaged project files. Names are basenames only, and the text stays inside the protocol limit. */
+export function formatCorruptProjectMessage(count: number, names: readonly string[]): string {
+  const summary = `${count} damaged project file${count === 1 ? " was" : "s were"} left in place for recovery.`;
+  const safe = names.filter((name) => CORRUPT_PROJECT_NAME.test(name)).slice(0, 6);
+  if (!safe.length) return summary;
+  const extra = names.length > safe.length ? ` and ${names.length - safe.length} more` : "";
+  const detailed = `${summary} ${safe.join(", ")}${extra}.`;
+  return detailed.length <= 500 ? detailed : summary;
+}
+
 export class StudioProjectStore {
   public constructor(private readonly workspaceRoot: () => string | undefined) {}
 
-  public async list(): Promise<{ projects: StudioProjectMeta[]; corruptCount: number }> {
+  public async list(): Promise<{ projects: StudioProjectMeta[]; corruptCount: number; corruptNames: string[] }> {
     const directory = await this.getDirectory(true);
     const entries = await readdir(directory, { withFileTypes: true });
     const projects: StudioProjectMeta[] = [];
-    let corruptCount = 0;
+    const corruptNames: string[] = [];
 
     for (const entry of entries) {
       const match = /^([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.json$/i.exec(entry.name);
@@ -49,14 +61,14 @@ export class StudioProjectStore {
       const id = match[1];
       if (!id) continue;
       if (!entry.isFile()) {
-        corruptCount += 1;
+        corruptNames.push(entry.name);
         continue;
       }
       try {
         const project = await this.read(id);
         projects.push(toMeta(project));
       } catch {
-        corruptCount += 1;
+        corruptNames.push(entry.name);
       }
     }
 
@@ -65,7 +77,8 @@ export class StudioProjectStore {
       if (right.id === SCRATCHPAD_PROJECT_ID) return 1;
       return right.updatedAt.localeCompare(left.updatedAt);
     });
-    return { projects: projects.slice(0, MAX_PROJECTS), corruptCount: Math.min(corruptCount, MAX_PROJECTS) };
+    const reportedNames = corruptNames.slice(0, MAX_PROJECTS);
+    return { projects: projects.slice(0, MAX_PROJECTS), corruptCount: reportedNames.length, corruptNames: reportedNames };
   }
 
   public async open(id: string): Promise<StudioProjectDocument> {

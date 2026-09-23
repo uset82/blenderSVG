@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { SCRATCHPAD_PROJECT_ID, StudioProjectStore } from "../src/studioProjectStore.js";
+import { formatCorruptProjectMessage, SCRATCHPAD_PROJECT_ID, StudioProjectStore } from "../src/studioProjectStore.js";
 
 const roots: string[] = [];
 const blankSnapshot = JSON.stringify({ document: { schema: {}, store: {} } });
@@ -54,7 +54,9 @@ describe("permanent Scratchpad project", () => {
     writeFileSync(projectPath, "{damaged");
     await expect(store.ensureScratchpad(editedSnapshot)).rejects.toMatchObject({ code: "corrupt" });
     expect(readFileSync(projectPath, "utf8")).toBe("{damaged");
-    expect((await store.list()).corruptCount).toBe(1);
+    const listed = await store.list();
+    expect(listed.corruptCount).toBe(1);
+    expect(listed.corruptNames).toEqual([`${SCRATCHPAD_PROJECT_ID}.json`]);
   });
 
   it("rejects an invalid provisioning snapshot before writing", async () => {
@@ -70,5 +72,19 @@ describe("permanent Scratchpad project", () => {
     expect((await store.list()).projects).toHaveLength(1);
     const persisted = await store.open(SCRATCHPAD_PROJECT_ID);
     expect([blankSnapshot, editedSnapshot]).toContain(persisted.snapshot);
+  });
+});
+
+describe("corrupt project details", () => {
+  it("names damaged files and stays inside the protocol message limit", () => {
+    const name = `${SCRATCHPAD_PROJECT_ID}.json`;
+    expect(formatCorruptProjectMessage(1, [name])).toBe(
+      `1 damaged project file was left in place for recovery. ${name}.`
+    );
+    expect(formatCorruptProjectMessage(1, ["../secret.json"])).toBe(
+      "1 damaged project file was left in place for recovery."
+    );
+    const many = Array.from({ length: 40 }, () => `${SCRATCHPAD_PROJECT_ID}.json`);
+    expect(formatCorruptProjectMessage(40, many).length).toBeLessThanOrEqual(500);
   });
 });

@@ -9,7 +9,7 @@ interface PanelSizeRange {
 
 const PANEL_SIZE_RANGES: Record<ResizablePanel, Record<PanelSizeAxis, PanelSizeRange>> = {
   chat: {
-    width: { initial: 340, minimum: 280, maximum: 520 },
+    width: { initial: 320, minimum: 260, maximum: 480 },
     height: { initial: 380, minimum: 180, maximum: 520 }
   },
   inspector: {

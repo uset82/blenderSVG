@@ -280,7 +280,7 @@ export function AgentHarnessSidebar({
   return (
     <aside
       className={className}
-      id="studio-agent-sidebar"
+      id="studio-agent-conversation"
       aria-label="Agent conversation"
       style={
         {
@@ -361,8 +361,9 @@ export function AgentHarnessSidebar({
         >
           <div className="studio-agent__privacy-title">Review before sending</div>
           <p className="studio-agent__privacy-copy">
-            Studio sends the visible conversation and its assistant instructions only after you review them. Canvas
-            files, images, SVG, Blender scenes, and local paths are not attached.
+            Studio sends the conversation only after review. A screenshot is included only when you attach it; the
+            review shows the image before sending. Other canvas content, SVG, Blender scenes, and local paths stay local.
+            Attach the screenshot again if a later message needs it.
           </p>
         </section>
         <section className="studio-agent__model-section" aria-label="Model selection">
@@ -601,7 +602,10 @@ export function AgentHarnessSidebar({
             </button>
           </div>
         )}
-        {attachedImage && !selectedModel?.inputModalities.includes("image") && (
+        {attachedImage && connectionHost === "browser" && (
+          <p className="studio-agent__attachment-notice" role="status">This image is still local. Open Studio in VS Code to connect a vision model.</p>
+        )}
+        {attachedImage && connectionHost === "vscode" && !selectedModel?.inputModalities.includes("image") && (
           <p className="studio-agent__attachment-notice" role="status">Choose a model with image input before reviewing this request.</p>
         )}
         {attachmentError && <p className="studio-agent__attachment-notice" role="alert">{attachmentError}</p>}

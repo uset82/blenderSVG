@@ -620,45 +620,58 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
   - **Category chips:** Landing page, Mobile app, Web app, Dashboard, Slides, Avatar, Icon / vector, Something else. Each sets a frame preset (such as 1440×1024 or 390×844) and a starter prompt.
   - **Submit:** creates a project, opens the editor and puts the prompt in the agent composer.
   - **Sending:** it sends only if the user is connected and confirms; otherwise it shows the connect step.
-- [x] 15.5 Start cards: "Image → SVG" (local vtracer), "Recreate a screenshot" (attaches the image to the agent) and "Import SVG / image". No Figma or web import until they are real.
-- [ ] 15.6 Recents grid:
-  - Each card shows a real thumbnail, the title and "Edited 4h ago".
+- [x] 15.5 Start cards: "Image → SVG" (local VTracer), "Recreate a screenshot" (places it locally and attaches it only to a reviewed vision-model message) and "Import SVG / image" (sanitized local asset). No Figma or web import until they are real.
+- [x] 15.6 Recents grid:
+  - Populated canvases show a real thumbnail; empty or unsupported canvases show an honest placeholder, alongside the title and edit time.
   - A "⋯" menu offers Open, Rename, Duplicate, Delete and Reveal in folder.
   - Grid/list and sort order (last edited, name, created) are remembered.
   - A search box filters by title.
-- [ ] 15.7 A pinned "Scratchpad" project that always exists, following Paper's permanent-draft pattern.
-- [ ] 15.8 Empty state, skeleton loading cards, and an error state that shows how many projects are corrupt, with details.
-- [ ] 15.9 Responsive layout:
+- [x] 15.7 A pinned "Scratchpad" project that always exists, following Paper's permanent-draft pattern.
+- [x] 15.8 Empty state, skeleton loading cards, and an error state that shows how many projects are corrupt, with details.
+- [x] 15.9 Responsive layout:
   - Below 1024px the sidebar becomes an icon rail; below 700px it becomes a drawer.
   - The grid reflows from 1 to 5 columns.
 
 **Done when:** Home matches its artboard at 1440 and 390, and every visible control works.
 
-**Phase 15 evidence — partial (2026-09-23):**
+**Phase 15 evidence — complete (2026-09-23):**
 
 - 15.1: `parseStudioHash` / `formatStudioHash` round-trip home, project, connectors, settings, and gallery. `apps/studio/test/studioRoute.test.ts` passed 3/3. `pnpm --filter @codex-avatar-studio/studio typecheck` passed. In the live preview, `#/` showed Home with the Home control pressed; opening the session canvas set `#/p/page%3Apage` and released Home. `#/connectors` and `#/settings` rendered honest unavailable pages, not fake connections or a key form. `history.back()` returned to `#/` and `history.forward()` returned to the project hash. `#/gallery` stays on the dev-only gallery in `main.tsx`.
-- 15.2: at 1440×900 the Home rail measured 240px. It shows the logo, Search, and Recents. Ctrl+K focused the canvas search box. Drafts, Templates, Design systems, Connectors, and Settings are absent because those features are not available. The logo is not a workspace menu.
+- 15.2: at 1440×900 the Home rail measures 240px. The logo opens a keyboard-operable workspace menu identifying the trusted VS Code workspace or browser session, with working New file and Open file actions. Ctrl+K focuses the canvas search box. Drafts, Templates, Design systems, Connectors, and Settings stay hidden until they have working destinations.
 - 15.3: the Home header shows the title "Home", "Open file", and a primary "New file" button with a plus icon. Clicking New file opened `#/p/page%3Aitx1rGiOHVIPYeUiqwyA2`. Open file uses the VS Code project import dialog in a trusted workspace, and a `.json` file input in the browser. `apps/studio/test/importProjectFile.test.ts` passed 2/2: a versioned project with a tldraw snapshot is accepted, and invalid JSON, the wrong shape, and a snapshot without a schema are rejected. A browser import is labeled "Imported into this browser session. It is not saved to a workspace." Studio typecheck passed. The native file dialog itself was not completed in the preview.
 - 15.4: `HOME_CATEGORY_PRESETS` covers all eight chips. `apps/studio/test/homeCategories.test.ts` passed. In the live preview, Mobile app set the prompt to "Design a mobile app for " and the frame note to 390 × 844. Submitting "Design a mobile app for a neighborhood library" opened `#/p/page%3AUWVz6MplhdCG_TanNmBNs` with the chat panel open and that text in the message box. Review & send stayed disabled, and the panel said the browser preview cannot store keys or send chat. Attachment, build, and variant controls are not shown until they work. Studio typecheck passed after rebuilding `@codex-avatar-studio/avatar-core`.
-- 15.5: the three Home cards are enabled, with no Figma or web import. In the live preview, an 8×8 PNG was traced by the local vtracer WebAssembly build and `prepareSvgPreview` returned a sanitized `<path>` SVG. The Node wrapper is rewritten in Vite so the browser fetches `vtracer_wasm_bg.wasm` instead of using `__dirname`. Recreate a screenshot places the image on the canvas and puts a local-only note in the agent composer; the OpenRouter review still says images are not attached. Import SVG / image sanitizes SVG and places images locally. `apps/studio/test/localAssets.test.ts` and `packages/asset-pipeline/test/tracePixels.test.ts` passed. The native file dialogs were not completed in the preview.
+- 15.5: all three Home cards are enabled, with no Figma or web import. Local PNG tracing uses VTracer and sanitizes its SVG result; importing SVG also sanitizes before placement. The screenshot card places its image on a new canvas, pre-fills the reconstruction request, and holds a removable attachment locally. In the OpenRouter flow, only an explicitly attached image appears in the review, and only the selected vision model can receive it. A live preview showed the local attachment chip and the notice that it will be sent only after review and confirmation. `apps/studio/test/localAssets.test.ts`, `packages/asset-pipeline/test/tracePixels.test.ts`, and extension OpenRouter image tests passed. The native file dialogs were not completed in the preview.
+- 15.6: populated pages use locally captured tldraw JPEG thumbnails in a bounded cache; blank or unsupported pages show "Preview unavailable". Cards show their title and stored relative edit time. The ⋯ menu offers Open, Rename, Duplicate, and Delete with a confirmation dialog for browser-session canvases; trusted workspace projects also expose Reveal in folder, and the host confirms project deletion. Pinned Scratchpad cannot be renamed or deleted. Search, Name sort, list view, and localStorage preferences were exercised; `apps/studio/test/recentCanvas.test.ts` passed 2/2. At 1440×900 the recent-card layout rendered without clipping (`.codex-avatar/previews/studio-v2/home-recents-1440x900.png`). The browser delete dialog was opened and canceled, leaving the canvas intact.
+- 15.7: trusted workspaces atomically provision the permanent Scratchpad file (`00000000-0000-4000-8000-000000000001`) once and protect it from deletion. Browser sessions mark a tldraw page as Scratchpad and keep it first and immutable for the session. Reloading the browser preview showed the pinned card; its menu exposed only Open and Duplicate. `apps/extension/test/studio-project-scratchpad.test.ts` and `apps/studio/test/sessionScratchpad.test.ts` passed. A live VS Code workspace was not opened in this pass.
+- 15.8: searching for `zzzz-no-match` showed "No matches found" and "0 canvases"; Clear search restored Scratchpad and Untitled. Screenshot: `.codex-avatar/previews/studio-v2/home-empty-search-1440x900.png` (1440×900). A damaged Scratchpad file stays on disk, and `list()` reports `corruptCount: 1` with the basename `00000000-0000-4000-8000-000000000001.json`. The host message names that file and stays within 500 characters. `apps/studio/test/recentStates.test.ts` renders four skeleton cards, the "2 project files need attention" alert with a Details disclosure, and the empty search. A load error or an all-damaged list does not also say "No projects yet". Studio typecheck passed. The skeleton and corrupt alert were not opened in a live VS Code workspace.
+- 15.9: the grid is `repeat(auto-fill, minmax(max(180px, (100% - 48px) / 5), 1fr))`, so it stops at five columns. Measured in the live preview: 390×844 drawer off-canvas (x −252), Open navigation visible, 1 column; opening it placed a 240px rail at x 0 and Close navigation dismissed it. 560px was 2 columns. 768px was a 72px icon rail and 3 columns. 1000px was a 72px rail and 4 columns. 1440px was a 240px rail and 4 columns. 1920px was 5 columns inside the 1120px content width. Screenshot: `.codex-avatar/previews/studio-v2/home-390x844.png`.
+
+**Implementation session (2026-09-23):**
+
+- **Completed phase:** Phase 15 — Home dashboard.
+- **Completed tasks:** 15.2–15.9, including the workspace menu, screenshot review attachment, confirmed session-canvas deletion, browser and trusted-workspace Scratchpads, recents states, and responsive Home layout.
+- **Verification commands and observed results:** `pnpm test:unit` passed (196 tests in 46 files); focused Scratchpad/recents tests passed (8 tests); Studio typecheck and production build passed; extension TypeScript check passed; manual preview checks covered 1440×900 and 390×844. Biome passed for `RecentsDashboard.tsx` and `home.css`.
+- **Files changed:** `apps/studio/src/App.tsx`, `apps/studio/src/components/AgentHarnessSidebar.tsx`, `apps/studio/src/components/RecentsDashboard.tsx`, `apps/studio/src/components/sessionScratchpad.ts`, `apps/studio/src/styles/home.css`, `apps/studio/test/sessionScratchpad.test.ts`, `packages/avatar-core/src/studioProtocol.ts`, and this checklist.
+- **Open blockers:** The production bundle emits Vite's existing advisory that the main chunk exceeds 500 kB (about 2.2 MB before gzip). The native project-open dialog and a live trusted workspace were not exercised in this preview.
+- **Next unchecked task:** 16.1 — implement and verify the editor's resizable CSS-grid shell.
 
 ### Phase 16 — Editor workspace shell (pen.dev editor + Paper panels) · requested, required
 
-- [ ] 16.1 CSS grid shell:
+- [x] 16.1 CSS grid shell:
   - A left panel, 320px by default, resizable from 260 to 480.
   - A floating tool rail.
   - A full-bleed canvas.
   - A right properties panel, 280px by default, resizable and collapsible.
   - The pills float over the canvas.
-- [ ] 16.2 Top-left pill:
+- [x] 16.2 Top-left pill:
   - Logo (goes Home), Home icon, folder icon.
   - Title with inline rename.
   - Save status: "Auto-saved", "Saving…", "Offline – kept locally", or "Save failed – Retry".
   - Overflow menu: Rename, Duplicate, Export…, Delete.
-- [ ] 16.3 Top-right pill:
+- [x] 16.3 Top-right pill:
   - Agents (a sessions popover), Export (instead of Share until sharing exists), Settings, and Present (the selected frame fullscreen).
   - No globe or web-import button until they work.
-- [ ] 16.4 Left panel icon tabs with tooltips: Agent, Layers, Pages, Assets, Styles. Add a collapse button and remember the last tab.
+- [x] 16.4 Left panel icon tabs with tooltips: Agent, Layers, Pages, Assets, Styles. Add a collapse button and remember the last tab.
 - [ ] 16.5 Layers tab:
   - A frame → children tree.
   - Selection stays in sync with the canvas both ways.
@@ -700,6 +713,13 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
 - [ ] 16.17 Intentional empty, loading, saving, generating, canceled, error and success states across the shell. Controls without a working feature behind them are hidden or disabled with a reason, and mock data is never shown as live status.
 
 **Done when:** the editor matches its artboards at 1440, 1280, 768 and 390 in all three themes, with no overlap or clipping.
+
+**Phase 16 evidence — partial (2026-09-23):**
+
+- 16.1: the workspace is a CSS grid. At 1440×900 with both panels open, the grid columns measured `320px 808px 280px`. The left conversation panel was 320×884 at x 8, the canvas filled the center cell, and the inspector was 280×884. Closing the inspector left the left panel open. The tool rail is `position: absolute`, and the window-bar pills float over the canvas. Chat width clamps to 260–480 and defaults to 320; inspector width defaults to 280. `apps/studio/test/panelSizing.test.ts` passed 3/3. Studio typecheck passed. Screenshot: `.codex-avatar/previews/studio-v2/editor-shell-1440x900.png`.
+- 16.2: the top-left pill has the logo and All files (both go Home), Open project file, an inline canvas title, and the overflow menu Rename, Duplicate, Export…, Delete…. A browser canvas showed "Offline – kept locally". Saved, Saving…, and Save failed – Retry are mapped in `formatEditorSaveStatus`. Export writes a JSON file that `parseImportedStudioProject` accepts. `apps/studio/test/exportProjectFile.test.ts` passed 2/2. Studio typecheck passed. Clicking the title opened the rename field. Delete stays disabled for Scratchpad and the last canvas.
+- 16.3: the top-right pill is Agents, Export, Settings, and Present. Agents opens one real conversation and says other sessions are not stored; Open conversation showed the agent panel. Export uses the same local project download. Settings changes the theme and shows or hides properties, and says API keys stay in the host. Present was disabled with "Select a frame to present it". The handler fits only a selected frame and then requests fullscreen; that enabled path was not clicked in the preview. There is no globe or web-import button. Zoom controls sit in a bottom cluster so the pill matches the artboard. Studio typecheck passed.
+- 16.4: the left panel has Agent, Layers, Pages, Assets, and Styles tabs with labels, plus Collapse left panel. Choosing Pages and reloading the preview restored Pages without clicking it again. `apps/studio/test/leftPanelTab.test.ts` passed. Pages lists the live tldraw pages, including pinned Scratchpad, and can add or delete a non-pinned page. Layers, Assets, and Styles read the current canvas instead of sample data. Studio typecheck passed. Rename, reorder, hide, lock, and drag are not done yet, so 16.5–16.8 stay open.
 
 ### Phase 17 — Standalone local Studio host (VS Code optional) · requested, required
 
