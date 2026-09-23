@@ -12,7 +12,7 @@ export function optimizeSvg(svg: string): string {
   }).data;
   const compacted = optimized.replace(/>\s+</g, "><").trim();
 
-  return removeRootDimensionsWhenViewBoxExists(sanitizeSvg(compacted));
+  return ensureResponsiveViewBox(sanitizeSvg(compacted));
 }
 
 /** Remove executable or externally loaded content before an SVG enters the Webview. */
@@ -54,12 +54,17 @@ function sanitizeAttribute(
   return match;
 }
 
-function removeRootDimensionsWhenViewBoxExists(svg: string): string {
-  return svg.replace(/<svg\b[^>]*>/i, (svgTag) => {
-    if (!/\sviewBox=(?:"[^"]*"|'[^']*')/i.test(svgTag)) {
-      return svgTag;
+function ensureResponsiveViewBox(svg: string): string {
+  return svg.replace(/<svg\b([^>]*)>/i, (match, attrs) => {
+    if (/\sviewBox=/i.test(attrs)) {
+      return `<svg${attrs.replace(/\s(?:width|height)=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")}>`;
     }
-
-    return svgTag.replace(/\s(?:width|height)=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+    const widthMatch = attrs.match(/\swidth=["']?([\d.]+)["']?/i);
+    const heightMatch = attrs.match(/\sheight=["']?([\d.]+)["']?/i);
+    if (widthMatch && heightMatch) {
+      const cleanAttrs = attrs.replace(/\s(?:width|height)=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+      return `<svg${cleanAttrs} viewBox="0 0 ${widthMatch[1]} ${heightMatch[1]}">`;
+    }
+    return match;
   });
 }

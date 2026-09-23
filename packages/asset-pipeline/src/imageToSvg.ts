@@ -1,10 +1,13 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { convertPixels } from "@visioncortex/vtracer";
 import ImageTracer from "imagetracerjs";
 import Jimp from "jimp";
 import { assertTraceableImageFile, assertTraceableImageMetadata, readImageMetadata } from "./imageMetadata.js";
 import { createManifestEntry } from "./manifestGenerator.js";
 import { optimizeSvg } from "./optimizeSvg.js";
+import { vectorizeImageWithOpenRouterVision } from "./openRouterEngine.js";
 import { assertSupportedImagePath, createAvailableOutputPaths, getSvgExportDirectory } from "./paths.js";
+import { generateSvgWithQuiver } from "./quiverVectorEngine.js";
 import type {
   RasterPreprocessingOptions,
   VectorizeImageOptions,
@@ -40,7 +43,7 @@ export async function previewImageToSvg(options: VectorizeImageOptions): Promise
 
   const preprocessing = normalizePreprocessing(options);
   options.onProgress?.("decoding");
-  const rawSvg = await traceImage(options.inputPath, preprocessing, options.signal, options.onProgress);
+  const rawSvg = await traceImage(options.inputPath, preprocessing, options.signal, options.onProgress, options);
   throwIfAborted(options.signal);
   const rawValidation = validateSvgLayers(rawSvg);
   assertRawTraceLimits(rawValidation.byteLength, rawValidation.pathCount, options);
@@ -115,9 +118,34 @@ function traceImage(
   inputPath: string,
   preprocessing: RasterPreprocessingOptions,
   signal?: AbortSignal,
-  onProgress?: VectorizeImageOptions["onProgress"]
+  onProgress?: VectorizeImageOptions["onProgress"],
+  options?: VectorizeImageOptions
 ): Promise<string> {
   throwIfAborted(signal);
+
+  if (options?.engine === "quiverai" && options.quiverApiKey) {
+    onProgress?.("tracing");
+    return generateSvgWithQuiver({
+      apiKey: options.quiverApiKey,
+      prompt: options.quiverPrompt ?? "Vector avatar illustration, flat design",
+      model: options.quiverModel,
+      signal
+    });
+  }
+
+  if (options?.engine === "openrouter") {
+    onProgress?.("tracing");
+    return readFile(inputPath).then((buffer) =>
+      vectorizeImageWithOpenRouterVision({
+        apiKey: options.openRouterApiKey,
+        imageBase64: buffer.toString("base64"),
+        model: options.openRouterModel,
+        prompt: options.openRouterPrompt,
+        ...(signal ? { signal } : {})
+      })
+    );
+  }
+
   return Jimp.read(inputPath)
     .catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -131,21 +159,59 @@ function traceImage(
       onProgress?.("tracing");
 
       try {
-        const svg = ImageTracer.imagedataToSVG(
-          {
-            width: image.bitmap.width,
-            height: image.bitmap.height,
-            data: Uint8ClampedArray.from(image.bitmap.data)
-          },
-          createTraceOptions(preprocessing)
+        if (options?.engine === "imagetracer") {
+          const svg = ImageTracer.imagedataToSVG(
+            {
+              width: image.bitmap.width,
+              height: image.bitmap.height,
+              data: Uint8ClampedArray.from(image.bitmap.data)
+            },
+            createTraceOptions(preprocessing)
+          );
+          if (!svg) throw new Error("no SVG data was produced");
+          return svg;
+        }
+
+        // Default: @visioncortex/vtracer (high-precision spline/Bézier tracing)
+        const avgAlpha = detectAverageAlpha(image);
+        const vtracerOptions = createVTracerOptions(preprocessing);
+        let svg = convertPixels(
+          new Uint8Array(image.bitmap.data),
+          image.bitmap.width,
+          image.bitmap.height,
+          vtracerOptions
         );
-        if (!svg) throw new Error("no SVG data was produced");
+        if (!svg) throw new Error("no SVG data was produced by VTracer");
+        if (avgAlpha !== undefined) {
+          svg = svg.replace(/<path\b(?![^>]*\bopacity=)/gi, `<path opacity="${avgAlpha}"`);
+        }
         return svg;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`Unable to trace image locally: ${message}`);
       }
     });
+}
+
+function createVTracerOptions(preprocessing: RasterPreprocessingOptions) {
+  const isBw = Boolean(preprocessing.grayscale || preprocessing.threshold !== undefined);
+  const detail = preprocessing.detail ?? "balanced";
+  const simplifyMap = { low: 2.0, balanced: 1.0, high: 0.5 };
+  const colorPrecisionMap = { low: 5, balanced: 6, high: 7 };
+  const speckle = Math.max(2, Math.min(16, Math.ceil((preprocessing.noiseReduction ?? 0) / 10) * 2 || 4));
+
+  return {
+    mode: "spline" as const,
+    preset: isBw ? ("bw" as const) : ("poster" as const),
+    clustering: isBw ? ("bw" as const) : ("color-cluster" as const),
+    hierarchical: "stacked" as const,
+    filterSpeckle: speckle,
+    colorPrecision: colorPrecisionMap[detail],
+    simplify: simplifyMap[detail],
+    pathPrecision: 2,
+    maxColors: preprocessing.grayscale ? 2 : (preprocessing.quantizationLevels ?? 16),
+    ...(preprocessing.threshold !== undefined ? { binaryThreshold: preprocessing.threshold } : {})
+  };
 }
 
 function normalizePreprocessing(options: VectorizeImageOptions): RasterPreprocessingOptions {
@@ -217,6 +283,23 @@ function removeNearWhiteBackground(image: JimpImage): void {
     const blue = pixels[index + 2] ?? 0;
     if (red >= 248 && green >= 248 && blue >= 248) pixels[index + 3] = 0;
   }
+}
+
+function detectAverageAlpha(image: JimpImage): number | undefined {
+  const pixels = image.bitmap.data;
+  let totalAlpha = 0;
+  let translucentCount = 0;
+  for (let index = 3; index < pixels.length; index += 4) {
+    const alpha = pixels[index] ?? 255;
+    if (alpha > 0 && alpha < 250) {
+      translucentCount += 1;
+      totalAlpha += alpha;
+    }
+  }
+  if (translucentCount > 0) {
+    return Math.round((totalAlpha / translucentCount / 255) * 100) / 100;
+  }
+  return undefined;
 }
 
 function preprocessingWarnings(preprocessing: RasterPreprocessingOptions): string[] {

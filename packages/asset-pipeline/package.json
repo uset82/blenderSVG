@@ -24,6 +24,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@quiverai/sdk": "^0.9.3",
+    "@visioncortex/vtracer": "1.0.0-alpha.4",
     "fast-xml-parser": "^5.9.3",
     "imagetracerjs": "1.2.6",
     "jimp": "0.14.0",

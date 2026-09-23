@@ -30,6 +30,8 @@
     "clean": "node scripts/clean.mjs",
     "package": "node scripts/package-extension.mjs",
     "dev:extension": "pnpm --filter ./apps/extension watch",
+    "dev:studio": "pnpm --filter @codex-avatar-studio/studio dev",
+    "build:studio": "pnpm --filter @codex-avatar-studio/studio build",
     "package:vsix": "pnpm run package",
     "smoke:webview": "node scripts/smoke-webview-render.mjs",
     "smoke:blender": "pnpm --filter codex-avatar-studio-extension build && node scripts/smoke-blender-host.mjs",
@@ -48,5 +50,9 @@
     "esbuild": "^0.28.1",
     "typescript": "^5.9.2",
     "vitest": "4.1.10"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "4.4.3"
   }
 }

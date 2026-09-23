@@ -2,6 +2,8 @@ export const supportedImageExtensions = [".png", ".jpg", ".jpeg"] as const;
 
 export type SupportedImageExtension = (typeof supportedImageExtensions)[number];
 
+export type VectorEngine = "vtracer" | "openrouter" | "imagetracer" | "quiverai";
+
 export type VectorizeImageOptions = {
   inputPath: string;
   workspaceRoot: string;
@@ -12,6 +14,13 @@ export type VectorizeImageOptions = {
   onProgress?: (stage: VectorizeStage) => void;
   maxSvgBytes?: number;
   maxSvgPaths?: number;
+  engine?: VectorEngine;
+  openRouterApiKey?: string;
+  openRouterModel?: string;
+  openRouterPrompt?: string;
+  quiverApiKey?: string;
+  quiverModel?: string;
+  quiverPrompt?: string;
   preprocessing?: RasterPreprocessingOptions;
 };
 
