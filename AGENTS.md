@@ -1,4 +1,4 @@
-# AGENTS.md — Codex Avatar Studio
+# AGENTS.md — Kurva
 
 ## Source of truth
 

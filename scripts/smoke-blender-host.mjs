@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { probeBlenderExecutable } from "../apps/extension/dist/blenderProbe.js";
-import { runBlenderCommand, runBlenderExportJob } from "../apps/extension/dist/blenderRunner.js";
-import { createBlenderSceneFromSvg } from "../apps/extension/dist/blenderHandoff.js";
+import { probeBlenderExecutable } from "../packages/studio-host-core/dist/src/blenderProbe.js";
+import { runBlenderCommand, runBlenderExportJob } from "../packages/studio-host-core/dist/src/blenderRunner.js";
+import { createBlenderSceneFromSvg } from "../packages/studio-host-core/dist/src/blenderHandoff.js";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const extensionRoot = path.join(repositoryRoot, "apps", "extension");

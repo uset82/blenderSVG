@@ -10,6 +10,8 @@ export default defineConfig({
       "packages/*/test/**/*.test.ts",
       "apps/extension/test/**/*.test.ts",
       "apps/studio/test/**/*.test.ts",
+      "apps/studio/test/**/*.test.tsx",
+      "apps/studio-server/test/**/*.test.ts",
       "apps/webview/test/**/*.test.tsx"
     ],
     restoreMocks: true

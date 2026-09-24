@@ -1,0 +1,75 @@
+{
+  "name": "@codex-avatar-studio/studio-host-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./openRouterConnection": {
+      "types": "./dist/src/openRouterConnection.d.ts",
+      "import": "./dist/src/openRouterConnection.js"
+    },
+    "./openRouterChat": {
+      "types": "./dist/src/openRouterChat.d.ts",
+      "import": "./dist/src/openRouterChat.js"
+    },
+    "./studioProjectStore": {
+      "types": "./dist/src/studioProjectStore.d.ts",
+      "import": "./dist/src/studioProjectStore.js"
+    },
+    "./blenderProbe": {
+      "types": "./dist/src/blenderProbe.d.ts",
+      "import": "./dist/src/blenderProbe.js"
+    },
+    "./blenderPlan": {
+      "types": "./dist/src/blenderPlan.d.ts",
+      "import": "./dist/src/blenderPlan.js"
+    },
+    "./blenderArtifacts": {
+      "types": "./dist/src/blenderArtifacts.d.ts",
+      "import": "./dist/src/blenderArtifacts.js"
+    },
+    "./blenderRunner": {
+      "types": "./dist/src/blenderRunner.d.ts",
+      "import": "./dist/src/blenderRunner.js"
+    },
+    "./blenderHandoff": {
+      "types": "./dist/src/blenderHandoff.d.ts",
+      "import": "./dist/src/blenderHandoff.js"
+    },
+    "./studioLibrary": {
+      "types": "./dist/src/studioLibrary.d.ts",
+      "import": "./dist/src/studioLibrary.js"
+    },
+    "./hostSecrets": {
+      "types": "./dist/src/hostSecrets.d.ts",
+      "import": "./dist/src/hostSecrets.js"
+    },
+    "./thumbnailStore": {
+      "types": "./dist/src/thumbnailStore.d.ts",
+      "import": "./dist/src/thumbnailStore.js"
+    },
+    "./assetStore": {
+      "types": "./dist/src/assetStore.d.ts",
+      "import": "./dist/src/assetStore.js"
+    },
+    "./conversationStore": {
+      "types": "./dist/src/conversationStore.d.ts",
+      "import": "./dist/src/conversationStore.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm --workspace-root exec biome lint packages/studio-host-core"
+  },
+  "dependencies": {
+    "@codex-avatar-studio/asset-pipeline": "workspace:*",
+    "@codex-avatar-studio/avatar-core": "workspace:*",
+    "@codex-avatar-studio/studio-agent": "workspace:*",
+    "@napi-rs/keyring": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,7 +1,15 @@
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const renameMock = vi.hoisted(() => vi.fn());
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  renameMock.mockImplementation(actual.rename);
+  return { ...actual, rename: renameMock };
+});
+
 import { StudioProjectStore } from "../src/studioProjectStore.js";
 
 const roots: string[] = [];
@@ -40,6 +48,19 @@ describe("Studio project rename and reveal", () => {
     });
     expect(JSON.parse(readFileSync(projectPath, "utf8"))).toEqual(renamed);
     expect(await store.revealPath(projectId)).toBe(realpathSync(projectPath));
+  });
+
+  it("keeps the last good project when atomic replacement fails", async () => {
+    const { store, projectPath } = workspace();
+    await store.save(projectId, "Original", snapshot);
+    const originalBytes = readFileSync(projectPath, "utf8");
+    renameMock.mockRejectedValueOnce(new Error("simulated replace failure"));
+
+    await expect(
+      store.save(projectId, "Replacement", JSON.stringify({ document: { schema: { v: 2 }, store: {} } }))
+    ).rejects.toMatchObject({ code: "io" });
+    expect(readFileSync(projectPath, "utf8")).toBe(originalBytes);
+    expect(await store.open(projectId)).toMatchObject({ title: "Original", snapshot });
   });
 
   it("rejects invalid titles without touching the stored file", async () => {

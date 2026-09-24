@@ -67,11 +67,19 @@ try {
   await cdp.send("Runtime.enable");
   await cdp.send("Network.enable");
   await cdp.send("Page.navigate", { url: `http://127.0.0.1:${port}/index.html` });
-  await waitFor(cdp, `Boolean(document.querySelector('button[aria-label="Open AI setup"]'))`);
+  await waitFor(cdp, `Boolean(document.querySelector('button[aria-label="All files"]'))`);
   await cdp.send("Runtime.evaluate", {
     expression: `(() => {
       [...document.querySelectorAll('button')].find(button => button.textContent?.includes('Return to canvas'))?.click();
-      document.querySelector('button[aria-label="Open AI setup"]')?.click();
+      document.querySelector('summary[aria-label="Settings"]')?.click();
+    })()`
+  });
+  await waitFor(cdp, `Boolean(document.querySelector('summary[aria-label="Settings"]')?.closest('details')?.open)`);
+  await cdp.send("Runtime.evaluate", {
+    expression: `(() => {
+      document.querySelector('summary[aria-label="Agents"]')?.click();
+      [...document.querySelectorAll('.studio-windowbar__menu-popover button')]
+        .find(button => button.textContent?.includes('Open conversation'))?.click();
     })()`
   });
   await waitFor(cdp, `Boolean(document.querySelector('section[aria-label="OpenRouter connection"]'))`);
@@ -81,8 +89,11 @@ try {
       const sidebar = document.querySelector('#studio-agent-sidebar');
       return {
         connectionText: connection?.textContent || '',
+        settingsText: document.querySelector('summary[aria-label="Settings"]')?.closest('details')?.textContent || '',
         hasCredentialField: Boolean(document.querySelector('input[type="password"]')),
-        hasConnectButton: [...(connection?.querySelectorAll('button') || [])].some(button => /connect|replace key/i.test(button.textContent || '')),
+        connectionControlsEnabled: [...(document.querySelector('summary[aria-label="Settings"]')?.closest('details')?.querySelectorAll('button') || [])]
+          .filter(button => /^(connect|test|replace|disconnect)$/i.test(button.textContent?.trim() || ''))
+          .some(button => !button.disabled),
         hasDisabledComposer: Boolean(sidebar?.querySelector('textarea:disabled')),
         hasCanvas: Boolean(document.querySelector('.tl-container'))
       };
@@ -90,9 +101,14 @@ try {
     returnByValue: true
   });
   const rendered = result.result.value;
-  assert.match(rendered.connectionText, /browser preview cannot store keys or send chat/i);
+  assert.match(rendered.connectionText, /offline preview/i);
+  assert.match(rendered.settingsText, /credentials stay in the trusted host/i);
   assert.equal(rendered.hasCredentialField, false, "browser preview exposes no credential input");
-  assert.equal(rendered.hasConnectButton, false, "browser preview exposes no provider connection action");
+  assert.equal(
+    rendered.connectionControlsEnabled,
+    false,
+    "browser preview exposes no enabled provider connection action"
+  );
   assert.equal(rendered.hasDisabledComposer, true, "browser preview disables the chat composer");
   assert.equal(rendered.hasCanvas, true, "packaged Studio canvas renders offline");
   assert.ok(requests.length > 0, "the packaged UI requested local assets");

@@ -39,18 +39,30 @@ function runCli(args) {
   return `${result.stdout}\n${result.stderr}`;
 }
 
-const debugPort = attachedPort || (await new Promise((resolve, reject) => {
-  const server = createServer();
-  server.once("error", reject);
-  server.listen(0, "127.0.0.1", () => {
-    const address = server.address();
-    server.close(() => resolve(address.port));
-  });
-}));
+const debugPort =
+  attachedPort ||
+  (await new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close(() => resolve(address.port));
+    });
+  }));
 
 if (!attachedPort) {
   console.log(`Profile: ${profileRoot}`);
-  console.log(runCli(["--user-data-dir", userDataDir, "--extensions-dir", extensionsDir, "--install-extension", vsixPath, "--force"]));
+  console.log(
+    runCli([
+      "--user-data-dir",
+      userDataDir,
+      "--extensions-dir",
+      extensionsDir,
+      "--install-extension",
+      vsixPath,
+      "--force"
+    ])
+  );
   const installed = runCli(["--user-data-dir", userDataDir, "--extensions-dir", extensionsDir, "--list-extensions"]);
   assert.match(installed, /codex-avatar-studio\.codex-avatar-studio-extension/i);
   console.log(installed);
@@ -95,8 +107,20 @@ const cdp = await connectCdp(workbench.webSocketDebuggerUrl);
 await cdp.send("Runtime.enable");
 await cdp.send("Page.enable");
 if (!targets.some((target) => target.type === "iframe" && target.url.startsWith("vscode-webview://"))) {
-  await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key: "P", code: "KeyP", modifiers: 10, windowsVirtualKeyCode: 80 });
-  await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key: "P", code: "KeyP", modifiers: 10, windowsVirtualKeyCode: 80 });
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "P",
+    code: "KeyP",
+    modifiers: 10,
+    windowsVirtualKeyCode: 80
+  });
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "P",
+    code: "KeyP",
+    modifiers: 10,
+    windowsVirtualKeyCode: 80
+  });
   await new Promise((resolve) => setTimeout(resolve, 350));
   await cdp.send("Input.insertText", { text: "Codex Avatar: Open Studio" });
   await new Promise((resolve) => setTimeout(resolve, 500));
@@ -106,14 +130,30 @@ if (!targets.some((target) => target.type === "iframe" && target.url.startsWith(
   await new Promise((resolve) => setTimeout(resolve, 1500));
 }
 const afterTargets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
-const studioTarget = afterTargets.find((target) => target.type === "iframe" && target.url.startsWith("vscode-webview://"));
+const studioTarget = afterTargets.find(
+  (target) => target.type === "iframe" && target.url.startsWith("vscode-webview://")
+);
 assert.ok(studioTarget?.webSocketDebuggerUrl, "Studio editor Webview did not open");
 const studioCdp = await connectCdp(studioTarget.webSocketDebuggerUrl);
 await studioCdp.send("Runtime.enable");
 const innerDocument = "document.querySelector('iframe')?.contentDocument";
 const initialText = await evaluate(studioCdp, `${innerDocument}?.body?.innerText`);
-assert.match(initialText ?? "", /Codex Avatar Studio/);
+const isRecentsHome = /RECENTS/.test(initialText ?? "") && /New file/.test(initialText ?? "");
+const isStudioEditor = /Auto-saved/.test(initialText ?? "") && /Agents/.test(initialText ?? "");
+assert.ok(isRecentsHome || isStudioEditor, "Studio Recents or canvas editor is visible");
 console.log(`Studio opened: ${initialText?.slice(0, 300)}`);
+
+if (isRecentsHome) {
+  const openedScratchpad = await evaluate(
+    studioCdp,
+    `(() => { const cards = [...${innerDocument}?.querySelectorAll(".recents__canvas") ?? []]; const card = cards.find((item) => item.innerText.includes("Scratchpad")); card?.click(); return Boolean(card); })()`
+  );
+  assert.equal(openedScratchpad, true, "Scratchpad project card is available");
+}
+await waitUntil(
+  async () => (await evaluate(studioCdp, `${innerDocument}?.body?.innerText`))?.includes("Auto-saved"),
+  "Scratchpad editor canvas"
+);
 
 await waitUntil(() => {
   const files = existsSync(projectDir) ? readdirSync(projectDir).filter((name) => name.endsWith(".json")) : [];
@@ -123,26 +163,89 @@ const [projectFileName] = readdirSync(projectDir).filter((name) => name.endsWith
 const projectPath = path.join(projectDir, projectFileName);
 const initialProject = readProject(projectPath);
 const initialGeoCount = countShapes(initialProject, "geo");
-console.log(`Initial project ${initialProject.id}: ${countShapes(initialProject, "frame")} frame, ${initialGeoCount} rectangles`);
+console.log(
+  `Initial project ${initialProject.id}: ${countShapes(initialProject, "frame")} frame, ${initialGeoCount} rectangles`
+);
 
 if (process.env.STUDIO_SKIP_EDIT !== "1") {
-  const rectangleFound = await evaluate(studioCdp, `Boolean(${innerDocument}?.querySelector('button[aria-label="Rectangle (R)"]'))`);
+  const rectangleFound = await evaluate(
+    studioCdp,
+    `Boolean(${innerDocument}?.querySelector('button[aria-label="Rectangle (R)"]'))`
+  );
   assert.equal(rectangleFound, true, "Rectangle canvas tool is visible");
+  const canvasBounds = await evaluate(
+    studioCdp,
+    `(() => { const frame = document.querySelector("iframe"); const canvas = frame?.contentDocument?.querySelector(".tl-container"); if (!frame || !canvas) return null; const frameRect = frame.getBoundingClientRect(); const canvasRect = canvas.getBoundingClientRect(); return { x: frameRect.x + canvasRect.x, y: frameRect.y + canvasRect.y, width: canvasRect.width, height: canvasRect.height }; })()`
+  );
+  assert.ok(canvasBounds, "Canvas bounds are available for the live editor interaction");
+  console.log("Live canvas bounds:", canvasBounds);
+  writeFileSync(
+    path.join(profileRoot, "studio-live-before-edit.png"),
+    Buffer.from((await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true })).data, "base64")
+  );
   await evaluate(studioCdp, `${innerDocument}.querySelector('button[aria-label="Rectangle (R)"]').click()`);
+  console.log(
+    "Active canvas tools:",
+    await evaluate(
+      studioCdp,
+      `[...${innerDocument}.querySelectorAll(".studio-toolbar__button")].filter((button) => button.getAttribute("aria-pressed") === "true").map((button) => button.getAttribute("aria-label"))`
+    )
+  );
+  const pointerResult = await evaluate(
+    studioCdp,
+    `(() => { const canvas = ${innerDocument}?.querySelector(".tl-container"); if (!canvas) return null; const rect = canvas.getBoundingClientRect(); const startX = rect.x + rect.width * 0.4; const startY = rect.y + rect.height * 0.4; const endX = startX + 140; const endY = startY + 100; canvas.setPointerCapture = () => undefined; canvas.releasePointerCapture = () => undefined; const send = (type, x, y, buttons) => canvas.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, pointerId: 1, pointerType: "mouse", isPrimary: true, button: 0, buttons, clientX: x, clientY: y })); send("pointerdown", startX, startY, 1); send("pointermove", endX, endY, 1); send("pointerup", endX, endY, 0); return { startX, startY, endX, endY }; })()`
+  );
+  assert.ok(pointerResult, "Canvas received a pointer drag");
+  writeFileSync(
+    path.join(profileRoot, "studio-live-after-draw.png"),
+    Buffer.from((await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true })).data, "base64")
+  );
+  console.log("Project shapes after pointer input:", countShapes(readProject(projectPath), "geo"));
   const editedProject = await waitUntil(() => {
     const project = readProject(projectPath);
     return countShapes(project, "geo") > initialGeoCount ? project : undefined;
   }, "rectangle autosave");
   assert.equal(editedProject.id, initialProject.id);
   assert.equal(countShapes(editedProject, "frame"), countShapes(initialProject, "frame"));
-  console.log(`Edited project ${editedProject.id}: ${countShapes(editedProject, "frame")} frame, ${countShapes(editedProject, "geo")} rectangles; autosaved ${editedProject.updatedAt}`);
+  console.log(
+    `Edited project ${editedProject.id}: ${countShapes(editedProject, "frame")} frame, ${countShapes(editedProject, "geo")} rectangles; autosaved ${editedProject.updatedAt}`
+  );
 }
-console.log(`Studio save status: ${await evaluate(studioCdp, `${innerDocument}?.querySelector('.studio-windowbar__unsaved')?.innerText`)}`);
-console.log("Rendered shapes:", await evaluate(studioCdp, `${innerDocument} && [...${innerDocument}.querySelectorAll('[data-shape-id], [data-testid], .tl-shape, .tl-container')].map(x => ({id:x.getAttribute('data-shape-id'), testId:x.getAttribute('data-testid'), cls:String(x.className).slice(0,80)})).slice(0,25)`));
-console.log("License overlay:", await evaluate(studioCdp, `${innerDocument}?.querySelector('[data-testid="tl-license-expired"]')?.outerHTML.slice(0,1200)`));
-console.log("Canvas layout:", await evaluate(studioCdp, `${innerDocument} && ['.studio-canvas-content','.studio-canvas-editor','.tl-container','.tl-canvas','.tl-shapes','.tl-shape-container'].map(s => {const x=${innerDocument}.querySelector(s);const r=x?.getBoundingClientRect();return {selector:s,exists:!!x,rect:r&&[r.x,r.y,r.width,r.height],html:x?.outerHTML.slice(0,250)}})`));
-console.log("tldraw classes:", await evaluate(studioCdp, `${innerDocument} && [...new Set([...${innerDocument}.querySelectorAll('[class*=tl-]')].map(x => String(x.className).split(' ')[0]))].slice(0,50)`));
-console.log("tldraw html:", await evaluate(studioCdp, `${innerDocument}?.querySelector('.tl-container')?.innerHTML.slice(0,3000)`));
+console.log(
+  `Studio save status: ${await evaluate(studioCdp, `${innerDocument}?.querySelector('.studio-windowbar__unsaved')?.innerText`)}`
+);
+console.log(
+  "Rendered shapes:",
+  await evaluate(
+    studioCdp,
+    `${innerDocument} && [...${innerDocument}.querySelectorAll('[data-shape-id], [data-testid], .tl-shape, .tl-container')].map(x => ({id:x.getAttribute('data-shape-id'), testId:x.getAttribute('data-testid'), cls:String(x.className).slice(0,80)})).slice(0,25)`
+  )
+);
+console.log(
+  "License overlay:",
+  await evaluate(
+    studioCdp,
+    `${innerDocument}?.querySelector('[data-testid="tl-license-expired"]')?.outerHTML.slice(0,1200)`
+  )
+);
+console.log(
+  "Canvas layout:",
+  await evaluate(
+    studioCdp,
+    `${innerDocument} && ['.studio-canvas-content','.studio-canvas-editor','.tl-container','.tl-canvas','.tl-shapes','.tl-shape-container'].map(s => {const x=${innerDocument}.querySelector(s);const r=x?.getBoundingClientRect();return {selector:s,exists:!!x,rect:r&&[r.x,r.y,r.width,r.height],html:x?.outerHTML.slice(0,250)}})`
+  )
+);
+console.log(
+  "tldraw classes:",
+  await evaluate(
+    studioCdp,
+    `${innerDocument} && [...new Set([...${innerDocument}.querySelectorAll('[class*=tl-]')].map(x => String(x.className).split(' ')[0]))].slice(0,50)`
+  )
+);
+console.log(
+  "tldraw html:",
+  await evaluate(studioCdp, `${innerDocument}?.querySelector('.tl-container')?.innerHTML.slice(0,3000)`)
+);
 const screenshot = await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true });
 writeFileSync(path.join(profileRoot, "studio-live.png"), Buffer.from(screenshot.data, "base64"));
 studioCdp.close();
@@ -154,7 +257,9 @@ function readProject(filePath) {
 }
 
 function countShapes(project, type) {
-  return Object.values(project.snapshot.document.store).filter((record) => record.typeName === "shape" && record.type === type).length;
+  return Object.values(project.snapshot.document.store).filter(
+    (record) => record.typeName === "shape" && record.type === type
+  ).length;
 }
 
 async function waitUntil(read, description, timeout = 15_000) {
@@ -189,7 +294,9 @@ function connectCdp(url) {
           socket.send(JSON.stringify({ id, method, params }));
           return new Promise((done, fail) => pending.set(id, { done, fail }));
         },
-        close() { socket.close(); }
+        close() {
+          socket.close();
+        }
       })
     );
     socket.addEventListener("message", (event) => {

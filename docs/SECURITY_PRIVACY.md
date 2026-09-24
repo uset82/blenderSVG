@@ -2,6 +2,14 @@
 
 Codex Avatar Studio processes avatar assets locally. It does not upload images, `.blend`, `.riv`, `.moc3`, `.glb`, SVG files, IDE events, or audio levels, and it does not include telemetry or remote runtime downloads.
 
+## Provider keys
+
+The VS Code extension keeps the OpenRouter key in SecretStorage. The standalone Studio host keeps it in the OS keychain through `@napi-rs/keyring`, with `OPENROUTER_API_KEY` only as an environment fallback. The Settings form posts the key once to the authenticated host. The key is not written to browser storage, not returned to the page, and not written to logs. The page only receives whether a key is configured and whether it came from the keychain or the environment.
+
+## Conversations
+
+Standalone Studio stores a conversation at `conversations/<projectId>/<id>.json` in the library. The file keeps the title, the selected model id, and the message text. It does not keep the OpenRouter key. The host keeps the 50 newest conversations for each project and deletes older files.
+
 ## Local data
 
 - VS Code settings are stored by VS Code in the extension configuration scope. They contain preferences such as runtime, animation, accessibility, and the configured asset workspace path.

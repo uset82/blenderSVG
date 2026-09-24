@@ -18,6 +18,12 @@ declare module "tldraw" {
       lastSvg: string;
       isProcessing: boolean;
     };
+    "design-frame": {
+      w: number;
+      h: number;
+      name: string;
+      html: string;
+    };
     "blender-connector": {
       w: number;
       h: number;
@@ -31,4 +37,5 @@ declare module "tldraw" {
 
 export type AvatarShape = TLShape<"avatar">;
 export type VectorStudioShape = TLShape<"vector-studio">;
+export type DesignFrameShape = TLShape<"design-frame">;
 export type BlenderConnectorShape = TLShape<"blender-connector">;

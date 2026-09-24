@@ -12,49 +12,56 @@ import { type CSSProperties, type KeyboardEvent, useEffect, useState } from "rea
 import type { Editor } from "tldraw";
 import { AgentHarnessSidebar, type AgentHarnessSidebarProps } from "./AgentHarnessSidebar.js";
 import { LeftPanelTabBody } from "./LeftPanelTabs.js";
+import { LEFT_PANEL_TABS, type LeftPanelTab, readLeftPanelTab, writeLeftPanelTab } from "./leftPanelTab.js";
 
-export type StudioLeftPanelTab = "agent" | "layers" | "pages" | "assets" | "styles";
+export type StudioLeftPanelTab = LeftPanelTab;
 
-const STORAGE_KEY = "codex-avatar-studio-left-panel-tab";
-
-const tabs: Array<{ id: StudioLeftPanelTab; label: string; icon: LucideIcon; description: string }> = [
-  { id: "agent", label: "Agent", icon: Bot, description: "Choose a model and design with the agent." },
-  { id: "layers", label: "Layers", icon: Layers3, description: "Layer controls are not available yet." },
-  { id: "pages", label: "Pages", icon: PanelsTopLeft, description: "Page management is not available yet." },
-  { id: "assets", label: "Assets", icon: Image, description: "Project assets are not available yet." },
-  { id: "styles", label: "Styles", icon: Paintbrush, description: "Project styles are not available yet." }
-];
-
-function readLastTab(): StudioLeftPanelTab {
-  try {
-    const value = window.localStorage.getItem(STORAGE_KEY);
-    if (tabs.some((tab) => tab.id === value)) return value as StudioLeftPanelTab;
-  } catch {
-    // Last-tab preference is optional when browser storage is unavailable.
+const tabDetails = {
+  agent: { label: "Agent", icon: Bot, description: "Choose a model and design with the agent." },
+  layers: {
+    label: "Layers",
+    icon: Layers3,
+    description: "Select, rename, reorder, hide, and lock canvas layers."
+  },
+  pages: {
+    label: "Pages",
+    icon: PanelsTopLeft,
+    description: "Add, switch, rename, reorder, and delete pages. Scratchpad stays pinned first."
+  },
+  assets: {
+    label: "Assets",
+    icon: Image,
+    description: "Browse images, SVGs, and avatars. Click or drag one onto the canvas."
+  },
+  styles: {
+    label: "Styles",
+    icon: Paintbrush,
+    description: "View colors used on this page. Saved style libraries are not available yet."
   }
-  return "agent";
-}
+} satisfies Record<LeftPanelTab, { label: string; icon: LucideIcon; description: string }>;
+
+const tabs = LEFT_PANEL_TABS.map((id) => ({ id, ...tabDetails[id] }));
 
 interface StudioLeftPanelProps extends Omit<AgentHarnessSidebarProps, "className" | "isOpen"> {
   panelCollapsed: boolean;
   onPanelCollapsedChange: (collapsed: boolean) => void;
   editor: Editor | null;
+  onOpenPage: (pageId: string) => void;
+  onDeletePage: (pageId: string) => void;
 }
 
 export function StudioLeftPanel({
   panelCollapsed,
   onPanelCollapsedChange,
   editor,
+  onOpenPage,
+  onDeletePage,
   ...agentProps
 }: StudioLeftPanelProps) {
-  const [activeTab, setActiveTab] = useState<StudioLeftPanelTab>(readLastTab);
+  const [activeTab, setActiveTab] = useState<StudioLeftPanelTab>(readLeftPanelTab);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, activeTab);
-    } catch {
-      // Keep the selected tab for this session when browser storage is unavailable.
-    }
+    writeLeftPanelTab(activeTab);
   }, [activeTab]);
 
   const selectTab = (tab: StudioLeftPanelTab) => {
@@ -140,11 +147,11 @@ export function StudioLeftPanel({
           aria-labelledby="studio-left-tab-agent"
           hidden={activeTab !== "agent"}
         >
-          <AgentHarnessSidebar {...agentProps} className="studio-left-panel__agent" isOpen={true} />
+          <AgentHarnessSidebar {...agentProps} editor={editor} className="studio-left-panel__agent" isOpen={true} />
         </div>
         {activeTab !== "agent" && (
           <div id={`studio-left-panel-${activeTab}`} role="tabpanel" aria-labelledby={`studio-left-tab-${activeTab}`}>
-            <LeftPanelTabBody tab={activeTab} editor={editor} />
+            <LeftPanelTabBody tab={activeTab} editor={editor} onOpenPage={onOpenPage} onDeletePage={onDeletePage} />
           </div>
         )}
         <span className="sr-only" aria-live="polite">

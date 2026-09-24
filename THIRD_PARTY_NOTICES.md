@@ -19,12 +19,20 @@ Exact versions were checked against the installed workspace manifests and lockfi
 | `esbuild` | 0.28.1 | MIT | <https://github.com/evanw/esbuild> |
 | `fast-xml-parser` | 5.9.3 | MIT | <https://github.com/NaturalIntelligence/fast-xml-parser> |
 | `@fontsource/geist-sans` / `@fontsource/geist-mono` | 5.3.0 | OFL-1.1 | <https://fontsource.org/fonts/geist> · bundled font license below |
+| `@fontsource-variable/fraunces` | 5.3.0 | OFL-1.1 | <https://fontsource.org/fonts/fraunces> |
+| `@fontsource/hanken-grotesk` | 5.3.0 | OFL-1.1 | <https://fontsource.org/fonts/hanken-grotesk> |
+| `@fontsource/ibm-plex-mono` | 5.3.0 | OFL-1.1 | <https://fontsource.org/fonts/ibm-plex-mono> |
+| `@resvg/resvg-js` | 2.6.2 | MPL-2.0 | <https://github.com/yisibl/resvg-js> |
+| `hono` | 4.13.8 | MIT | <https://github.com/honojs/hono> |
+| `@napi-rs/keyring` | 2.1.0 | MIT | <https://github.com/Brooooooklyn/keyring-node> |
 | `imagetracerjs` | 1.2.6 | Unlicense | <https://github.com/jankovicsandras/imagetracerjs> |
 | `jimp` | 0.14.0 | MIT | <https://github.com/oliver-moran/jimp> |
 | `lucide-react` | 1.47.0 | ISC, with MIT for Feather-derived icons | <https://github.com/lucide-icons/lucide> · bundled license below |
 | `pixi.js` | 8.14.0 | MIT | <https://github.com/pixijs/pixi.js> |
 | `radix-ui` | 1.6.7 | MIT | <https://www.radix-ui.com/> · bundled license below |
 | `react` / `react-dom` | 19.2.7 | MIT | <https://github.com/facebook/react> |
+| `react-markdown` | 10.1.0 | MIT | <https://github.com/remarkjs/react-markdown> |
+| `rehype-sanitize` | 6.0.0 | MIT | <https://github.com/rehypejs/rehype-sanitize> |
 | `svgo` | 4.0.1 | MIT | <https://github.com/svg/svgo> |
 | `three` | 0.185.1 | MIT | <https://github.com/mrdoob/three.js> |
 | `tldraw` / `@tldraw/tldraw` / `@tldraw/assets` | 5.4.2 | tldraw license | <https://tldraw.dev/community/license> · production use requires a valid license key |

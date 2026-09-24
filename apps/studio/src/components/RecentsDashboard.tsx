@@ -214,7 +214,7 @@ export function RecentsDashboard({
           <details className="recents__brand-menu">
             <summary aria-label="Workspace menu" title={projectMode ? "Trusted VS Code workspace" : "Browser session"}>
               <img className="recents__brand-mark" src={brandMarkUrl} alt="" aria-hidden="true" />
-              <span className="recents__rail-text">blenderSVG Studio</span>
+              <span className="recents__rail-text recents__wordmark">kurva</span>
               <ChevronDown size={14} aria-hidden="true" />
             </summary>
             <div className="recents__brand-menu-content">
@@ -284,6 +284,11 @@ export function RecentsDashboard({
             <span className="recents__rail-text">Recents</span>
           </button>
         </nav>
+        {projects.some((project) => project.id === SCRATCHPAD_PROJECT_ID) && (
+          <button className="recents__nav-item" type="button" onClick={() => onOpenProject(SCRATCHPAD_PROJECT_ID)}>
+            <span className="recents__rail-text">Scratchpad</span>
+          </button>
+        )}
         <div className="recents__rail-bottom">
           {hasCurrentCanvas && (
             <button className="recents__nav-item" type="button" onClick={onClose} title="Return to canvas">
@@ -307,7 +312,9 @@ export function RecentsDashboard({
           >
             <Menu size={20} aria-hidden="true" />
           </button>
-          <h1 id="recents-title">Home</h1>
+          <h1 id="recents-title">
+            what are we <em>drawing</em> today?
+          </h1>
           <div className="recents__header-actions">
             {onOpenFile && (
               <button className="recents__button recents__button--quiet" type="button" onClick={onOpenFile}>

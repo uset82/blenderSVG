@@ -1,7 +1,7 @@
 {
   "name": "codex-avatar-studio-extension",
-  "displayName": "Codex Avatar Studio",
-  "description": "IDE-native animated assistant with a local SVG fallback runtime.",
+  "displayName": "Kurva",
+  "description": "Local canvas, SVG, and an optional Blender handoff, with an animated assistant in the editor.",
   "version": "0.1.0",
   "publisher": "codex-avatar-studio",
   "private": true,
@@ -222,7 +222,7 @@
       ]
     },
     "configuration": {
-      "title": "Codex Avatar Studio",
+      "title": "Kurva",
       "properties": {
         "codexAvatar.enabled": {
           "type": "boolean",
@@ -350,15 +350,16 @@
   "scripts": {
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && tsc -p tsconfig.json --noEmit",
+    "typecheck": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && pnpm --filter @codex-avatar-studio/studio-host-core build && tsc -p tsconfig.json --noEmit",
     "lint": "pnpm --workspace-root exec biome lint apps/extension",
-    "test": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && pnpm build && node --test test/*.test.mjs && pnpm --workspace-root exec vitest run apps/extension/test/avatar-webview-provider.test.ts apps/extension/test/blender-avatar-package.test.ts apps/extension/test/generated-avatar-package.test.ts apps/extension/test/ideEvents.test.ts apps/extension/test/picture-studio.test.ts apps/extension/test/settings.test.ts apps/extension/test/openRouterConnection.test.ts apps/extension/test/studio-webview-panel.test.ts",
+    "test": "pnpm --filter @codex-avatar-studio/avatar-core build && pnpm --filter @codex-avatar-studio/asset-pipeline build && pnpm --filter @codex-avatar-studio/studio-host-core build && pnpm build && node --test test/*.test.mjs && pnpm --workspace-root exec vitest run apps/extension/test/avatar-webview-provider.test.ts apps/extension/test/blender-avatar-package.test.ts apps/extension/test/generated-avatar-package.test.ts apps/extension/test/ideEvents.test.ts apps/extension/test/picture-studio.test.ts apps/extension/test/settings.test.ts apps/extension/test/openRouterConnection.test.ts apps/extension/test/studio-webview-panel.test.ts",
     "watch": "tsc -p tsconfig.json --watch",
     "package:vsix": "node ../../scripts/package-extension.mjs"
   },
   "dependencies": {
     "@codex-avatar-studio/asset-pipeline": "workspace:*",
-    "@codex-avatar-studio/avatar-core": "workspace:*"
+    "@codex-avatar-studio/avatar-core": "workspace:*",
+    "@codex-avatar-studio/studio-host-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.13.14",

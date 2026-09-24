@@ -56,9 +56,10 @@ test("extension manifest activates every contributed command", async () => {
 test("compiled extension registers commands and keeps webview CSP strict", async () => {
   const extensionSource = await readFile(path.join(extensionRoot, "dist", "extension.js"), "utf8");
   const providerSource = await readFile(path.join(extensionRoot, "dist", "AvatarWebviewProvider.js"), "utf8");
-  const blenderPlanSource = await readFile(path.join(extensionRoot, "dist", "blenderPlan.js"), "utf8");
-  const blenderRunnerSource = await readFile(path.join(extensionRoot, "dist", "blenderRunner.js"), "utf8");
-  const blenderProbeSource = await readFile(path.join(extensionRoot, "dist", "blenderProbe.js"), "utf8");
+  const hostCoreDist = path.resolve(extensionRoot, "../../packages/studio-host-core/dist/src");
+  const blenderPlanSource = await readFile(path.join(hostCoreDist, "blenderPlan.js"), "utf8");
+  const blenderRunnerSource = await readFile(path.join(hostCoreDist, "blenderRunner.js"), "utf8");
+  const blenderProbeSource = await readFile(path.join(hostCoreDist, "blenderProbe.js"), "utf8");
 
   for (const command of [
     "codexAvatar.openAssistant",

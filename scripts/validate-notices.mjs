@@ -14,9 +14,11 @@ const workspacePackageDirs = [
   ".",
   "apps/extension",
   "apps/studio",
+  "apps/studio-server",
   "apps/webview",
   "packages/asset-pipeline",
   "packages/avatar-core",
+  "packages/studio-host-core",
   "packages/runtime-pixi"
 ];
 

@@ -1,16 +1,21 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { traceImageBuffer } from "@codex-avatar-studio/asset-pipeline/trace-pixels";
 import {
   createHostToStudioMessage,
   type HostToStudioMessageInput,
   parseStudioToHostMessage,
   type StudioToHostMessage
 } from "@codex-avatar-studio/avatar-core";
-import { traceImageBuffer } from "@codex-avatar-studio/asset-pipeline/trace-pixels";
 import * as vscode from "vscode";
 import { OpenRouterChatController } from "./openRouterChat.js";
 import { OpenRouterConnectionController, type OpenRouterConnectionState } from "./openRouterConnection.js";
-import { formatCorruptProjectMessage, SCRATCHPAD_PROJECT_ID, StudioProjectStore, StudioProjectStoreError } from "./studioProjectStore.js";
+import {
+  formatCorruptProjectMessage,
+  SCRATCHPAD_PROJECT_ID,
+  StudioProjectStore,
+  StudioProjectStoreError
+} from "./studioProjectStore.js";
 
 type StudioProjectMessage = Extract<
   StudioToHostMessage,
@@ -61,16 +66,11 @@ export class StudioWebviewPanel implements vscode.Disposable {
     }
 
     const studioRoot = vscode.Uri.joinPath(this.extensionUri, "media", "studio");
-    const panel = vscode.window.createWebviewPanel(
-      "codexAvatar.studio",
-      "blenderSVG Studio",
-      vscode.ViewColumn.Active,
-      {
-        enableScripts: true,
-        localResourceRoots: [studioRoot],
-        retainContextWhenHidden: true
-      }
-    );
+    const panel = vscode.window.createWebviewPanel("codexAvatar.studio", "Kurva", vscode.ViewColumn.Active, {
+      enableScripts: true,
+      localResourceRoots: [studioRoot],
+      retainContextWhenHidden: true
+    });
 
     this.panel = panel;
     panel.webview.onDidReceiveMessage((raw: unknown) => {
@@ -95,6 +95,7 @@ export class StudioWebviewPanel implements vscode.Disposable {
   }
 
   public refreshWorkspaceTrust(): void {
+    if (!vscode.workspace.isTrusted) this.chat.cancelAll();
     if (this.panel) void this.sendCurrentState();
   }
 
@@ -148,6 +149,25 @@ export class StudioWebviewPanel implements vscode.Disposable {
       } else {
         this.postHostState({ status: "error", message: "Trust this workspace before connecting OpenRouter." });
       }
+      return;
+    }
+
+    if (message.type === "studio:toolPermission") {
+      this.chat.resolveToolPermission(message.requestId, message.callId, message.granted);
+      return;
+    }
+
+    if (message.type === "studio:toolExecutionResult") {
+      this.chat.resolveToolExecutionResult(message.requestId, message.callId, {
+        ok: message.ok,
+        content: message.content,
+        ...(message.imageDataUrl ? { imageDataUrl: message.imageDataUrl } : {})
+      });
+      return;
+    }
+
+    if (message.type === "studio:agentStop") {
+      this.chat.cancel(message.requestId);
       return;
     }
 
@@ -296,7 +316,11 @@ export class StudioWebviewPanel implements vscode.Disposable {
         }
         const projectPath = await this.projects.revealPath(message.projectId);
         await vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(projectPath));
-        this.postMessage({ type: "studio:projectRevealed", requestId: message.requestId, projectId: message.projectId });
+        this.postMessage({
+          type: "studio:projectRevealed",
+          requestId: message.requestId,
+          projectId: message.projectId
+        });
         return;
       }
       if (message.type === "studio:projectDelete") {
@@ -421,7 +445,7 @@ export function buildStudioHtml(webview: vscode.Webview, studioRoot: vscode.Uri)
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="${escapeAttribute(csp)}">
-  <title>blenderSVG Studio</title>
+  <title>Kurva</title>
   ${cssUris.map((uri) => `<link rel="stylesheet" href="${escapeAttribute(uri)}">`).join("\n  ")}
 </head>
 <body>
@@ -445,7 +469,9 @@ function escapeAttribute(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
-function projectErrorCode(error: unknown): "workspace" | "missing" | "corrupt" | "too-large" | "invalid-title" | "io" | "cancelled" {
+function projectErrorCode(
+  error: unknown
+): "workspace" | "missing" | "corrupt" | "too-large" | "invalid-title" | "io" | "cancelled" {
   if (error instanceof StudioProjectStoreError) return error.code;
   return "io";
 }

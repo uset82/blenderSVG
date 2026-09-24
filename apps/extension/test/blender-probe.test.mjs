@@ -7,7 +7,7 @@ import {
   discoverPlatformBlenderCandidates,
   parseBlenderVersion,
   probeBlenderExecutable
-} from "../dist/blenderProbe.js";
+} from "../../../packages/studio-host-core/dist/src/blenderProbe.js";
 
 const extensionRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -234,7 +234,10 @@ test("cancellation stops a connection probe instead of continuing to fallback ca
 });
 
 test("the real version command never enables shell interpolation", async () => {
-  const source = await readFile(path.join(extensionRoot, "src", "blenderProbe.ts"), "utf8");
+  const source = await readFile(
+    path.resolve(extensionRoot, "../../packages/studio-host-core/dist/src/blenderProbe.js"),
+    "utf8"
+  );
   assert.match(source, /spawn\(executablePath, \["--version"\], \{[\s\S]*?shell:\s*false/);
 });
 

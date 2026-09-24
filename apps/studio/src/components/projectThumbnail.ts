@@ -49,6 +49,20 @@ export function removeProjectThumbnail(projectId: string): void {
   }
 }
 
+/** Render the first frame to a PNG and store it on the authenticated host. */
+export async function storeFrameThumbnail(editor: Editor, projectId: string): Promise<boolean> {
+  const frame = editor.getCurrentPageShapes().find((shape) => shape.type === "frame");
+  if (!frame) return false;
+  const image = await editor.toImage([frame.id], { format: "png", pixelRatio: 1, background: true, padding: 0 });
+  const response = await fetch(`/api/projects/${projectId}/thumbnail`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "image/png" },
+    body: image.blob
+  });
+  return response.ok;
+}
+
 /** Capture a small, genuine image of the active tldraw page after it is saved. */
 export async function captureProjectThumbnail(editor: Editor, projectId: string): Promise<string | null> {
   const shapes = editor.getCurrentPageShapes();

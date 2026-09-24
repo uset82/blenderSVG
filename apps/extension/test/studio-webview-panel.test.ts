@@ -158,15 +158,19 @@ describe("Studio editor panel", () => {
       type: "studio:traceImage",
       requestId: "trace-1234",
       mediaType: "image/png",
-      dataBase64: "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR42mP4TyJgoKMGQQl1PGhUw/DRMGgSHwDUb/F8/RCeSQAAAABJRU5ErkJggg=="
+      dataBase64:
+        "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR42mP4TyJgoKMGQQl1PGhUw/DRMGgSHwDUb/F8/RCeSQAAAABJRU5ErkJggg=="
     });
     await vi.waitFor(
-      () => expect(state.messages.some((message) => (message as { type?: string }).type === "studio:imageTraced")).toBe(true),
+      () =>
+        expect(state.messages.some((message) => (message as { type?: string }).type === "studio:imageTraced")).toBe(
+          true
+        ),
       { timeout: 10_000 }
     );
-    const response = state.messages.find(
-      (message) => (message as { type?: string }).type === "studio:imageTraced"
-    ) as { svg: string };
+    const response = state.messages.find((message) => (message as { type?: string }).type === "studio:imageTraced") as {
+      svg: string;
+    };
     expect(response.svg).toMatch(/^<svg\b/);
     expect(response.svg).toContain('xmlns="http://www.w3.org/2000/svg"');
   });
@@ -247,10 +251,12 @@ describe("Studio editor panel", () => {
       requestId: "scratch-1234",
       snapshot: blankSnapshot
     });
-    await vi.waitFor(() =>
-      expect(state.messages).toContainEqual(
-        expect.objectContaining({ type: "studio:scratchpadEnsured", requestId: "scratch-1234" })
-      )
+    await vi.waitFor(
+      () =>
+        expect(state.messages).toContainEqual(
+          expect.objectContaining({ type: "studio:scratchpadEnsured", requestId: "scratch-1234" })
+        ),
+      { timeout: 10_000 }
     );
     expect(state.messages.at(-1)).toMatchObject({ project: { id: scratchpadId, snapshot: blankSnapshot } });
 
@@ -262,10 +268,12 @@ describe("Studio editor panel", () => {
       title: "Scratchpad",
       snapshot: editedSnapshot
     });
-    await vi.waitFor(() =>
-      expect(state.messages).toContainEqual(
-        expect.objectContaining({ type: "studio:projectSaved", requestId: "save-1234" })
-      )
+    await vi.waitFor(
+      () =>
+        expect(state.messages).toContainEqual(
+          expect.objectContaining({ type: "studio:projectSaved", requestId: "save-1234" })
+        ),
+      { timeout: 10_000 }
     );
     state.handlers[0]?.({
       protocolVersion: 1,
@@ -273,12 +281,64 @@ describe("Studio editor panel", () => {
       requestId: "scratch-5678",
       snapshot: blankSnapshot
     });
-    await vi.waitFor(() =>
-      expect(state.messages).toContainEqual(
-        expect.objectContaining({ type: "studio:scratchpadEnsured", requestId: "scratch-5678" })
-      )
+    await vi.waitFor(
+      () =>
+        expect(state.messages).toContainEqual(
+          expect.objectContaining({ type: "studio:scratchpadEnsured", requestId: "scratch-5678" })
+        ),
+      { timeout: 10_000 }
     );
     expect(state.messages.at(-1)).toMatchObject({ project: { id: scratchpadId, snapshot: editedSnapshot } });
+  });
+
+  it("reopens the latest saved canvas through a newly created Webview panel", async () => {
+    const root = studioFixture();
+    const secrets = { get: vi.fn(async () => undefined), store: vi.fn(), delete: vi.fn() };
+    const projectId = "55b5363d-6cd6-42f7-8c8c-79b8a847d8e6";
+    const editedSnapshot = JSON.stringify({
+      document: { schema: { version: 2 }, store: { shape: { id: "shape:qa-roundtrip" } } }
+    });
+
+    const firstPanel = new StudioWebviewPanel(root as never, secrets as never, () => root.fsPath);
+    firstPanel.open();
+    state.handlers[0]?.({
+      protocolVersion: 1,
+      type: "studio:projectSave",
+      requestId: "save-roundtrip",
+      projectId,
+      title: "Round-trip canvas",
+      snapshot: editedSnapshot
+    });
+    await vi.waitFor(() =>
+      expect(state.messages).toContainEqual(
+        expect.objectContaining({ type: "studio:projectSaved", requestId: "save-roundtrip" })
+      )
+    );
+    firstPanel.dispose();
+
+    const reopenedPanel = new StudioWebviewPanel(root as never, secrets as never, () => root.fsPath);
+    reopenedPanel.open();
+    state.handlers[1]?.({
+      protocolVersion: 1,
+      type: "studio:projectOpen",
+      requestId: "open-roundtrip",
+      projectId
+    });
+    await vi.waitFor(() =>
+      expect(state.messages).toContainEqual(
+        expect.objectContaining({
+          type: "studio:projectOpened",
+          requestId: "open-roundtrip",
+          project: expect.objectContaining({
+            id: projectId,
+            title: "Round-trip canvas",
+            formatVersion: 1,
+            snapshot: editedSnapshot
+          })
+        })
+      )
+    );
+    reopenedPanel.dispose();
   });
 
   it("renames a stored project and reveals only its verified local path", async () => {

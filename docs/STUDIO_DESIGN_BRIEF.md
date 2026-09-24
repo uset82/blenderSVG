@@ -6,6 +6,8 @@
 
 The visual spec for the Studio track (Phases 14–24 in [`PLAN_CHECKLIST.md`](PLAN_CHECKLIST.md)) is the design canvas [blenderSVG Studio — Target UI](https://claude.ai/artifact/KF4tzS5uc1apNpW8YDygGN). It is private to its owner until shared from the page's Share menu. A readable local copy of every artboard is in [`design/target-ui/`](design/target-ui/README.md). Its artboards:
 
+**Brand (Kurva, 2026-09-24):** name, logo, tagline and tokens are in [`brand/KURVA_BRAND_PLAN.md`](brand/KURVA_BRAND_PLAN.md), and the reference research is in [`brand/KURVA_REFERENCE_SCRAPE.md`](brand/KURVA_REFERENCE_SCRAPE.md). The front page and logo canvas is [Kurva — Brand & Front Page](https://claude.ai/artifact/W58r7M5XaMbzEz4Zt2irnc), which stays private until it is shared. Kurva tokens restyle the Target UI; they do not change its layouts.
+
 | Artboard | Specifies | Phase |
 | --- | --- | --- |
 | Home dashboard | Sidebar, hero composer with category chips, start cards, Recents grid | 15 |

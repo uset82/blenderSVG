@@ -1,8 +1,6 @@
-# blenderSVG Studio
+# Kurva
 
-> **Working name.** A new product name is being chosen. The repository, package and extension names will change with it (plan step R6).
-
-blenderSVG Studio is a local-first design canvas where you and AI agents design together. It is an infinite [tldraw](https://tldraw.dev/) canvas with an agent chat that uses any model from your own [OpenRouter](https://openrouter.ai/) account. It also traces pictures into editable SVG on your computer, builds animated avatars, and hands work to Blender. It ships with a VS Code extension that adds an animated avatar to your editor.
+Kurva is a local-first design canvas where you and AI agents design together. It is an infinite [tldraw](https://tldraw.dev/) canvas with an agent chat that uses any model from your own [OpenRouter](https://openrouter.ai/) account. It also traces pictures into editable SVG on your computer, builds animated avatars, and hands work to Blender. It ships with a VS Code extension that adds an animated avatar to your editor.
 
 > [!NOTE]
 > The Studio is in active development. The avatar extension is the finished, tested part. The Studio is being rebuilt step by step against the Target UI design; see [the plan](docs/PLAN_CHECKLIST.md) for exactly what is done.

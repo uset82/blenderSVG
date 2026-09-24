@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kurva Studio — Home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..800,0..100,0..1;1,9..144,300..800,0..100,0..1&amp;family=Hanken+Grotesk:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#F3EEE3;color:#1B1A17;font-family:'Hanken Grotesk',sans-serif}
+a{color:#1B1A17}a:hover{color:#B53A17}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; background: #F3EEE3; color: #1B1A17; font-family: 'Hanken Grotesk', sans-serif; font-size: 14px">
+<aside style="width: 240px; box-sizing: border-box; padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid rgba(27,26,23,0.14); background: #EFE9DC">
+<div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px 20px"><svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="8" stroke-linecap="round"></path></svg><span style="font-family: 'Fraunces', serif; font-variation-settings: 'SOFT' 100; font-size: 22px; font-weight: 500">kurva</span></div>
+<a href="#home" style="text-decoration: none; padding: 9px 10px; border-radius: 6px; background: #1B1A17; color: #FBF8F1">Home</a>
+<a href="#recents" style="text-decoration: none; padding: 9px 10px; border-radius: 6px">Recents</a>
+<a href="#projects" style="text-decoration: none; padding: 9px 10px; border-radius: 6px">Projects</a>
+<a href="#assets" style="text-decoration: none; padding: 9px 10px; border-radius: 6px">Assets</a>
+<div style="margin-top: 18px; padding: 0 10px 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #5A554B">PINNED</div>
+<a href="#scratchpad" style="text-decoration: none; padding: 9px 10px; border-radius: 6px; display: flex; justify-content: space-between"><span>Scratchpad</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5A554B">draft</span></a>
+<span style="flex-grow: 1"></span>
+<div style="padding: 12px 10px; border-top: 1px solid rgba(27,26,23,0.14); display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+<div style="display: flex; justify-content: space-between"><span style="color: #5A554B">Blender</span><span>detected</span></div>
+<div style="display: flex; justify-content: space-between"><span style="color: #5A554B">Remote AI</span><span>off</span></div>
+</div>
+</aside>
+<main style="flex-grow: 1; box-sizing: border-box; padding: 56px 72px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 22px">
+<h1 style="margin: 0; font-family: 'Fraunces', serif; font-variation-settings: 'SOFT' 100, 'WONK' 1; font-weight: 380; font-size: 56px; letter-spacing: -0.03em; line-height: 1">what are we <span style="font-style: italic; color: #B53A17">drawing</span> today?</h1>
+<div style="display: flex; gap: 8px">
+<button type="button" style="font: inherit; padding: 8px 14px; border-radius: 999px; border: 1px solid #1B1A17; background: #1B1A17; color: #FBF8F1">Character</button>
+<button type="button" style="font: inherit; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(27,26,23,0.2); background: transparent; color: #1B1A17">Icon</button>
+<button type="button" style="font: inherit; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(27,26,23,0.2); background: transparent; color: #1B1A17">From picture</button>
+<button type="button" style="font: inherit; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(27,26,23,0.2); background: transparent; color: #1B1A17">Blender scene</button>
+</div>
+<label style="width: 720px; box-sizing: border-box; padding: 18px 18px 14px 22px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.18); border-radius: 18px; display: flex; flex-direction: column; gap: 18px; box-shadow: 0 16px 40px -28px rgba(27,26,23,0.5)">
+<span style="font-size: 17px; color: #5A554B">Describe a character, or drop a picture here…</span>
+<span style="display: flex; align-items: center; gap: 10px">
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 5px 10px; border: 1px solid rgba(27,26,23,0.18); border-radius: 999px">local only</span>
+<span style="flex-grow: 1"></span>
+<span style="width: 36px; height: 36px; border-radius: 999px; background: #B53A17; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBF8F1" stroke-width="2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"></path></svg></span>
+</span>
+</label>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<button type="button" style="font: inherit; text-align: left; padding: 18px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; flex-direction: column; gap: 6px; color: #1B1A17"><span style="font-weight: 600; font-size: 15px">Picture → SVG</span><span style="color: #5A554B">Trace a PNG or JPG into layered vectors.</span></button>
+<button type="button" style="font: inherit; text-align: left; padding: 18px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; flex-direction: column; gap: 6px; color: #1B1A17"><span style="font-weight: 600; font-size: 15px">Open an SVG</span><span style="color: #5A554B">Sanitized on import, editable on the canvas.</span></button>
+<button type="button" style="font: inherit; text-align: left; padding: 18px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; flex-direction: column; gap: 6px; color: #1B1A17"><span style="font-weight: 600; font-size: 15px">Blender scene (copy)</span><span style="color: #5A554B">Your original .blend is never changed.</span></button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-weight: 600; font-size: 16px">Recents</span><span style="display: flex; gap: 12px; align-items: center"><span style="color: #5A554B">Grid · List</span><button type="button" style="font: inherit; padding: 8px 14px; border-radius: 999px; border: 0; background: #1B1A17; color: #FBF8F1">New file</button></span></div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 150px; border-radius: 12px; border: 1px solid rgba(27,26,23,0.14); background-color: #FBF8F1; background-image: radial-gradient(rgba(27,26,23,0.12) 1px, transparent 1px); background-size: 14px 14px; display: flex; align-items: center; justify-content: center"><svg width="90" height="86" viewBox="0 0 300 287" aria-hidden="true"><path d="M150 40 C220 40 258 100 254 168 C250 236 206 266 150 266 C94 266 50 236 46 168 C42 100 80 40 150 40 Z" fill="#D2461E" stroke="#1B1A17" stroke-width="6"></path><path d="M110 192 C130 222 170 222 190 192" fill="none" stroke="#1B1A17" stroke-width="10" stroke-linecap="round"></path></svg></div><span style="font-weight: 500">mascot</span><span style="color: #5A554B; font-size: 13px">Edited [TIME]</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 150px; border-radius: 12px; border: 1px solid rgba(27,26,23,0.14); background: #FBF8F1; display: flex; align-items: center; justify-content: center"><svg width="70" height="70" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="8" stroke-linecap="round"></path></svg></div><span style="font-weight: 500">kurva-mark</span><span style="color: #5A554B; font-size: 13px">Edited [TIME]</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 150px; border-radius: 12px; border: 1px dashed rgba(27,26,23,0.3); background: transparent; display: flex; align-items: center; justify-content: center; color: #5A554B">[PROJECT THUMBNAIL]</div><span style="font-weight: 500">[PROJECT NAME]</span><span style="color: #5A554B; font-size: 13px">Edited [TIME]</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 150px; border-radius: 12px; border: 1px dashed rgba(27,26,23,0.3); background: transparent; display: flex; align-items: center; justify-content: center; color: #5A554B">[PROJECT THUMBNAIL]</div><span style="font-weight: 500">[PROJECT NAME]</span><span style="color: #5A554B; font-size: 13px">Edited [TIME]</span></div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

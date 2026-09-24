@@ -5,6 +5,7 @@ import { avatarStates, isAvatarState, isIdeAssistantEvent, type AvatarState } fr
 import { BlenderIntegrationController } from "./blenderIntegration.js";
 import type { BlenderExportMode } from "./blenderRunner.js";
 import { IdeEventsController } from "./ideEvents.js";
+import { launchStandaloneStudio, studioServerEntry } from "./openStandaloneStudio.js";
 import { StudioWebviewPanel } from "./StudioWebviewPanel.js";
 import { getAvatarConfig, resetAvatarConfig, toggleAssistantEnabled, updateAvatarConfig } from "./settings.js";
 
@@ -73,7 +74,20 @@ export function activate(context: vscode.ExtensionContext): void {
     registerCommand("codexAvatar.openAssistant", async () => {
       await vscode.commands.executeCommand("workbench.view.extension.codexAvatar");
     }),
-    registerCommand("codexAvatar.openStudio", () => studioPanel.open()),
+    registerCommand("codexAvatar.openStudio", async () => {
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const result = await launchStandaloneStudio({
+        serverEntry: studioServerEntry(workspaceRoot),
+        openExternal: (url) => vscode.env.openExternal(vscode.Uri.parse(url))
+      });
+      if (result === "opened") return;
+      studioPanel.open();
+      void vscode.window.showInformationMessage(
+        result === "missing"
+          ? "The standalone Studio host is not in this installation, so the editor tab was opened instead. The avatar sidebar is unchanged."
+          : "The standalone Studio host did not start, so the editor tab was opened instead."
+      );
+    }),
     registerCommand("codexAvatar.toggleAssistant", async () => {
       const enabled = await toggleAssistantEnabled();
       const nextState: AvatarState = enabled ? "welcome" : "sleeping";

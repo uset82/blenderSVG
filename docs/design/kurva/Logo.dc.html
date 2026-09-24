@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kurva logo and tagline</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..800,0..100,0..1;1,9..144,300..800,0..100,0..1&amp;family=Hanken+Grotesk:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#F3EEE3;color:#1B1A17;font-family:'Hanken Grotesk',sans-serif}
+.k-draw{stroke-dasharray:100;stroke-dashoffset:100;animation:kdraw 1.4s cubic-bezier(.2,.7,.2,1) .3s infinite alternate}
+@keyframes kdraw{to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion: reduce){.k-draw{animation:none;stroke-dashoffset:0}}
+</style>
+</helmet>
+<div style="width: 1440px; height: 2300px; box-sizing: border-box; padding: 80px; display: flex; flex-direction: column; gap: 72px; background: #F3EEE3; color: #1B1A17; font-family: 'Hanken Grotesk', sans-serif">
+
+<div style="display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 24px; border-bottom: 1px solid rgba(27,26,23,0.18)">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.08em; color: #5A554B">KURVA · IDENTITY SHEET · V1</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #5A554B">2026-09-24</div>
+</div>
+
+<!-- Primary lockup -->
+<div style="display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 40px 0">
+<div style="display: flex; align-items: center; gap: 28px">
+<svg width="168" height="168" viewBox="0 0 64 64" aria-label="Kurva mark"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="8" stroke-linecap="round"></path></svg>
+<span style="font-family: 'Fraunces', serif; font-variation-settings: 'SOFT' 100, 'WONK' 1; font-size: 176px; font-weight: 440; line-height: 1; letter-spacing: -0.035em">kurva</span>
+</div>
+<div style="font-family: 'Fraunces', serif; font-variation-settings: 'SOFT' 100; font-style: italic; font-weight: 350; font-size: 36px; color: #5A554B">every line finds its curve.</div>
+</div>
+
+<!-- Concepts -->
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.08em; color: #5A554B">MARK CONCEPTS</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="height: 240px; background: #FBF8F1; border: 2px solid #B53A17; border-radius: 14px; display: flex; align-items: center; justify-content: center"><svg width="140" height="140" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="8" stroke-linecap="round"></path></svg></div>
+<div style="font-weight: 600">A · Stem + curve <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #B53A17; font-weight: 500">SELECTED</span></div>
+<div style="font-size: 14px; color: #5A554B; line-height: 1.5">One straight line, one Bézier. The curve bows in until it touches the stem, forming a K.</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="height: 240px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; align-items: center; justify-content: center"><svg width="140" height="140" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="6" stroke-linecap="round"></line><g stroke="#2E5E8C" stroke-width="1.2" fill="#FBF8F1"><line x1="18" y1="32" x2="46" y2="12"></line><line x1="18" y1="32" x2="46" y2="52"></line><circle cx="46" cy="12" r="4"></circle><circle cx="46" cy="52" r="4"></circle></g><rect x="14" y="28" width="8" height="8" fill="#D2461E"></rect></svg></div>
+<div style="font-weight: 600">B · Node K</div>
+<div style="font-size: 14px; color: #5A554B; line-height: 1.5">The K drawn as a selected anchor point with two handles. Precise, but cold.</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="height: 240px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; align-items: center; justify-content: center"><svg width="140" height="140" viewBox="0 0 64 64" aria-hidden="true"><path d="M16 54 V10 M16 36 C28 36 40 26 48 10 M28 34 C36 38 42 46 48 54" fill="none" stroke="#1B1A17" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+<div style="font-weight: 600">C · Brush K</div>
+<div style="font-size: 14px; color: #5A554B; line-height: 1.5">Three calligraphic strokes. Friendly, but it reads as a font and has no curve story.</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="height: 240px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; align-items: center; justify-content: center"><svg width="140" height="140" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="#D2461E"></circle><line x1="24" y1="18" x2="24" y2="46" stroke="#FBF8F1" stroke-width="5" stroke-linecap="round"></line><path d="M42 18 C22 29 22 35 42 46" fill="none" stroke="#FBF8F1" stroke-width="5" stroke-linecap="round"></path></svg></div>
+<div style="font-weight: 600">D · Seal</div>
+<div style="font-size: 14px; color: #5A554B; line-height: 1.5">Concept A reversed out of a vermilion disc. Kept as the app-icon variant.</div>
+</div>
+</div>
+</div>
+
+<!-- Lockups on grounds -->
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.08em; color: #5A554B">LOCKUPS · GROUNDS</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+<div style="height: 260px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px">
+<div style="display: flex; align-items: center; gap: 14px"><svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="8" stroke-linecap="round"></path></svg><span style="font-family: 'Fraunces', serif; font-variation-settings: 'SOFT' 100, 'WONK' 1; font-size: 64px; font-weight: 440; letter-spacing: -0.035em; line-height: 1">kurva</span></div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #5A554B">every line finds its curve.</div>
+</div>
+<div style="height: 260px; background: #1B1A17; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #EFE9DC">
+<div style="display: flex; align-items: center; gap: 14px"><svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#EFE9DC" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#F0623A" stroke-width="8" stroke-linecap="round"></path></svg><span style="font-family: 'Fraunces', serif; font-variation-settings: 'SOFT' 100, 'WONK' 1; font-size: 64px; font-weight: 440; letter-spacing: -0.035em; line-height: 1">kurva</span></div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #A9A294">every line finds its curve.</div>
+</div>
+<div style="height: 260px; background: #B53A17; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #FBF8F1">
+<div style="display: flex; align-items: center; gap: 14px"><svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#FBF8F1" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#FBF8F1" stroke-width="8" stroke-linecap="round"></path></svg><span style="font-family: 'Fraunces', serif; font-variation-settings: 'SOFT' 100, 'WONK' 1; font-size: 64px; font-weight: 440; letter-spacing: -0.035em; line-height: 1">kurva</span></div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">every line finds its curve.</div>
+</div>
+</div>
+</div>
+
+<!-- Treatments + sizes -->
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.08em; color: #5A554B">TREATMENTS</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 10px; align-items: center"><div style="width: 100%; height: 180px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; align-items: center; justify-content: center"><svg width="110" height="110" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></path></svg></div><span style="font-size: 14px">One colour</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px; align-items: center"><div style="width: 100%; height: 180px; background-color: #FBF8F1; background-image: radial-gradient(rgba(27,26,23,0.16) 1px, transparent 1px); background-size: 12px 12px; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; align-items: center; justify-content: center"><svg width="110" height="110" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="8" stroke-linecap="round"></path><g stroke="#2E5E8C" stroke-width="0.6" fill="#FBF8F1"><line x1="48" y1="10" x2="16" y2="28"></line><line x1="48" y1="54" x2="16" y2="36"></line><rect x="14.5" y="26.5" width="3" height="3"></rect><rect x="14.5" y="34.5" width="3" height="3"></rect><circle cx="48" cy="10" r="1.6"></circle><circle cx="48" cy="54" r="1.6"></circle></g></svg></div><span style="font-size: 14px">Handle view</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px; align-items: center"><div style="width: 100%; height: 180px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; align-items: center; justify-content: center"><svg width="110" height="110" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></line><path class="k-draw" pathLength="100" d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="8" stroke-linecap="round"></path></svg></div><span style="font-size: 14px">Draw-on (loading)</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px; align-items: center"><div style="width: 100%; height: 180px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; align-items: center; justify-content: center"><svg width="110" height="110" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="#1B1A17" stroke-width="1.2"><rect x="14" y="6" width="8" height="52" rx="4"></rect></g><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="8" stroke-linecap="round" opacity="0.2"></path><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#B53A17" stroke-width="1.2"></path></svg></div><span style="font-size: 14px">Outline (≥ 24 px only)</span></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.08em; color: #5A554B">SIZES · APP ICON</div>
+<div style="height: 180px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px; display: flex; align-items: center; justify-content: space-evenly">
+<div style="width: 96px; height: 96px; border-radius: 22px; background: #B53A17; display: flex; align-items: center; justify-content: center"><svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#FBF8F1" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#FBF8F1" stroke-width="8" stroke-linecap="round"></path></svg></div>
+<svg width="48" height="48" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="8" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="8" stroke-linecap="round"></path></svg>
+<svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="9" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="9" stroke-linecap="round"></path></svg>
+<svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true"><line x1="18" y1="10" x2="18" y2="54" stroke="#1B1A17" stroke-width="11" stroke-linecap="round"></line><path d="M48 10 C16 28 16 36 48 54" fill="none" stroke="#D2461E" stroke-width="11" stroke-linecap="round"></path></svg>
+</div>
+</div>
+</div>
+
+<!-- Colour + type -->
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.08em; color: #5A554B">COLOUR</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px">
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 110px; background: #F3EEE3; border: 1px solid rgba(27,26,23,0.18); border-radius: 10px"></div><span>Paper</span><span style="color: #5A554B">#F3EEE3</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 110px; background: #1B1A17; border-radius: 10px"></div><span>Ink</span><span style="color: #5A554B">#1B1A17</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 110px; background: #D2461E; border-radius: 10px"></div><span>Vermilion</span><span style="color: #5A554B">#D2461E</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 110px; background: #B53A17; border-radius: 10px"></div><span>Vermilion deep</span><span style="color: #5A554B">#B53A17 · text-safe</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 110px; background: #2E5E8C; border-radius: 10px"></div><span>Blueprint</span><span style="color: #5A554B">#2E5E8C · handles</span></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.08em; color: #5A554B">TYPE</div>
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 24px; background: #FBF8F1; border: 1px solid rgba(27,26,23,0.14); border-radius: 14px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-family: 'Fraunces', serif; font-variation-settings: 'SOFT' 100, 'WONK' 1; font-size: 52px; font-weight: 400; letter-spacing: -0.03em; line-height: 1">Fraunces Soft</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5A554B">display</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 26px; font-weight: 500">Hanken Grotesk</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5A554B">body · UI</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 20px">IBM Plex Mono</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5A554B">labels · paths</span></div>
+</div>
+</div>
+</div>
+
+<!-- Rules -->
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; padding-top: 24px; border-top: 1px solid rgba(27,26,23,0.18); font-size: 15px; line-height: 1.5">
+<div><div style="font-weight: 600; margin-bottom: 6px">Clear space</div><span style="color: #5A554B">Twice the stem width on every side.</span></div>
+<div><div style="font-weight: 600; margin-bottom: 6px">Minimum size</div><span style="color: #5A554B">Mark 16 px. Horizontal lockup 72 px wide.</span></div>
+<div><div style="font-weight: 600; margin-bottom: 6px">Handles</div><span style="color: #5A554B">Only at 48 px and up, only in blueprint blue.</span></div>
+<div><div style="font-weight: 600; margin-bottom: 6px">Never</div><span style="color: #5A554B">Stretch, rotate, recolour the curve with a second hue, or set it on busy imagery.</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2300}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

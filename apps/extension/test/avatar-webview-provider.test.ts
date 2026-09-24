@@ -1,4 +1,4 @@
-import { access, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { VectorizePreview } from "@codex-avatar-studio/asset-pipeline";
@@ -556,14 +556,13 @@ describe("AvatarWebviewProvider asset manifests", () => {
       expect(serializedLibrary).not.toContain(packageRoot.replaceAll("\\", "/"));
       expect(serializedLibrary).not.toMatch(/(?:file|vscode-webview):/i);
 
-      await smoke.send({ protocolVersion: 1, type: "library:refresh" });
-      await vi.waitFor(() => {
-        expect(smoke.messages).toContainEqual(
-          expect.objectContaining({ type: "library:status", operation: "refresh", tone: "success" })
-        );
-      });
+      await sendLibraryMessage(smoke, "refresh", { protocolVersion: 1, type: "library:refresh" });
 
-      await smoke.send({ protocolVersion: 1, type: "library:validate", id: "saved-purple-avatar" });
+      await sendLibraryMessage(smoke, "validate", {
+        protocolVersion: 1,
+        type: "library:validate",
+        id: "saved-purple-avatar"
+      });
       await vi.waitFor(() => {
         expect(smoke.messages).toContainEqual(
           expect.objectContaining({
@@ -578,7 +577,11 @@ describe("AvatarWebviewProvider asset manifests", () => {
       const archivePath = path.join(root, "saved-purple-avatar.codex-avatar.zip");
       vscodeMock.state.selectedSaveFile = { fsPath: archivePath };
       vscodeMock.api.window.showWarningMessage.mockResolvedValueOnce("Export Local Backup");
-      await smoke.send({ protocolVersion: 1, type: "library:export", id: "saved-purple-avatar" });
+      await sendLibraryMessage(smoke, "export", {
+        protocolVersion: 1,
+        type: "library:export",
+        id: "saved-purple-avatar"
+      });
       await vi.waitFor(async () => {
         expect((await readFile(archivePath)).readUInt32LE(0)).toBe(0x04034b50);
         expect(smoke.messages).toContainEqual(
@@ -591,12 +594,16 @@ describe("AvatarWebviewProvider asset manifests", () => {
         "Export Local Backup"
       );
 
-      await smoke.send({ protocolVersion: 1, type: "library:activate", id: null });
+      await sendLibraryMessage(smoke, "activate", { protocolVersion: 1, type: "library:activate", id: null });
       await vi.waitFor(async () => {
         expect(await registry.getActivePackage()).toBeUndefined();
         expect(vscodeMock.state.config.get("character")).toBe("default");
       });
-      await smoke.send({ protocolVersion: 1, type: "library:activate", id: "saved-purple-avatar" });
+      await sendLibraryMessage(smoke, "activate", {
+        protocolVersion: 1,
+        type: "library:activate",
+        id: "saved-purple-avatar"
+      });
       await vi.waitFor(async () => {
         expect((await registry.getActivePackage())?.id).toBe("saved-purple-avatar");
         expect(vscodeMock.state.config.get("character")).toBe("saved-purple-avatar");
@@ -639,7 +646,11 @@ describe("AvatarWebviewProvider asset manifests", () => {
         "saved-purple-avatar-2"
       ]);
 
-      await smoke.send({ protocolVersion: 1, type: "library:remove", id: "saved-purple-avatar" });
+      await sendLibraryMessage(smoke, "remove", {
+        protocolVersion: 1,
+        type: "library:remove",
+        id: "saved-purple-avatar"
+      });
       await vi.waitFor(async () => {
         expect((await registry.listPackages()).map((avatarPackage) => avatarPackage.id)).toEqual([
           "saved-purple-avatar-2"
@@ -649,7 +660,11 @@ describe("AvatarWebviewProvider asset manifests", () => {
 
       const copyRoot = path.join(assetRoot, "avatars", "saved-purple-avatar-2");
       await rm(path.join(copyRoot, "svg", "avatar.svg"));
-      await smoke.send({ protocolVersion: 1, type: "library:validate", id: "saved-purple-avatar-2" });
+      await sendLibraryMessage(smoke, "validate", {
+        protocolVersion: 1,
+        type: "library:validate",
+        id: "saved-purple-avatar-2"
+      });
       await vi.waitFor(() => {
         const validationResult = smoke.messages
           .filter(
@@ -663,7 +678,11 @@ describe("AvatarWebviewProvider asset manifests", () => {
         expect(JSON.stringify(validationResult)).not.toMatch(/[A-Za-z]:[\\/]/);
       });
 
-      await smoke.send({ protocolVersion: 1, type: "library:remove", id: "saved-purple-avatar-2" });
+      await sendLibraryMessage(smoke, "remove", {
+        protocolVersion: 1,
+        type: "library:remove",
+        id: "saved-purple-avatar-2"
+      });
       await vi.waitFor(async () => {
         expect(await registry.listPackages()).toHaveLength(0);
         expect(await registry.getActivePackage()).toBeUndefined();
@@ -678,7 +697,7 @@ describe("AvatarWebviewProvider asset manifests", () => {
     } finally {
       await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
-  });
+  }, 15_000);
 
   it("rolls package files, registry, and settings back when the new avatar cannot reload", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "codex-avatar-provider-rollback-"));
@@ -777,7 +796,7 @@ function createRegistry(
 function createWebviewSmoke() {
   const messages: unknown[] = [];
   let disposeHandler: (() => void) | undefined;
-  let messageHandler: ((message: unknown) => void) | undefined;
+  let messageHandler: ((message: unknown) => void | Promise<void>) | undefined;
   const webview = {
     cspSource: "vscode-webview://codex-avatar-studio",
     html: "",
@@ -790,7 +809,7 @@ function createWebviewSmoke() {
           `vscode-webview://codex-avatar-studio${normalizedPath.startsWith("/") ? "" : "/"}${normalizedPath}`
       };
     },
-    onDidReceiveMessage: (handler: (message: unknown) => void) => {
+    onDidReceiveMessage: (handler: (message: unknown) => void | Promise<void>) => {
       messageHandler = handler;
       return { dispose() {} };
     },
@@ -812,12 +831,36 @@ function createWebviewSmoke() {
     dispose: () => disposeHandler?.(),
     messages,
     send: async (message: unknown) => {
-      messageHandler?.(message);
       await vi.waitFor(() => expect(messageHandler).toBeDefined());
+      await messageHandler?.(message);
     },
     view,
     webview
   };
+}
+
+async function sendLibraryMessage(
+  smoke: ReturnType<typeof createWebviewSmoke>,
+  operation: "refresh" | "activate" | "validate" | "export" | "remove",
+  message: unknown
+): Promise<void> {
+  const startingMessageCount = smoke.messages.length;
+  const startingLibraryUpdateCount = smoke.messages.filter(
+    (entry) => isRecord(entry) && entry.type === "library:updated"
+  ).length;
+
+  await smoke.send(message);
+  const actionMessages = smoke.messages.slice(startingMessageCount);
+  const status = actionMessages.find(
+    (entry) =>
+      isRecord(entry) && entry.type === "library:status" && entry.operation === operation && entry.tone !== "working"
+  );
+  expect(status, `Expected ${operation} to finish, got ${JSON.stringify(actionMessages)}`).toMatchObject({
+    tone: "success"
+  });
+  expect(smoke.messages.filter((entry) => isRecord(entry) && entry.type === "library:updated").length).toBeGreaterThan(
+    startingLibraryUpdateCount
+  );
 }
 
 type ManifestMessage = {

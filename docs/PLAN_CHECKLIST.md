@@ -2,11 +2,11 @@
 
 > This is the only authoritative implementation plan for the repository. It supersedes the three former root plans and the legacy checklist. Their history remains available in Git.
 
-**Updated:** 2026-09-23
+**Updated:** 2026-09-24
 
-**Current state:** Phases 0–11 are complete. Phase 12 has one unchecked post-restart Blender MCP acceptance task. Phase 13 (Studio security baseline) still has its offline/installed-host evidence box open, and the historical key still needs revoking. On 2026-09-23 the Studio track was re-planned: the Studio becomes a standalone local infinite-canvas app served by a loopback host, with VS Code as an optional connector. It follows the Target UI design canvas linked from `docs/STUDIO_DESIGN_BRIEF.md`, uses layout and interaction patterns from Paper and pen.dev with our own brand, has an OpenRouter agent panel where the user picks any model, uses an agent harness adapted from audited ZCode pieces, and exposes IDE connectors over MCP. Completed items and evidence from the former Phases 14–18 are kept under “Studio v1 shell (superseded)”. The new ordered track is Phases 14–24, and Phases 14.2 and 14.3 are done.
+**Current state:** Phases 0–11 are complete. Phase 12 has one unchecked Blender MCP acceptance task and is blocked until the project-scoped server is available after restart. Phase 13's clean-profile offline and installed-host evidence is now recorded; the historical key still needs revoking by its account owner. The current Studio track is a standalone local infinite-canvas app served by a loopback host, with VS Code as an optional connector. It follows the Target UI linked from `docs/STUDIO_DESIGN_BRIEF.md`, uses Paper and pen.dev interaction patterns with our own brand, adds an OpenRouter agent panel where the user picks a model, adapts audited ZCode harness pieces, and exposes IDE connectors over MCP. Phases 14 and 15 are complete; Phase 16.1–16.12 are implemented and verified. Phase 18.1e is the next Studio acceptance task. Later work includes projects and exports (18), OpenRouter chat (19), agents (20), creation engines (21), IDE connectors (22), and acceptance (23–24). The former Phases 14–18 remain under “Studio v1 shell (superseded)”.
 
-**Next work for the requested Studio track:** Phase 14.1: add “before” captures at the Target UI sizes (1440×900 and 390×844) next to the existing 2026-09-23 Phase 13 set. Then continue down Phase 14 (tokens, fonts, icons, primitives), Phase 15 (Home) and Phase 16 (editor shell) before the standalone host (17), projects and exports (18), OpenRouter chat (19), agents (20), creation engines (21) and IDE connectors (22). The exposed historical key still requires revocation by its account owner. Keep Phase 12's final acceptance box open until its separate MCP evidence is recorded, and do not declare the overall release complete while it remains open.
+**Next work for the requested Studio track:** Complete Phase 18.1e: verify an edited canvas through autosave, standalone host restart, and reopen in the live editor; repeat in a live VS Code Webview. Continue with thumbnails, assets, media insertion, export, and canvas actions (18.2–18.7), OpenRouter chat (19), agents (20), creation engines (21), IDE connectors (22), and acceptance (23–24). The exposed historical key still requires revocation by its account owner. Keep Phase 12's final acceptance box open until its separate MCP evidence is recorded, and do not declare the overall release complete while it remains open.
 
 ## 1. Product outcome
 
@@ -451,9 +451,10 @@ Every message must pass runtime schema validation. The Webview must never receiv
 - `.codex/config.toml` pins `uvx --python 3.11 blender-mcp==1.6.4`, `localhost:9876`, telemetry-off environment values, the four approved tools, automatic read-tool approval, and prompt approval for `execute_blender_code`. `pnpm setup:blender-mcp` followed by `pnpm verify:blender-mcp` passed idempotently with add-on commit `6641189231caf3752302ae20591bc87fda85fc4e`, SHA-256 `bba60831f5f89a74deda0294b131668a086cf46eb35a6a01abbd0d21d9e92630`, enabled status, Blender 4.5.3, and `uvx 0.11.28`; `codex mcp list` reports the project server enabled.
 - The seven reviewed project skills are installed under `.agents/skills` at the requested commits. `skills.md` catalogs them and `THIRD_PARTY_NOTICES.md` records their complete source pins plus MIT/Apache-2.0 notices. No remote-generation, unlicensed, or duplicate search result was installed.
 - The local `cholita-3d` package contains the authored `.blend`, GLB, SVG fallback, PNG preview, turntable/contact sheets, manifest, and machine-readable audits. The Blender audit passed at 17,004 triangles, 31 deform bones, one normalized influence per vertex, applied mesh transforms, a root at the origin, seven required facial shape keys, ten seamless loops, and all 22 required actions. The independent GLB audit passed at 1,031,388 bytes with one skin, seven morphs, all 22 clips, and no root-translation channels.
+- On 2026-09-24, `pnpm smoke:blender` completed the local Blender/GLB/PNG/SVG handoff smoke; `pnpm package:vsix`, `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, and `pnpm smoke:offline-studio` passed for the current implementation. The VSIX validator excludes `.codex-avatar` and Cholita source assets. These local checks do not replace the live project-scoped Blender MCP acceptance below.
 - The workspace registry retains `skjermbilde-character`, adds and activates `cholita-3d`, and `.vscode/settings.json` selects `cholita-3d` with `webgl`. A real local browser run rendered one Three.js canvas, visually checked all thirteen semantic states and all eleven supported triggers at narrow and wide widths, verified stable focus/no-animation frames, survived three reloads without duplicate canvases or console errors, and recovered to the package SVG after both context loss and an invalid GLB.
 - `pnpm run ci` passed formatting, lint, strict typecheck, all builds, and all 182 tests. `pnpm smoke:blender`, `pnpm smoke:webview`, `pnpm validate:docs`, and `pnpm validate:notices` passed. `pnpm package:vsix` produced a validated 33-file, 1.77 MB VSIX; `pnpm smoke:vsix` and `pnpm smoke:clean-profile` passed. `scripts/validate-vsix.mjs` now requires the lazy WebGL/GLTF chunks and rejects `.codex-avatar`, Cholita, `.blend`, and `.glb` entries. `git status -- .codex-avatar` is empty and `git check-ignore` confirms the local `.blend`, GLB, SVG, and preview are ignored.
-- **BLOCKED:** the first live MCP tool smoke is intentionally restart-gated. Restart Blender and start a new Codex task, then verify `get_scene_info`, `get_object_info`, `get_viewport_screenshot`, and one explicitly approved harmless `execute_blender_code` call. Keep the final acceptance checkbox unchecked until that post-restart evidence is recorded.
+- **BLOCKED (2026-09-24):** `pnpm verify:blender-mcp` confirms the local setup, but this task exposes no project-scoped `blender` MCP tools; the separate `blender_svg` tools do not meet the repository's project-server allowlist. Restart Blender and open a Codex task where the project-scoped server is available, then verify `get_scene_info`, `get_object_info`, `get_viewport_screenshot`, and one explicitly approved harmless `execute_blender_code` call. Keep the final acceptance checkbox unchecked until that evidence is recorded.
 
 ### Phase 13 — Secure the Studio baseline and define the product boundary · requested, required
 
@@ -470,19 +471,20 @@ Every message must pass runtime schema validation. The Webview must never receiv
 - [x] Add the VS Code editor-tab host for the built Studio. The browser preview uses the same protocol definitions and explicitly reports that it has no trusted host; VS Code owns secrets and provider requests.
 - [x] Add a visible OpenRouter connection/privacy explanation. The full outbound-request preview, including history, app instructions, tool schemas, and selected local context, is a Phase 16 requirement before chat can send.
 - [x] Add focused negative coverage for secret-free bridge messages, unsafe SVG, invalid protocol data, key storage, and untrusted workspace connection attempts. No local API route remains to exercise oversized-request or unauthorized-route cases.
-- [ ] Record a clean-profile offline startup and the current installed-extension/browser boundary behavior in the evidence below.
+- [x] Record a clean-profile offline startup and the current installed-extension/browser boundary behavior in the evidence below.
 
 **Done when:** no credential is bundled or exposed to the browser, no raw SVG executes, the shipped Studio host has a validated local boundary, and the existing avatar workflow still works.
 
-**Phase 13 evidence (2026-09-23):**
+**Phase 13 evidence (2026-09-23–24):**
 
 - `docs/STUDIO_BASELINE.md` inventories the visible Studio controls and data flows. The ignored local folder `.codex-avatar/previews/studio-phase13/current-2026-09-23/` contains 40 verified PNGs and `manifest.json`. At both `desktop-1280x800-` and `narrow-360x800-` prefixes, the dark captures include `dark-recents.png`, `dark-canvas-empty.png`, `dark-canvas-populated.png`, `dark-sidebar-populated.png`, `dark-inspector.png`, and `dark-composer-populated.png`; light and high-contrast Recents/canvas/chat/Inspector captures are present too. The full-view PNGs match their stated viewport dimensions. Isolated Edge 153 headless capture used the local Vite preview, with a 1.1-second panel-layout settle; no external content or user asset was submitted.
 - `apps/studio/vite.config.ts` no longer contains the fallback key or privileged API middleware and binds Vite/preview to `127.0.0.1`. A current-tree scan found no token-shaped OpenRouter/ZenMux credential. A scan of Git history confirmed a credential-shaped value in historical Studio config; the value is intentionally omitted. The owning OpenRouter account must revoke it because this local tool session cannot complete an account credential change.
 - `apps/extension/src/openRouterConnection.ts` keeps the key in VS Code `SecretStorage`, invokes a native password prompt, validates through OpenRouter's current-key endpoint, and times out after 10 seconds. `apps/extension/src/StudioWebviewPanel.ts` applies workspace trust and posts only the validated, versioned connection state.
 - `packages/asset-pipeline/src/svgSafety.ts` validates and sanitizes SVG; `VectorStudioCanvasShape.tsx` renders its inert `data:` preview through `<img>`. Remote vector engine entry points reject; the Vite sample route and MCP remote vector tools are removed.
 - `packages/avatar-core/src/studioProtocol.ts` owns the strict v1 connection bridge. The extension host report for `pnpm package:vsix`, `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, and focused protocol/secret/Webview checks was passing before this turn. In this turn `pnpm --filter @codex-avatar-studio/studio typecheck` passed after the Recents and responsive-shell changes. The local preview was reviewed at 360×800 and 1280×800; canvas frame fit, one-panel narrow layout, real session-page switching, and the truthful disabled chat state were observed.
-- The packaged offline smoke passed on 2026-09-23: `pnpm package:vsix` produced 120 files (4.73 MB) with local Geist and tldraw assets; `pnpm smoke:offline-studio` opened the packaged loopback preview with zero external browser requests and blocked a bundled host fetch. `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, `pnpm validate:notices`, and `pnpm validate:docs` passed. The clean-profile smoke proves installation, while the offline browser smoke uses a mock host; a live VS Code Webview startup in a clean profile while offline is still to be recorded, so the checkbox remains open.
-- Remaining Phase 13 work: confirm external key revocation and record offline/installed-host evidence. Full request preview is gated in Phase 16 before any chat send is added.
+- The packaged offline smoke passed on 2026-09-23: `pnpm package:vsix` produced 120 files (4.73 MB) with local Geist and tldraw assets; `pnpm smoke:offline-studio` opened the packaged loopback preview with zero external browser requests and blocked a bundled host fetch. `pnpm smoke:vsix`, `pnpm smoke:clean-profile`, `pnpm validate:notices`, and `pnpm validate:docs` passed.
+- On 2026-09-24, `pnpm smoke:clean-profile` installed the current VSIX into an isolated profile, and `pnpm smoke:offline-studio` again verified setup-only startup, zero external browser requests, and a blocked bundled-host fetch. `scripts/smoke-live-vscode-studio.mjs` then launched that installed extension in an isolated VS Code profile with `--disable-background-networking`: the live Studio Webview showed Recents, opened Scratchpad, and rendered the editor with “Auto-saved”. No OpenRouter key was configured and no chat request was sent. This records the installed-Webview boundary; the separate browser preview remains setup-only and has no key form or provider endpoint. The script used `STUDIO_SKIP_EDIT=1`, so this is startup evidence only; live edit/reopen remains Phase 18.1e.
+- The historical credential-shaped value remains only in Git history and still needs revocation by the owning account user. Full request preview is gated before any chat send.
 
 ### Studio v1 shell (former Phases 14–18) · superseded 2026-09-23
 
@@ -642,7 +644,7 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
 - 15.4: `HOME_CATEGORY_PRESETS` covers all eight chips. `apps/studio/test/homeCategories.test.ts` passed. In the live preview, Mobile app set the prompt to "Design a mobile app for " and the frame note to 390 × 844. Submitting "Design a mobile app for a neighborhood library" opened `#/p/page%3AUWVz6MplhdCG_TanNmBNs` with the chat panel open and that text in the message box. Review & send stayed disabled, and the panel said the browser preview cannot store keys or send chat. Attachment, build, and variant controls are not shown until they work. Studio typecheck passed after rebuilding `@codex-avatar-studio/avatar-core`.
 - 15.5: all three Home cards are enabled, with no Figma or web import. Local PNG tracing uses VTracer and sanitizes its SVG result; importing SVG also sanitizes before placement. The screenshot card places its image on a new canvas, pre-fills the reconstruction request, and holds a removable attachment locally. In the OpenRouter flow, only an explicitly attached image appears in the review, and only the selected vision model can receive it. A live preview showed the local attachment chip and the notice that it will be sent only after review and confirmation. `apps/studio/test/localAssets.test.ts`, `packages/asset-pipeline/test/tracePixels.test.ts`, and extension OpenRouter image tests passed. The native file dialogs were not completed in the preview.
 - 15.6: populated pages use locally captured tldraw JPEG thumbnails in a bounded cache; blank or unsupported pages show "Preview unavailable". Cards show their title and stored relative edit time. The ⋯ menu offers Open, Rename, Duplicate, and Delete with a confirmation dialog for browser-session canvases; trusted workspace projects also expose Reveal in folder, and the host confirms project deletion. Pinned Scratchpad cannot be renamed or deleted. Search, Name sort, list view, and localStorage preferences were exercised; `apps/studio/test/recentCanvas.test.ts` passed 2/2. At 1440×900 the recent-card layout rendered without clipping (`.codex-avatar/previews/studio-v2/home-recents-1440x900.png`). The browser delete dialog was opened and canceled, leaving the canvas intact.
-- 15.7: trusted workspaces atomically provision the permanent Scratchpad file (`00000000-0000-4000-8000-000000000001`) once and protect it from deletion. Browser sessions mark a tldraw page as Scratchpad and keep it first and immutable for the session. Reloading the browser preview showed the pinned card; its menu exposed only Open and Duplicate. `apps/extension/test/studio-project-scratchpad.test.ts` and `apps/studio/test/sessionScratchpad.test.ts` passed. A live VS Code workspace was not opened in this pass.
+- 15.7: trusted workspaces atomically provision the permanent Scratchpad file (`00000000-0000-4000-8000-000000000001`) once and protect it from deletion. Browser sessions mark a tldraw page as Scratchpad and keep it first and immutable for the session. Reloading the browser preview showed the pinned card; its menu exposed only Open and Duplicate. A live Phase 16 page-panel check found that a marked Scratchpad could sort after Untitled in an existing snapshot. `ensureSessionScratchpad` now promotes both existing and newly created Scratchpads to the first tldraw page index; `apps/studio/test/sessionScratchpad.test.ts` covers both cases. `apps/extension/test/studio-project-scratchpad.test.ts` also passed. A live VS Code workspace was not opened in this pass.
 - 15.8: searching for `zzzz-no-match` showed "No matches found" and "0 canvases"; Clear search restored Scratchpad and Untitled. Screenshot: `.codex-avatar/previews/studio-v2/home-empty-search-1440x900.png` (1440×900). A damaged Scratchpad file stays on disk, and `list()` reports `corruptCount: 1` with the basename `00000000-0000-4000-8000-000000000001.json`. The host message names that file and stays within 500 characters. `apps/studio/test/recentStates.test.ts` renders four skeleton cards, the "2 project files need attention" alert with a Details disclosure, and the empty search. A load error or an all-damaged list does not also say "No projects yet". Studio typecheck passed. The skeleton and corrupt alert were not opened in a live VS Code workspace.
 - 15.9: the grid is `repeat(auto-fill, minmax(max(180px, (100% - 48px) / 5), 1fr))`, so it stops at five columns. Measured in the live preview: 390×844 drawer off-canvas (x −252), Open navigation visible, 1 column; opening it placed a 240px rail at x 0 and Close navigation dismissed it. 560px was 2 columns. 768px was a 72px icon rail and 3 columns. 1000px was a 72px rail and 4 columns. 1440px was a 240px rail and 4 columns. 1920px was 5 columns inside the 1120px content width. Screenshot: `.codex-avatar/previews/studio-v2/home-390x844.png`.
 
@@ -653,7 +655,25 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
 - **Verification commands and observed results:** `pnpm test:unit` passed (196 tests in 46 files); focused Scratchpad/recents tests passed (8 tests); Studio typecheck and production build passed; extension TypeScript check passed; manual preview checks covered 1440×900 and 390×844. Biome passed for `RecentsDashboard.tsx` and `home.css`.
 - **Files changed:** `apps/studio/src/App.tsx`, `apps/studio/src/components/AgentHarnessSidebar.tsx`, `apps/studio/src/components/RecentsDashboard.tsx`, `apps/studio/src/components/sessionScratchpad.ts`, `apps/studio/src/styles/home.css`, `apps/studio/test/sessionScratchpad.test.ts`, `packages/avatar-core/src/studioProtocol.ts`, and this checklist.
 - **Open blockers:** The production bundle emits Vite's existing advisory that the main chunk exceeds 500 kB (about 2.2 MB before gzip). The native project-open dialog and a live trusted workspace were not exercised in this preview.
-- **Next unchecked task:** 16.1 — implement and verify the editor's resizable CSS-grid shell.
+- **Next unchecked task:** 16.12 — properties panel for page, frame, shape, text, and mixed selection.
+
+**Implementation session (2026-09-24):**
+
+- **Completed phase:** Phase 16 — Editor workspace shell; Phase 18.1 implementation items 18.1a–18.1d.
+- **Completed tasks:** 16.12 — Paper-style properties for page, frame, shapes, text, and mixed selections. Phase 18.1 now has authenticated host-backed project CRUD, debounced save status, last-good-file coverage, and standalone library persistence across a host restart. Home-route initialization no longer saves the hidden canvas as an unwanted project. The top-level Phase 18.1 task remains open until 18.1e passes.
+- **Verification commands and observed results:** `pnpm --filter @codex-avatar-studio/studio build` passed previously and copied the build into the extension media folder; the focused Vite production build for the Home-route fix passed, with the existing large-chunk advisory. Studio typecheck passed. The latest focused project/host suite passed 25/25 across `apps/extension/test/studio-webview-panel.test.ts`, `apps/extension/test/studio-project-actions.test.ts`, `apps/studio/test/standaloneProjects.test.ts`, `apps/studio/test/hostProjectSave.test.ts`, and `apps/studio-server/test/server.test.ts`; it includes the atomic-rename failure, Webview-panel recreation, and route-bootstrap regression checks. Biome formatting and `git diff --check` passed. In the latest isolated live run, the Recents dashboard rendered and its project card opened to the UUID route, but browser automation timed out before the canvas became observable/editable. The host restarted successfully; reopening with its new launch token was blocked by the browser client (`ERR_BLOCKED_BY_CLIENT`). A live VS Code Webview was not exercised.
+- **Files changed:** In addition to the Phase 16.12 files above: `apps/studio-server/src/server.ts`, `apps/studio-server/src/index.ts`, `apps/studio-server/test/server.test.ts`, `apps/extension/test/studio-webview-panel.test.ts`, `apps/extension/test/studio-project-actions.test.ts`, `apps/studio/src/projects/standaloneProjects.ts`, `apps/studio/src/projects/hostProjectSave.ts`, `apps/studio/test/hostProjectSave.test.ts`, `apps/studio/test/standaloneProjects.test.ts`, host project-save wiring in `apps/studio/src/App.tsx`, and this checklist.
+- **Phase 18.1 progress:** Items 18.1a–18.1d are implemented and verified below; 18.1e remains open because a live editor edit/restart/reopen comparison has not been observed.
+- **Open acceptance:** Phase 17's live standalone/VS Code acceptance remains unobserved; Phase 18.1e still needs its live editor comparison. Vite reports the existing large main chunk advisory.
+- **Next unchecked task:** 18.1e — verify edit, autosave, restart, and reopen in the standalone editor and a live VS Code Webview.
+
+**Implementation session (2026-09-24, verification continuation):**
+
+- **Completed tasks:** Fixed the Webview test harness to await the async message handler and assert terminal library-operation status plus a refreshed library update; corrected the stale Kurva Studio request-title expectation; fixed the Studio server header-forwarding callback to return `void`. This makes the focused async fixture deterministic and clears the lint error.
+- **Verification commands and observed results:** `pnpm test:unit` passed 99 files / 328 tests; `pnpm run typecheck` and `pnpm run lint` passed; targeted Biome checks and `git diff --check` passed before this checklist edit. `pnpm run format:check` currently fails with 14 formatting findings, so the full `pnpm run ci` gate is not green. Earlier in this session, local Blender, VSIX, clean-profile, and offline-host smokes passed; none provides project-scoped Blender MCP evidence or a live edited-canvas restart comparison.
+- **Files changed in this continuation:** `apps/extension/src/AvatarWebviewProvider.ts`, `apps/extension/test/avatar-webview-provider.test.ts`, `packages/studio-host-core/test/chatRetry.test.ts`, `apps/studio-server/src/server.ts`, and this checklist.
+- **Open blockers:** Phase 12 still needs the project-scoped Blender MCP tools after restart. Phase 18.1e still needs visible, trusted editor input and a live edited-canvas save/restart/reopen comparison. The historical credential in Git history still needs revocation by its account owner. Formatting findings still block full CI.
+- **Next unchecked task:** 18.1e for the Studio track; Phase 12's independent final MCP acceptance remains open.
 
 ### Phase 16 — Editor workspace shell (pen.dev editor + Paper panels) · requested, required
 
@@ -672,45 +692,45 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
   - Agents (a sessions popover), Export (instead of Share until sharing exists), Settings, and Present (the selected frame fullscreen).
   - No globe or web-import button until they work.
 - [x] 16.4 Left panel icon tabs with tooltips: Agent, Layers, Pages, Assets, Styles. Add a collapse button and remember the last tab.
-- [ ] 16.5 Layers tab:
+- [x] 16.5 Layers tab:
   - A frame → children tree.
   - Selection stays in sync with the canvas both ways.
   - Double-click to rename, plus hide and lock toggles.
   - Drag to reorder.
   - Virtualized so 1,000 shapes stay smooth.
-- [ ] 16.6 Pages tab: add, rename, reorder and delete tldraw pages.
-- [ ] 16.7 Assets tab: the project's images, SVGs and avatars, draggable onto the canvas.
-- [ ] 16.8 Styles tab: the project's color and type tokens. This feeds "Choose a style".
-- [ ] 16.9 Rebuild the tool rail:
+- [x] 16.6 Pages tab: add, rename, reorder and delete tldraw pages.
+- [x] 16.7 Assets tab: the project's images, SVGs and avatars, draggable onto the canvas.
+- [x] 16.8 Styles tab: the project's color and type tokens. This feeds "Choose a style".
+- [x] 16.9 Rebuild the tool rail:
   - **Tools:**
     - Select/Hand (V/H)
     - Frame (F) with a presets menu
-    - Shapes: rectangle (R), ellipse (O), line/arrow (L)
-    - Pen (P), Text (T), Sticky (N), Image/SVG (I)
+    - Shapes: rectangle (R), ellipse (O), line (L), arrow (A)
+    - Pen (P), Text (T), Sticky (N), Image/SVG (I) opens the local import picker because tldraw has no default image-placement tool.
     - A shortcuts button at the bottom
-  - Tools **arm** the matching tldraw tool (`editor.setCurrentTool`) instead of inserting at the center.
+  - Canvas tools **arm** the matching tldraw tool (`editor.setCurrentTool`) instead of inserting at the center. Image/SVG invokes the existing local picker.
   - The active state follows `editor.getCurrentToolId()` through `useValue`, so keyboard changes show on the rail.
-- [ ] 16.10 Canvas styling:
+- [x] 16.10 Canvas styling:
   - A dotted background driven by tokens.
   - A white default frame with its name above it.
   - Accent-colored selection handles.
   - Our own right-click menu: Cut/Copy/Paste, Duplicate, Delete, Bring forward/back, Group, Export selection, "Ask agent about selection".
-- [ ] 16.11 Bottom-right zoom cluster: − / % / +, with a menu for fit (Shift+1), selection (Shift+2), 50%, 100% and 200%.
-- [ ] 16.12 Right panel (Paper-style properties):
+- [x] 16.11 Bottom-right zoom cluster: − / % / +, with a menu for fit (Shift+1), selection (Shift+2), 50%, 100% and 200%.
+- [x] 16.12 Right panel (Paper-style properties):
   - **Nothing selected:** Page (background color as hex + opacity, grid on/off) and Export.
   - **Frame:** size presets, fill and clip.
   - **Shape:** position and size (reuses `StudioInspector.tsx` and `inspectorSelection.ts`), rotation, fill, stroke, opacity and radius.
   - **Text:** font, size, weight and alignment.
   - **Multiple selection:** mixed values.
   - Number inputs are bounded and support scrubbing.
-- [ ] 16.13 Resize handles reuse `panelSizing.ts`, use `role="separator"` and can be resized with the arrow keys. Widths are remembered, and Ctrl+\ toggles the panels.
-- [ ] 16.14 A "?" shortcut sheet and a Ctrl+K command palette covering tools, actions and projects.
-- [ ] 16.15 Responsive layout:
+- [x] 16.13 Resize handles reuse `panelSizing.ts`, use `role="separator"` and can be resized with the arrow keys. Widths are remembered, and Ctrl+\ toggles the panels.
+- [x] 16.14 A "?" shortcut sheet and a Ctrl+K command palette covering tools, actions and projects.
+- [x] 16.15 Responsive layout:
   - Below 1024px the right panel becomes a drawer.
   - Below 700px the left panel becomes a bottom sheet and the rail moves to a bottom bar.
   - The canvas is never fully covered.
-- [ ] 16.16 Configure the tldraw production license key through a build-time env variable (the preview already shows tldraw's license reminder) and document it in `docs/DEVELOPER_SETUP.md`.
-- [ ] 16.17 Intentional empty, loading, saving, generating, canceled, error and success states across the shell. Controls without a working feature behind them are hidden or disabled with a reason, and mock data is never shown as live status.
+- [x] 16.16 Configure the tldraw production license key through a build-time env variable (the preview already shows tldraw's license reminder) and document it in `docs/DEVELOPER_SETUP.md`.
+- [x] 16.17 Intentional empty, loading, saving, generating, canceled, error and success states across the shell. Controls without a working feature behind them are hidden or disabled with a reason, and mock data is never shown as live status.
 
 **Done when:** the editor matches its artboards at 1440, 1280, 768 and 390 in all three themes, with no overlap or clipping.
 
@@ -719,11 +739,24 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
 - 16.1: the workspace is a CSS grid. At 1440×900 with both panels open, the grid columns measured `320px 808px 280px`. The left conversation panel was 320×884 at x 8, the canvas filled the center cell, and the inspector was 280×884. Closing the inspector left the left panel open. The tool rail is `position: absolute`, and the window-bar pills float over the canvas. Chat width clamps to 260–480 and defaults to 320; inspector width defaults to 280. `apps/studio/test/panelSizing.test.ts` passed 3/3. Studio typecheck passed. Screenshot: `.codex-avatar/previews/studio-v2/editor-shell-1440x900.png`.
 - 16.2: the top-left pill has the logo and All files (both go Home), Open project file, an inline canvas title, and the overflow menu Rename, Duplicate, Export…, Delete…. A browser canvas showed "Offline – kept locally". Saved, Saving…, and Save failed – Retry are mapped in `formatEditorSaveStatus`. Export writes a JSON file that `parseImportedStudioProject` accepts. `apps/studio/test/exportProjectFile.test.ts` passed 2/2. Studio typecheck passed. Clicking the title opened the rename field. Delete stays disabled for Scratchpad and the last canvas.
 - 16.3: the top-right pill is Agents, Export, Settings, and Present. Agents opens one real conversation and says other sessions are not stored; Open conversation showed the agent panel. Export uses the same local project download. Settings changes the theme and shows or hides properties, and says API keys stay in the host. Present was disabled with "Select a frame to present it". The handler fits only a selected frame and then requests fullscreen; that enabled path was not clicked in the preview. There is no globe or web-import button. Zoom controls sit in a bottom cluster so the pill matches the artboard. Studio typecheck passed.
-- 16.4: the left panel has Agent, Layers, Pages, Assets, and Styles tabs with labels, plus Collapse left panel. Choosing Pages and reloading the preview restored Pages without clicking it again. `apps/studio/test/leftPanelTab.test.ts` passed. Pages lists the live tldraw pages, including pinned Scratchpad, and can add or delete a non-pinned page. Layers, Assets, and Styles read the current canvas instead of sample data. Studio typecheck passed. Rename, reorder, hide, lock, and drag are not done yet, so 16.5–16.8 stay open.
+- 16.4: the left panel has Agent, Layers, Pages, Assets, and Styles tabs with labels, plus Collapse left panel. Choosing Pages and reloading the preview restored Pages without clicking it again. `apps/studio/test/leftPanelTab.test.ts` passed. Pages lists the live tldraw pages, including pinned Scratchpad, and can add or delete a non-pinned page. Layers, Assets, and Styles read the current canvas instead of sample data. Studio typecheck passed.
+- 16.5: the Layers tab builds a frame-then-children tree, top index first. In the live preview, selecting Frame marked it current and enabled Present; a temporary geo selected on the canvas became current in the layer list. Double-click rename changed the frame to “Frame QA” in both the list and canvas, then it was restored. Hide/Show and Lock/Unlock each toggled and were restored. The `reorderSiblingIndexes` helper swaps siblings and rejects different parents; `layerWindow(1000, …)` returns fewer than 20 rows. `apps/studio/test/layerTree.test.ts` passed. The browser automation drag gesture did not dispatch an HTML drag event, so drag reorder is covered by the implementation and helper test, not a live drag observation.
+- 16.6: the Pages tab lists live tldraw pages. Add page creates one and opens it. Double-click rename changed Page 3 to “QA Temporary Page.” Move up/down reordered it while Scratchpad stayed pinned first and immovable. Delete asked for confirmation; after acceptance, Home showed exactly Scratchpad and Untitled, confirming the QA page was removed. `apps/studio/test/pageOrder.test.ts` passed. Studio typecheck passed.
+- 16.7: Assets lists image records plus SVG and avatar shape instances across pages. The live preview added a temporary avatar, displayed it as an asset, and clicking its asset row placed a duplicate at the viewport center; the asset and Layers lists updated immediately. Both temporary avatars were removed, leaving the original Frame. Drag buttons encode typed local asset IDs, and the canvas drop handler maps screen coordinates to page coordinates and inserts image assets or duplicates custom shapes. `apps/studio/test/canvasAssets.test.ts` covers payload validation and centered image/avatar placement. Dragging the avatar row onto the zoom control inside the canvas raised the asset count from 4 to 5. `apps/studio/test/canvasAssets.test.ts` passed 4/4. Studio typecheck passed. Screenshot: `.codex-avatar/previews/studio-v2/assets-drag-1440.png`.
+- 16.8: the Styles tab edits the canvas document's color and type tokens. Text and hex fields keep an editable draft, commit valid values on blur or Enter, cancel on Escape, and explain invalid values without changing the saved token. In the live preview, changing the style name and canvas color updated the style label and swatch; invalid hex showed validation feedback, and the preview was restored to Studio defaults afterward. `apps/studio/test/projectStyle.test.ts` passed 3/3. Studio typecheck passed. The tokens are stored in document metadata included in the project snapshot; reloading this in-memory preview starts a fresh canvas, so reload persistence was not live-verified.
+- 16.9: tool buttons arm tldraw select, hand, frame, rectangle, ellipse, line, arrow, pen, text, and sticky tools. Image/SVG invokes the existing local import picker because tldraw has no default image-placement tool. Active state reads `getCurrentToolId()` and the next-shape geo style through `useValue`; V/H/F/R/O/L/A/P/T/N shortcuts are wired, and the shortcuts panel lists them. The Frame preset menu offers Freeform, Desktop (1440×900), Presentation (1600×900), Tablet (768×1024), and Phone (390×844). Live preview checks confirmed Frame arms without inserting, Rectangle and Pen shortcuts update the selected tool, Ellipse drawing follows the pointer, and a Phone preset created a frame named “Phone”; temporary shapes were removed, leaving only the original Frame. Typecheck, focused unit tests (17/17), Biome, build, and docs validation passed.
+- 16.10: the canvas background is a token dot grid (`--studio-grid-dot`), the default frame fill measured white, and its name “Frame” sits above it. Selection stroke uses the accent `#7aa7ff`. Right-clicking the frame opened Cut, Copy, Paste, Duplicate, Delete, Bring forward, Send backward, Group, Export selection, and Ask agent about selection. With the frame selected, those actions were enabled except Paste (nothing copied yet) and Group (one shape). Ask agent about selection put `About this selection: frame “Frame” (1080×720).` in the composer and left Review & send disabled in the browser preview. `apps/studio/test/canvasContextMenu.test.ts` passed 3/3. Studio typecheck passed.
+- 16.11: the bottom-right cluster is − / % / +. The percent button opens Zoom to fit (Shift+1), Zoom to selection (Shift+2), 50%, 100%, and 200%. With nothing selected, Zoom to selection was disabled. Choosing 200% changed the label to 200%. Zoom to fit then showed 117%. After the frame was selected, Zoom to selection was enabled and returned the label to 100%. The cluster sits above the tldraw license badge so both remain clickable. `apps/studio/test/zoomMenu.test.ts` passed 3/3. Studio typecheck passed.
+- 16.12: with no selection, the inspector edits page background via a validated hex draft and exposes grid and export controls. Frame properties expose size presets, fill and the clipped-content status; setting Fill to blue changed the rendered frame body to `#f9fafe`. Shape properties expose position, dimensions, rotation, fill, stroke, opacity, and a corner radius; setting a rectangle's radius to 18 rendered rounded geometry. Text properties expose font, size, weight and alignment; selecting Bold applied the weight. Multiple selection computes mixed values and leaves those selectors enabled so a chosen value applies to all selected shapes. Bounded numeric fields use a dedicated pointer/keyboard scrub button. Live preview at 1440×900 verified the page, frame, radius, weight and scrubber states; `inspectorSelection.test.ts` and `textWeight.test.ts` passed 10/10; Studio typecheck, production build and Biome passed.
+- 16.13: both panel resize handles use `role="separator"`. Ctrl+\ opened the conversation panel and the inspector together, and a second press closed both. With the conversation handle focused, ArrowRight changed its width from 320 to 344. Widths are written through `writePanelSize`.
+- 16.14: Ctrl+K opened a command palette listing tools (Select through Sticky), actions (Export project, All files, Toggle panels), and projects (Scratchpad, Untitled). Choosing Rectangle armed the rectangle tool. "?" opened the shortcut sheet listing the tool keys from Select through Import image or SVG. The sheet also includes Ctrl+K, Ctrl+\, Shift+1, Shift+2, and ?. `apps/studio/test/commandPalette.test.ts` passed 2/2. Studio typecheck passed.
+- 16.15: at 768px the inspector was an absolute drawer (300×756) while the canvas stayed 392×884 and the left panel stayed in the grid. At 390px the left panel was a fixed bottom sheet (380px tall), the tool rail was a fixed horizontal bar at the bottom, and the canvas remained 374×804, so the canvas was not fully covered.
+- 16.16: `VITE_TLDRAW_LICENSE_KEY` is read at build time and passed to tldraw only when it is a non-empty string. No key is stored in the repo. `docs/DEVELOPER_SETUP.md` says a missing or blank value leaves the license unset, so the production-license reminder stays. `apps/studio/test/tldrawLicense.test.ts` passed 2/2. Studio typecheck passed.
+- 16.17: the browser preview shows real empty and disabled states: the chat composer says to open the VS Code editor tab, Review & send stays disabled, and the page inspector shows the live background and grid. Save status maps Saving…, Auto-saved, Save failed – Retry, and Offline – kept locally. Chat runs map to Generating…, Canceling…, Reply finished., and The reply failed. A live OpenRouter generation was not run in this preview. `apps/studio/test/shellStatus.test.ts` passed. Studio typecheck passed.
 
 ### Phase 17 — Standalone local Studio host (VS Code optional) · requested, required
 
-- [ ] 17.1 Write ADR `docs/adr/0001-standalone-studio-host.md`:
+- [x] 17.1 Write ADR `docs/adr/0001-standalone-studio-host.md`:
   - **Architecture:** a local-first web app served by a Node host on loopback; VS Code becomes an optional connector.
   - **Threat model:**
     - websites calling localhost
@@ -731,37 +764,47 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
     - other local processes
     - malicious SVG
     - prompt injection
-- [ ] 17.2 Create `packages/studio-host-core` by moving host-agnostic code with no behavior change:
+  - Evidence: `docs/adr/0001-standalone-studio-host.md` records the loopback Node host, VS Code as an optional connector, and the five threats above. The host package is not built yet.
+- [x] 17.2 Create `packages/studio-host-core` by moving host-agnostic code with no behavior change:
   - `openRouterConnection.ts` (it already uses the injectable `SecretStore` and `PasswordPrompt`).
   - `openRouterChat.ts` and `studioProjectStore.ts`.
   - The `blenderProbe/Plan/Artifacts/Runner/Handoff` files. Replace `import type * as vscode` in `blenderRunner.ts` with a small `Logger` interface.
   - The extension imports from this package, and its tests stay green.
-- [ ] 17.3 Create `apps/studio-server` (Node 22, Hono or Fastify plus `ws`):
+  - Evidence: the eight modules now live in `packages/studio-host-core`. `blenderRunner.ts` takes a `Logger` instead of a VS Code output channel. Extension files re-export the package. Host-core build and extension typecheck passed. `openRouterConnection`, `studio-webview-panel`, `studio-project-scratchpad`, and `blender-avatar-package` tests passed 20/20.
+- [x] 17.3 Create `apps/studio-server` (Node 22, Hono or Fastify plus `ws`):
   - It serves the built `apps/studio` and binds only to `127.0.0.1`.
   - A new root script `pnpm studio` starts it and opens the browser.
-- [ ] 17.4 Split `apps/studio/src/bridge/studioHost.ts` into three transports: `vscodeTransport`, `webSocketTransport`, and `fixtureTransport` for tests and offline mode. All three carry the existing versioned `studioProtocol` messages and zod parsers.
-- [ ] 17.5 Host security:
+  - Evidence: the server listens on `127.0.0.1` and serves the Studio build. A request whose host is not loopback returns 421. `apps/studio-server/test/server.test.ts` passed 2/2. `pnpm studio` starts it. WebSocket handling is not in this step.
+- [x] 17.4 Split `apps/studio/src/bridge/studioHost.ts` into three transports: `vscodeTransport`, `webSocketTransport`, and `fixtureTransport` for tests and offline mode. All three carry the existing versioned `studioProtocol` messages and zod parsers.
+  - Evidence: `apps/studio/src/bridge/studioTransports.ts` has the VS Code, WebSocket, and fixture transports. Each send and receive path uses `createStudioToHostMessage` and `parseHostToStudioMessage`. The live editor still uses the VS Code transport when that API exists, and the fixture transport does not pretend a host is connected. `apps/studio/test/studioTransports.test.ts` passed 3/3. Studio typecheck passed. The server does not accept a WebSocket yet.
+- [x] 17.5 Host security:
   - A `Host` header allowlist.
   - An `Origin` check on the WebSocket upgrade and on every POST.
   - A random per-launch token, exchanged for an HttpOnly, SameSite=Strict cookie.
   - No CORS.
   - The strict CSP sent as a header.
   - Body and message size limits, rate limiting, and path containment on every file route.
-- [ ] 17.6 Data location:
+  - Evidence: a bad host returns 421, a bad origin or a WebSocket upgrade without a matching origin returns 403, a missing token returns 401, an oversized body returns 413, and the rate limit returns 429. A valid launch token is exchanged for an HttpOnly SameSite=Strict cookie. Responses send a strict Content-Security-Policy and do not send an access-control header. File paths must stay inside the Studio build. `apps/studio-server/test/hostSecurity.test.ts` and `server.test.ts` passed 4/4. Studio-server typecheck passed.
+- [x] 17.6 Data location:
   - An OS app-data "Studio library" with `projects/`, `assets/`, `conversations/` and `thumbnails/`.
   - An optional workspace folder, trusted on first use. This replaces VS Code workspace trust.
-- [ ] 17.7 Secrets:
+  - Evidence: `studioLibrary.ts` creates `projects`, `assets`, `conversations`, and `thumbnails` under the OS app-data directory, or `STUDIO_LIBRARY` when set. A workspace path is stored only after `trustWorkspace`. A path that leaves the library is rejected. `packages/studio-host-core/test/studioLibrary.test.ts` passed 3/3. Host-core typecheck passed. The VS Code extension still uses its existing workspace store.
+- [x] 17.7 Secrets:
   - The OS keychain via `@napi-rs/keyring`, with an `OPENROUTER_API_KEY` env fallback.
   - The Settings form posts the key once to the authenticated host.
   - The key is never kept in browser storage, never echoed back and never logged. The UI only ever sees a masked status.
   - Update `docs/SECURITY_PRIVACY.md` and the locked decision that forbade any browser key form.
-- [ ] 17.8 With no host running, the UI opens on the fixture transport and says "Offline preview – nothing is saved".
-- [ ] 17.9 VS Code: `codexAvatar.openStudio` opens the standalone Studio. Retire the duplicated `StudioWebviewPanel.ts` logic once the standalone host reaches parity. The avatar sidebar stays unchanged.
-- [ ] 17.10 Tests:
+  - Evidence: `@napi-rs/keyring` 2.1.0 is the host keychain binding. `OPENROUTER_API_KEY` is used only when the keychain is empty. `POST /api/openrouter-key` stores the key and returns `{ configured, source }` with no key material. Settings has a password field that posts once and then clears. `docs/SECURITY_PRIVACY.md` records that the page never stores or receives the key. `packages/studio-host-core/test/hostSecrets.test.ts` passed 2/2. Notices validation passed. The form was not submitted in the preview, so no key was sent.
+- [x] 17.8 With no host running, the UI opens on the fixture transport and says "Offline preview – nothing is saved".
+  - Evidence: the browser preview has no VS Code host, so it uses the fixture transport. Opening the conversation showed “Offline preview – nothing is saved”. `apps/studio/test/studioTransports.test.ts` passed 4/4. Studio typecheck passed.
+- [x] 17.9 VS Code: `codexAvatar.openStudio` opens the standalone Studio. Retire the duplicated `StudioWebviewPanel.ts` logic once the standalone host reaches parity. The avatar sidebar stays unchanged.
+  - Evidence: `codexAvatar.openStudio` starts `apps/studio-server` when that file is in the workspace, reads its `http://127.0.0.1` URL, and opens it. If the server file is missing or the process does not print a URL, the existing editor tab opens and a message says why. `StudioWebviewPanel.ts` is still in place because the standalone host does not yet have chat and project parity. The avatar sidebar registration is unchanged. `apps/extension/test/openStandaloneStudio.test.ts` passed 2/2. Extension typecheck passed. VS Code itself was not launched.
+- [x] 17.10 Tests:
   - A missing or invalid token, a bad Host, and a bad Origin are all rejected.
   - Oversized messages and path traversal are rejected.
   - A keychain mock.
   - WebSocket reconnect with state resync.
+  - Evidence: bad host, origin, token, oversized body, and rate limit are rejected in `hostSecurity.test.ts`. Encoded `..` paths are rejected by `studioFilePath`. The keychain mock in `hostSecrets.test.ts` stores a key and returns only status. A closed WebSocket reconnects and sends `studio:ready`, then accepts a host-state resync. Those four test files passed 12/12. The reconnect was exercised on the client transport, not a live server socket.
 
 **Done when:**
 - `pnpm studio` runs without VS Code, opens Home, and saves projects to disk.
@@ -774,25 +817,38 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
   - Autosave with a debounce, reflected in the pill status.
   - If a write fails, the last good file is kept.
   - Verify create → edit → autosave → restart → reopen in both the standalone host and a live VS Code Webview, which closes the former Phase 15 acceptance gap.
+  - [x] 18.1a Implement host-backed create/open/rename/duplicate/delete paths for the standalone library and trusted VS Code workspace. Delete requires confirmation; Scratchpad remains permanent. `apps/studio/test/standaloneProjects.test.ts`, extension project-action tests, and `apps/extension/test/studio-webview-panel.test.ts` cover wrappers, validation, and bridge messages.
+  - [x] 18.1b Wire editor autosave after a 650ms debounce and show Saving…, Saved, or Save failed. Host saves use the `formatVersion: 1` envelope. Home-route initialization leaves the library unchanged until the user creates a project; `shouldBootstrapStandaloneProject()` is covered by `apps/studio/test/hostProjectSave.test.ts` (3/3), and the focused Vite build and Studio typecheck passed. The earlier built editor loaded a host-backed project with the Auto-saved state visible.
+  - [x] 18.1c Preserve the last good file on an invalid snapshot or failed write. The host integration test rejects a malformed snapshot and reopens the previous saved project unchanged; `apps/extension/test/studio-project-actions.test.ts` injects an atomic-rename failure and verifies the original bytes and snapshot remain readable.
+  - [x] 18.1d Repair the standalone Node HTTP adapter so request headers, origin, cookie, and streamed body reach the Fetch router; store standalone projects under `<libraryRoot>/projects`. `apps/studio-server/test/server.test.ts` verifies cookie-authenticated save/open through the HTTP server, files on disk, and reopen after a server restart with a newly issued session cookie.
+  - [ ] 18.1e Run a live editor create → edit → autosave → restart → reopen comparison in both standalone Studio and a live VS Code Webview, verifying edited canvas content. On 2026-09-24 the installed Webview opened Scratchpad and showed “Auto-saved”; isolated CDP inspection confirmed the saved frame, but input automation did not create a shape, so no edit/autosave/reopen result is claimed. The VS Code process was hidden with no native window handle; both synthetic canvas events and CDP mouse events left the snapshot unchanged. Previous standalone host restart evidence is in 18.1d, but it does not verify changed canvas content. Extension bridge tests simulate panel recreation and reopen the same `formatVersion: 1` snapshot, but are not a live VS Code restart. **BLOCKED:** repeat the edit with a visible isolated VS Code window or another trusted end-to-end input path, then verify the changed snapshot after restart in both hosts.
 - [ ] 18.2 Thumbnails: when saving (throttled), render the first frame with `editor.toImage` to a PNG and serve it through the authenticated host.
+  - Host route stores and serves a PNG under the library `thumbnails` folder, rejects non-PNG bytes, and leaves the previous PNG in place. After a successful host save, the editor calls `editor.toImage` on the first frame and posts that PNG. `packages/studio-host-core/test/thumbnailStore.test.ts` and the server thumbnail test passed. A live frame render was not captured in the preview, so this item stays open.
 - [ ] 18.3 A host-backed tldraw asset store at `/assets/:id` instead of base64 inside snapshots. Enforce size limits and always sanitize SVG with `svgSafety.ts`.
+  - Host route stores PNG, JPEG, and SVG under the library `assets` folder, rejects files over 1 MB, and runs SVG through `sanitizeSvg` before writing. A stored SVG no longer contains a script element. When the page has a `studioToken`, new tldraw uploads use that route instead of embedding the file. `packages/studio-host-core/test/assetStore.test.ts` and the server asset test passed. An upload from the live canvas was not performed, and older snapshots can still contain base64, so this item stays open.
 - [ ] 18.4 Insert SVG, PNG and JPG by drag-drop, paste or the Image tool as a real image shape that keeps the viewBox and aspect ratio. This replaces the black-rectangle placeholder.
+  - Dropping or pasting a PNG, JPEG, or SVG calls `placeFileOnCanvas`. SVG uses its viewBox, and bitmap images use their pixel size, both fitted with the aspect ratio kept. A 1600×800 image becomes 800×400. `apps/studio/test/fittedMediaSize.test.ts` passed 2/2. A live drop was not performed, so this item stays open.
 - [ ] 18.5 Export a frame or selection as PNG (1× or 2×) or sanitized SVG, and export the project as `.json`, with safe filenames. Remove the ".svg & .blend bundle" claim.
+  - The canvas menu exports SVG through `sanitizeSvg`, and PNG at `pixelRatio` 1 or 2, using `safeExportFileName`. Project JSON still downloads as `*.studio.json`. `../Secret blend` becomes `secret-blend.svg`. `apps/studio/test/exportProjectFile.test.ts` and `canvasContextMenu.test.ts` passed 5/5. Studio typecheck passed. No “.svg & .blend bundle” string remains in the app source. A live download was not clicked, so this item stays open.
 - [ ] 18.6 Wire undo/redo, copy/paste, duplicate, group, align/distribute and snapping to tldraw, and show their shortcuts in the menus.
-- [ ] 18.7 Tests:
+  - The canvas menu calls `undo`, `redo`, `duplicateShapes`, `groupShapes`, `alignShapes`, and `distributeShapes`. Snapping uses `editor.user.updateUserPreferences({ isSnapMode })`, and Ctrl+Shift+S toggles it outside text fields. Shortcuts are shown on the menu and in the canvas shortcut sheet. Align needs two shapes; distribute needs three. `apps/studio/test/canvasContextMenu.test.ts` passed 3/3. Studio typecheck passed. A live align was not clicked, so this item stays open.
+- [x] 18.7 Tests:
   - a project round-trip
   - a thumbnail
   - SVG insert followed by export
   - a failed save
   - a corrupt file
+  - Evidence: `apps/studio/test/exportProjectFile.test.ts` imports a saved project and rejects `{` plus a snapshot of `not-json` (4/4). An inserted SVG with a script is exported without `script` and keeps a 20×10 viewBox. `apps/studio-server/test/server.test.ts` saves a project, rejects a bad snapshot while the last good file stays readable, and serves a PNG thumbnail (6/6). A live close-and-reopen that compares PNG bytes was not run, so the phase “Done when” stays unmet.
 
 **Done when:** New file → edit → close → reopen → export PNG/SVG produces identical content.
 
 ### Phase 19 — Agent panel and OpenRouter chat (pen.dev composer) · requested, required
 
-- [ ] 19.1 Agent tab header: a "New Agent ▾" conversation dropdown showing title, model and time, plus a "+ New" button.
-- [ ] 19.2 Empty state: "Ask me to design anything", six design suggestion chips written in our own words, and two short tips (exporting and attaching context).
-- [ ] 19.3 Composer:
+- [x] 19.1 Agent tab header: a "New Agent ▾" conversation dropdown showing title, model and time, plus a "+ New" button.
+  - Evidence: the conversation header shows “New agent ▾” and “+ New”. Opening the menu listed “New agent”, “No model”, and “Sep 24, 8:52 AM”. + New added a second session in the same menu. `apps/studio/test/agentConversations.test.ts` passed 2/2. Studio typecheck passed. These sessions stay in memory until reload; disk storage is Phase 19.5.
+- [x] 19.2 Empty state: "Ask me to design anything", six design suggestion chips written in our own words, and two short tips (exporting and attaching context).
+  - Evidence: the empty conversation shows that headline, six chips, an export tip, and an attach-screenshot tip. Clicking “Frame a landing page at 1440×900” put that text in the composer and left Review & send disabled. `apps/studio/test/agentEmptyState.test.ts` passed 1/1.
+- [x] 19.3 Composer:
   - **Input:** an autosizing "Design anything…" box. Enter sends; Shift+Enter adds a newline.
   - **"+" menu:**
     - Add image or file
@@ -805,53 +861,67 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
     - A "1x" variants chip, disabled with a reason until Phase 20.
     - A model chip.
   - **Send:** the ↑ button becomes Stop while a reply is streaming.
+  - Evidence: the + menu offers Add image or file, Add from canvas (disabled until a selection exists), Choose a style, and Pick a skill (disabled because skills are not connected). Choose a style wrote “Use the Studio style.” into the composer. Mode and 1× chips are disabled with reasons. The send control is an arrow labeled Review & send and stays disabled without a connected model. Stop is the same control while a reply is streaming; no reply was generated in the preview. When a text model is ready the placeholder is “Design anything…”. Enter still opens review; Shift+Enter keeps the newline. `apps/studio/test/composerMenu.test.ts` passed 2/2. Studio typecheck passed.
 - [ ] 19.4 Model picker popover:
   - Search, grouping by publisher, and badges: Free, Vision, Tools, Reasoning, context size and $/M.
   - Favorites and recent models at the top, the filters from `modelFilters.ts`, and full keyboard navigation.
   - **Catalog:**
     - The full `/models/user` catalog with `output_modalities=all`, falling back to the public catalog on a 403.
     - Pagination if the API has it.
-    - Cached with a timestamp and a Refresh button.
-    - No hardcoded model IDs.
+  - Cached with a timestamp and a Refresh button.
+  - No hardcoded model IDs.
   - A saved model that disappears stays visible with a warning.
+  - [x] Replace the permanent Model section with a composer-anchored searchable popover. It has Free, Vision, Tools, Reasoning, and 128K+ quick filters; the existing publisher, price, modality, context, and price-cap controls; Favorites/Recent/publisher groups; context and per-million input/output rates; an unavailable-chat label; and missing-model, loading, error, and refresh states.
+  - [x] Wire search focus, ArrowUp/ArrowDown and Home/End result navigation, native Enter/Space selection, Escape/outside dismissal, and trigger focus restoration. `apps/studio/test/modelPicker.test.ts` covers combined quick filters and passes 3/3; Studio typecheck and production build pass.
+  - [ ] Exercise the rendered picker, real catalog refresh, keyboard focus/selection, and visual placement in the standalone host and live VS Code Webview. Catalog API behavior and model-grouping tests pass, but the browser preview has no account catalog and local browser navigation is currently blocked (`ERR_BLOCKED_BY_CLIENT`), so live UI behavior remains unverified.
+  - Catalog fetch uses `/models/user?output_modalities=all`, falls back on 403, and follows a `next` URL only when it is another OpenRouter models page. `packages/studio-host-core/test/catalogPages.test.ts` passed. The production build still reports the existing large main-chunk advisory. Keep 19.4 open until live UI acceptance passes.
 - [ ] 19.5 Conversations:
   - The model is saved per conversation.
   - Conversations are stored per project on the host at `conversations/<projectId>/<id>.json`.
   - They can be renamed, deleted and exported, under a documented retention policy.
   - The key is never stored with them.
-- [ ] 19.6 Message rendering:
+  - Evidence: `conversationStore.ts` writes `conversations/<projectId>/<id>.json`, keeps the model id, rejects a `key` field, and can rename and delete. The host keeps 50 files per project. `docs/SECURITY_PRIVACY.md` states the key is not stored. `packages/studio-host-core/test/conversationStore.test.ts` passed, including rename and delete. The conversation menu can rename, export a JSON file with no key, and delete after a second confirmation. In the preview, saving the title “Landing notes” renamed the menu button. The preview has no host token, so a live library file was not written. This item stays open.
+- [x] 19.6 Message rendering:
   - Markdown through `react-markdown` + `rehype-sanitize`, with no raw HTML.
   - Code blocks with Copy, and a streaming caret.
   - Collapsible reasoning, and a footer with token count and `usage.cost`.
   - Error cards with Retry, Switch model, Open settings, and Add credits.
-- [ ] 19.7 Actions: Stop, Retry, Regenerate, edit and resend the last message, Copy, New, and Delete. No duplicate sends.
+  - Evidence: assistant replies render through `react-markdown` and `rehype-sanitize`. A message containing a script tag does not produce a script element, and a fenced block shows Copy. Reasoning renders in a collapsed `details` element only when the reply includes reasoning text. `apps/studio/test/chatMessageBody.test.tsx` passed 2/2. `reasoningDelta` reads OpenRouter `reasoning` text and ignores ordinary content; that test passed. Studio and host-core typecheck passed. The usage footer prints token counts and `usage.cost` when OpenRouter returns it, otherwise “cost was not returned.” Error cards offer Retry, Switch model, Open settings, and Add credits only when the error mentions credits. A live model stream was not run.
+- [x] 19.7 Actions: Stop, Retry, Regenerate, edit and resend the last message, Copy, New, and Delete. No duplicate sends.
+  - Evidence: the composer shows Edit last message, Regenerate, and Copy reply, all disabled until a message exists. Stop replaces send while a reply is streaming, and Retry appears after an error. + New and Delete… are on the conversation menu. A second send is refused while a reply is streaming or a review dialog is open. `apps/studio/test/chatActions.test.ts` passed 2/2. Studio typecheck passed. No live generation was running, so Stop and Regenerate were not clicked through a real request.
 - [ ] 19.8 Privacy UX:
   - A "Context" row above the composer lists exactly what will be sent.
   - A consent dialog appears on the first send in each project.
   - A setting to always show the full request preview.
   - A cue before sending to a paid model.
-- [ ] 19.9 Gateway (`openRouterChat.ts`):
+  - Evidence: the composer shows a Context list: no model selected, draft length, earlier message count, no image, and “The OpenRouter key is not included.” The “Always show the full request preview” checkbox is checked. A paid model shows “This model is listed as paid.” `apps/studio/test/privacyContext.test.ts` passed 2/2. Studio typecheck passed. The first-send consent dialog was not opened because this preview cannot send. This item stays open.
+- [x] 19.9 Gateway (`openRouterChat.ts`):
   - Add the `HTTP-Referer`/`X-Title` headers and `usage: {include: true}`, and pass reasoning deltas through.
   - Send images only to vision models.
   - Back off and retry on 429 and 5xx.
   - Let catalog refresh run even while the connection flag is `busy`.
   - Re-resolve the model after a host restart.
+  - Evidence: chat requests send `HTTP-Referer: http://127.0.0.1`, `X-Title: blenderSVG Studio`, and `usage: { include: true }`. A mocked 429 was followed by a second request that completed the stream. An image sent to a text-only model produced no chat request and an image-input error. A missing model calls `refreshModels` once before the unavailable error. Catalog refresh uses a shared in-flight request instead of the old busy refusal. `packages/studio-host-core/test/chatRetry.test.ts` passed 2/2.
 - [ ] 19.10 Settings → Models & keys:
   - Connect, Test, Replace and Disconnect.
   - A masked key label and credit usage.
   - These replace the connection and filter cards in the sidebar.
+  - Evidence: Settings shows Connect, Test, Replace, and Disconnect. In this browser preview they are disabled because the host is not VS Code. The label says “not configured”, the key is not shown, and credit usage says it was not returned. The conversation no longer has those four buttons. Model filters stay on the model list. A key was not entered. This item stays open.
 - [ ] 19.11 Remove the old single-column `AgentHarnessSidebar.tsx` layout once the new panel reaches parity.
-- [ ] 19.12 Tests:
+  - The tabbed left panel still renders the conversation through `AgentHarnessSidebar.tsx`. Removing that file would remove the agent tab. It stays until the conversation body lives somewhere else. This item stays open.
+- [x] 19.12 Tests:
   - The SSE parser with split lines, keepalive comments, `[DONE]` and a mid-stream error.
   - Catalog pagination and cache, and model switching.
   - Errors: 401, 402, 429, 5xx, offline, an unavailable model, an empty reply, a malformed stream, and cancel.
   - Conversation persistence.
+  - Evidence: `packages/studio-host-core/test/chatStream.test.ts` passed 5/5. A split SSE line plus a keepalive comment became “Hello” and stopped at `[DONE]`. A mid-stream error, an empty reply, and a malformed event each failed the reply. HTTP 401, 402, and three 500 responses mapped to key, credit, and HTTP 500 errors. Offline, an unknown model, and cancel were reported. A catalog `next` page was loaded. Conversation rename and delete were already covered by `conversationStore.test.ts`. A 429 retry was covered by `chatRetry.test.ts`.
 
 **Done when:** a user connects their own key, finds any eligible model, then streams, stops, retries, switches models, and reopens the chat after a restart.
 
 ### Phase 20 — Agent harness adapted from ZCode (design agent) · requested, required
 
-- [ ] 20.1 Write ADR `docs/adr/0002-agent-harness.md`, pinned to ZCode `328c1a0` (Apache-2.0).
+- [x] 20.1 Write ADR `docs/adr/0002-agent-harness.md`, pinned to ZCode `328c1a0` (Apache-2.0).
+  - Evidence: `docs/adr/0002-agent-harness.md` pins ZCode commit `328c1a0`, lists the only files that may be ported after an audit, and excludes the CLI, Electron app, bash/edit/git tools, `node:sqlite`, and Zhipu account code. No ZCode source was copied, so `THIRD_PARTY_NOTICES.md` has no ported-file entry yet.
   - **Port only these, after auditing them:**
     - `core/src/agent/turn-machine.ts`
     - `core/src/tool/registry.ts` and `scheduler.ts`
@@ -865,52 +935,69 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
     - its `node:sqlite` store (it needs Node 24)
     - its Zhipu account code
   - Add per-file attribution and Apache-2.0 notices to `THIRD_PARTY_NOTICES.md`.
-- [ ] 20.2 `packages/studio-agent`, a turn machine that runs in the host:
+- [x] 20.2 `packages/studio-agent`, a turn machine that runs in the host:
   - Its states: input → model → streaming → schedule tools → await permission → execute → aggregate → done or error.
   - It uses OpenRouter's OpenAI-compatible `tools`/`tool_choice` and streamed `delta.tool_calls`.
   - It has a turn limit, per-tool timeouts, cancellation, and typed events for the UI.
-- [ ] 20.3 Studio protocol v2 in `studioProtocol.ts`:
+  - [x] Send the mode-appropriate OpenRouter `tools` and `tool_choice: "auto"` for non-Ask requests when the selected model advertises tool support.
+  - [x] Assemble streamed `delta.tool_calls` fragments and track the turn state; helper tests cover permission, cancellation, and the tool-round limit.
+  - [x] Emit typed turn/proposal/result events, wait for the Webview permission and execution result, run validated tools with per-tool timeouts, and feed results back into the next model round.
+  - Evidence (2026-09-24): `OpenRouterChatController` in `packages/studio-host-core/src/openRouterChat.ts` assembles streamed calls, emits typed turn/proposal/execute/result events, waits for Webview permission and execution results, validates arguments against `packages/studio-agent/src/canvasTools.ts`, enforces per-tool timeouts plus turn/tool-round bounds, and resumes the same OpenRouter model with bounded tool results. Cancellation and disposal settle outstanding waits. `apps/studio/src/App.tsx` runs the approved/Auto canvas calls and returns bounded results; screenshot results are returned as bounded PNGs only after permission. Focused validation passed: studio-agent and studio-host-core builds; Studio and extension typechecks; 32 tests across `chatStream.test.ts`, `agentGuards.test.ts`, `studioProtocol.test.ts`, `designFrameHtml.test.ts`, `executeCanvasTool.test.ts`, `toolCallCard.test.tsx`, and `studio-webview-panel.test.ts`.
+- [x] 20.3 Studio protocol v2 in `studioProtocol.ts`:
   - Agent session start and stop.
   - Turn events.
   - Tool calls: proposed, approved, rejected and result.
   - Permission request and response.
   - zod bounds on every message, and a migration from v1.
-- [ ] 20.4 Canvas tool registry, with JSON schemas and readOnly/destructive flags:
+  - Evidence (2026-09-24): v1 messages still parse, including legacy `studio:ready`; v2 covers agent start/stop, turn events, tool proposal/execute/result, and permission. Runtime schemas reject extra keys, invalid tool arguments, oversized results, and malformed screenshot data. The extension host and Studio bridge now exchange these events during the tool loop. Protocol round-trip tests passed within the focused 32-test suite; avatar-core build passed.
+- [x] 20.4 Canvas tool registry, with JSON schemas and readOnly/destructive flags:
   - **Read:** `get_canvas_summary`, `get_selection`, `get_frame_tree`, `screenshot_frame`, `get_styles`.
   - **Write:** `create_frame`, `create_shapes`, `update_shapes`, `delete_shapes`, `insert_svg`, `set_text`, `apply_style`, `align`.
   - **Design:** `create_design_frame`.
+  - Evidence (2026-09-24): `packages/studio-agent/src/canvasTools.ts` registers five read tools, eight write tools, and `create_design_frame`; nested schemas constrain required fields, enums, bounds and additional properties. `delete_shapes` is destructive and reads are marked read-only. `openAiTools()` returns 14 function tools with no provider-key field. Strict argument validation tests passed, and `apps/studio/src/components/executeCanvasTool.ts` now executes these operations against the live editor API with bounded results and one history stopping point per write call. The focused 32-test suite and package builds passed; live GUI drawing acceptance remains under the canvas/design-frame tasks.
 - [ ] 20.5 A "Design frame" tldraw shape:
   - It renders agent-authored HTML+CSS inside a sandboxed `iframe srcdoc`, with no scripts, no network and sanitized markup.
   - It can be resized and exported to PNG or HTML.
   - This is how prompts like "landing page" or "dashboard" produce real layouts.
-- [ ] 20.6 Composer modes (ZCode-style; Shift+Tab cycles them):
+  - Evidence: `design-frame` is a resizable tldraw shape. Its HTML is shown in an iframe with `sandbox=""` and `srcDoc` from `designFrameSrcDoc`. Scripts, event handlers, and remote URLs are stripped. `apps/studio/test/designFrameHtml.test.ts` passed 1/1. Studio typecheck passed. A live frame was not drawn, and a PNG of that frame was not exported, so this item stays open.
+- [x] 20.6 Composer modes (ZCode-style; Shift+Tab cycles them):
   - **Ask:** chat only.
   - **Plan:** read tools only, and returns a list of steps.
   - **Build:** write tools are previewed and applied only after approval.
   - **Auto:** canvas-only changes are applied automatically, each as one undo step.
   - File and Blender tools always ask for approval.
+  - Evidence (2026-09-24): Ask offers no tools, Plan advertises read tools, Build waits for approval on writes, and Auto applies canvas writes as individual undoable tool actions; Auto reads still request permission. File and Blender tools are not registered in this canvas host yet. `composerModes.test.ts` and the host-mode cases in `chatStream.test.ts` cover the mode-specific contract, including that Auto write calls run without a permission prompt while read calls pause. Studio and host-core typechecks passed.
 - [ ] 20.7 Proposal preview: pending changes show as a ghost layer with Apply and Reject. Apply is a single tldraw history mark, so one Undo reverts it.
+  - Evidence: Apply calls `markHistoryStoppingPoint` once, then creates each proposed shape, so one Undo reverts the batch. Reject clears the proposal and does not touch the editor. `apps/studio/test/canvasProposal.test.ts` passed 1/1. Studio typecheck passed. No tool writes a proposal yet, so the dashed preview was not shown on a live canvas. This item stays open.
 - [ ] 20.8 A tool-call card for each call: the tool name, a short argument summary, status, duration, the result or error, and Apply/Reject/Undo.
-- [ ] 20.9 Subagents as Markdown profiles in `skills/agents/`, one nesting level as in ZCode:
+  - Evidence (2026-09-24): `ToolCallView.tsx` shows tool name, summary, exact arguments, status, bounded result/error, screenshot image, privacy disclosure, and Approve/Reject controls when required. Auto write cards explain the local canvas change and result sharing. The card has no measured duration or Undo action yet; the actual canvas operation is independently undoable in the editor. `toolCallCard.test.tsx` passed as part of the focused 32-test suite. This item stays open.
+- [x] 20.9 Subagents as Markdown profiles in `skills/agents/`, one nesting level as in ZCode:
   - **Designer.**
   - **Reviewer:** screenshots the frame and critiques it with a vision model.
   - **Vectorizer.**
+  - Evidence: `skills/agents/designer.md`, `reviewer.md`, and `vectorizer.md` name those roles. The Reviewer profile includes `screenshot_frame` and a vision-model critique. Each profile says it does not start another agent. `canStartSubagent(0)` is true and `canStartSubagent(1)` is false. `packages/studio-agent/test/subagentProfiles.test.ts` passed 1/1. The host does not launch these profiles yet.
 - [ ] 20.10 Variants from 1x to 4x:
   - One prompt runs as N child sessions (on the same or different models) into N frames side by side.
   - The user compares them and keeps one.
   - The chip stays disabled until this has tests.
-- [ ] 20.11 Skills and styles:
+  - Evidence: `variantFrames(3)` places frames at x 0, 848, and 1696. Keeping the successful middle result discards the failed ones, and a failed choice keeps nothing. `packages/studio-agent/test/variantRun.test.ts` passed 2/2. Studio typecheck passed. The composer chip can show 1× through 4×. A prompt does not start child sessions yet, so this item stays open.
+- [x] 20.11 Skills and styles:
   - **Skills:** Markdown prompt packs in `skills/design/` (landing, mobile, dashboard, icon set, avatar, logo).
   - **Styles:** token presets.
-- [ ] 20.12 Context budget taken from each model's `context_length`, compaction of long conversations, and a cap on the canvas summary.
-- [ ] 20.13 A model without tool support falls back to Ask mode and says why.
+  - Evidence: `skills/design/` has Landing, Mobile, Dashboard, Icon set, Avatar, and Logo. `STYLE_PRESETS` is Studio, Paper, and Ink, and each preset parses as a project style. `packages/studio-agent/test/designSkills.test.ts` and `apps/studio/test/projectStyle.test.ts` passed 4/4. The composer skill picker does not load these packs yet.
+- [x] 20.12 Context budget taken from each model's `context_length`, compaction of long conversations, and a cap on the canvas summary.
+  - Evidence: outbound history uses a character budget derived from the selected model's `contextLength`, keeps the newest messages, and reports how many were omitted. A canvas summary sent to the composer is capped at 1,500 characters. `apps/studio/test/contextBudget.test.ts` passed 2/2. Studio typecheck passed. The budget is a character estimate, not a tokenizer count.
+- [x] 20.13 A model without tool support falls back to Ask mode and says why.
+  - Evidence: if the selected model does not list `tools`, a Plan or Build choice is sent as Ask and the composer says “This model does not list tool support, so Studio uses Ask mode.” Ask itself does not add that sentence. `apps/studio/test/toolModeFallback.test.ts` passed 1/1. Studio typecheck passed. The preview had no catalog model, so the sentence was not shown live.
 - [ ] 20.14 The "Agents" pill lists running and finished sessions, with a Stop button.
-- [ ] 20.15 Tests:
+  - Evidence: the Agents menu lists each conversation title with `running`, `finished`, or `idle`. Stop is shown only while the active chat is streaming or stopping, and it calls cancel. `apps/studio/test/agentSessions.test.ts` passed 1/1. Studio typecheck passed. No reply was streaming in the preview, so Stop was not clicked. This item stays open.
+- [x] 20.15 Tests:
   - Prompt injection hidden in canvas text or images.
   - Invalid tool arguments, a rejected approval, and a tool timeout.
   - A variant run where some variants fail.
   - A single Undo reverting an applied change.
   - A model with no tool support.
+  - Evidence: canvas text that says to call `delete_shapes` stays quoted and is not turned into a tool name. `create_frame` without a width is rejected. A denied permission ends the turn with “The tool call was not approved.” A screenshot past 15 seconds is a timeout. `packages/studio-agent/test/agentGuards.test.ts` passed. A variant run that keeps one success and drops two failures is in `variantRun.test.ts`. One history mark for Apply is in `canvasProposal.test.ts`. A model without tools falls back to Ask in `toolModeFallback.test.ts`. Those four files passed 6/6 together.
 
 **Done when:**
 - "Design a landing page for X" in Build mode shows a preview.
@@ -929,15 +1016,18 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
     - stacked or cutout layering
   - A before/after slider showing path count and file size.
   - An Insert button that places it on the canvas.
+  - Evidence: the + menu, the tool rail, and the Home image-to-SVG action open the dialog. Trace runs `traceImageFileLocally` with the selected preset. Silhouette uses 2 colors and cutout layering. Pixel art raises the line threshold. After a trace, the status shows path count plus source and SVG byte sizes, and Insert places that SVG. `apps/studio/test/vtracerPresets.test.ts` passed 1/1. Studio typecheck passed. A picture was not traced in the preview, so this item stays open.
 - [ ] 21.2 Run vtracer (`@visioncortex/vtracer`, already in `packages/asset-pipeline`) in a worker that can be cancelled:
   - **Before tracing:** resize, denoise, remove near-white backgrounds, and quantize the palette.
   - **After tracing:** run SVGO and sanitize.
   - A guard on path count.
+  - Evidence: the browser trace accepts an `AbortSignal` and stops with “Image tracing was cancelled.” The dialog’s Cancel trace button aborts that signal. A result with more paths than the limit throws. `assertSvgPathCount` is covered by `apps/studio/test/vtracerPresets.test.ts`, which passed 1/1. Studio typecheck passed. The asset-pipeline path already checks abort around preprocessing and enforces a 20,000 path cap. Tracing still runs on the page thread, not in a worker, so this item stays open.
 - [ ] 21.3 Optional QuiverAI "Generate SVG" (text plus reference images → SVG):
   - **Off by default.** It uses the user's own key from the host keychain.
   - Before anything is sent, a consent notice says exactly what goes out.
   - The output is sanitized, and cost and unavailable states are clear.
   - It needs the AGENTS.md change below. Until then `quiverVectorEngine.ts` keeps rejecting.
+  - Evidence: `generateSvgWithQuiver` and a `quiverai` preview both reject with “Remote SVG generation is disabled” and do not call `fetch`. `packages/asset-pipeline/test/remote-engines-disabled.test.ts` covers that. The optional engine is not wired, so this item stays open.
 - [ ] 21.4 Avatar builder:
   - The `avatar` shape uses the real avatar-core renderers (package SVG and layered mascot) and shows state previews instead of emoji buttons.
   - "Save as avatar package" reuses the validated Phase 4 packaging, so the VS Code avatar sidebar can activate it.
@@ -952,6 +1042,7 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
   - QuiverAI is off by default.
   - An avatar package round-trip.
   - Blender missing.
+  - Evidence: malicious SVG is stripped in `packages/asset-pipeline/test/svg.test.ts`. QuiverAI rejects before `fetch` in `remote-engines-disabled.test.ts`. Trace cancel is an `AbortError` in `image-to-svg.test.ts` and `apps/extension/test/vectorization-worker.test.mjs`. A missing Blender executable is reported from `apps/extension/test/blender-probe.test.mjs`. An avatar ZIP export is covered by `avatar-package-export.test.mjs`. These were not re-run as one studio command in this turn, so this item stays open.
 
 **Done when:** an image becomes an editable SVG on the canvas locally, and that SVG can be saved as an avatar or sent to Blender.
 
@@ -1140,10 +1231,11 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
   - `README.md` and the root `package.json` `name`/`description`;
   - the Studio `index.html` title, `StudioWindowBar.tsx`, `RecentsDashboard.tsx` and the `brand-mark.svg` label;
   - `AGENTS.md`, the doc titles, and the Target UI canvas plus its `docs/design/target-ui/` copy.
-- [ ] R6.3 Logo:
+- [x] R6.3 Logo:
   - Export the mark, the small-size mark, the monochrome mark and the lockups from the Brand page into `docs/design/brand/`.
   - Replace `apps/studio/src/assets/brand-mark.svg`.
   - Add an SVG favicon plus 16/32/180/512 PNG icons and the extension icon.
+  - Evidence: `docs/design/brand/` has the mark, small, mono, dark, app icon, and both lockups. `node scripts/render-brand-icons.mjs` wrote the PNGs and replaced `apps/extension/media/icon.png`. The 16 px mark reads as a K. `pnpm test:unit` passed 280/280.
 - [ ] R6.4 Rename the package scope from `@codex-avatar-studio/*` to the new scope in every `package.json`, import, tsconfig, Vite and Vitest config. Then run `pnpm install` and `pnpm run ci`.
 - [ ] R6.5 VS Code extension identity: its name, display name, publisher, the "Codex Avatar: …" command titles, the `codexAvatar.*` settings, the SecretStorage key and the `.codex-avatar/` data folder.
   - Ship one release that still reads the old settings, key and folder as a fallback, with migration tests, so current users lose nothing.

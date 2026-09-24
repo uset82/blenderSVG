@@ -10,7 +10,7 @@ import {
   isInsideDirectory,
   resolveBlenderScriptPath,
   sanitizeBlenderBaseName
-} from "../dist/blenderPlan.js";
+} from "../../../packages/studio-host-core/dist/src/blenderPlan.js";
 import {
   assertBlenderExportArtifacts,
   assertBlenderVersion,
@@ -18,7 +18,7 @@ import {
   runBlenderCommand,
   runBlenderExportJob,
   runBlenderExports
-} from "../dist/blenderRunner.js";
+} from "../../../packages/studio-host-core/dist/src/blenderRunner.js";
 
 const extensionRoot = fileURLToPath(new URL("..", import.meta.url));
 const workspaceRoot = path.resolve(extensionRoot, "..", "..");
@@ -110,7 +110,10 @@ test("rejects Blender export paths outside the workspace", () => {
 });
 
 test("runs Blender with an argument array and disables shell interpolation", async () => {
-  const source = await readFile(path.join(extensionRoot, "dist", "blenderRunner.js"), "utf8");
+  const source = await readFile(
+    path.resolve(extensionRoot, "../../packages/studio-host-core/dist/src/blenderRunner.js"),
+    "utf8"
+  );
   assert.match(source, /shell:\s*false/);
 });
 

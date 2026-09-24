@@ -33,12 +33,16 @@ export function buildStudioProjectExport(input: StudioProjectExportInput): strin
   });
 }
 
-export function studioExportFileName(title: string): string {
+export function safeExportFileName(title: string, extension: "svg" | "png" | "json"): string {
   const safe = title
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60);
-  return `${safe || "canvas"}.studio.json`;
+  return `${safe || "canvas"}.${extension === "json" ? "studio.json" : extension}`;
+}
+
+export function studioExportFileName(title: string): string {
+  return safeExportFileName(title, "json");
 }

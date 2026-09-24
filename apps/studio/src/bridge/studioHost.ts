@@ -1,7 +1,5 @@
 import {
-  createStudioToHostMessage,
   type HostToStudioMessage,
-  parseHostToStudioMessage,
   STUDIO_PROTOCOL_VERSION,
   type StudioChatUsage,
   type StudioModel,
@@ -11,6 +9,8 @@ import {
   type StudioToHostMessageInput
 } from "@codex-avatar-studio/avatar-core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ToolCallRecord } from "../components/toolCallCard.js";
+import { OFFLINE_HOST_MESSAGE, type StudioTransport, selectStudioTransport } from "./studioTransports.js";
 
 export type { StudioProjectMeta };
 export type StudioImageAttachment = Extract<StudioToHostMessageInput, { type: "studio:chatRequest" }>["attachment"];
@@ -24,9 +24,26 @@ export interface StudioChatRun {
   modelId: string;
   status: "streaming" | "stopping" | "complete" | "error";
   text: string;
+  reasoning?: string;
   message?: string;
   errorCode?: string;
   usage?: StudioChatUsage;
+}
+
+export interface StudioToolCall extends ToolCallRecord {
+  requestId: string;
+  callId: string;
+  summary: string;
+  readOnly: boolean;
+  requiresApproval: boolean;
+  imageDataUrl?: string;
+}
+
+export interface StudioToolExecution {
+  requestId: string;
+  callId: string;
+  name: string;
+  arguments: string;
 }
 
 export interface StudioModelCatalog {
@@ -100,15 +117,21 @@ function initialHostState(): HostStateMessage {
     workspaceTrusted: false,
     connection: {
       status: "disconnected",
-      message: getVsCodeApi()
-        ? "Checking the Studio connection…"
-        : "Open Studio from VS Code to connect OpenRouter. This browser preview never accepts API keys."
+      message: getVsCodeApi() ? "Checking the Studio connection…" : OFFLINE_HOST_MESSAGE
     }
   };
 }
 
+let activeTransport: StudioTransport | null = null;
+
+function currentTransport(): StudioTransport {
+  if (!activeTransport) activeTransport = selectStudioTransport({ vscodeApi: getVsCodeApi() });
+  return activeTransport;
+}
+
 function sendToHost(message: StudioToHostMessageInput): void {
-  getVsCodeApi()?.postMessage(createStudioToHostMessage(message));
+  if (currentTransport().kind === "fixture" && !getVsCodeApi()) return;
+  currentTransport().send(message);
 }
 
 export function useStudioHost() {
@@ -119,6 +142,8 @@ export function useStudioHost() {
     models: []
   });
   const [chatRun, setChatRun] = useState<StudioChatRun | null>(null);
+  const [toolCalls, setToolCalls] = useState<StudioToolCall[]>([]);
+  const [pendingToolExecutions, setPendingToolExecutions] = useState<StudioToolExecution[]>([]);
   const [projects, setProjects] = useState<StudioProjectsState>({
     status: "idle",
     message: "Projects are available in a trusted local VS Code workspace.",
@@ -137,11 +162,9 @@ export function useStudioHost() {
   }, []);
 
   useEffect(() => {
-    if (!getVsCodeApi()) return;
-    const onMessage = (event: MessageEvent<unknown>) => {
-      const parsed = parseHostToStudioMessage(event.data);
-      if (!parsed.success) return;
-      const message = parsed.data;
+    const transport = currentTransport();
+    if (transport.kind === "fixture") return;
+    const stop = transport.subscribe((message) => {
       if (message.type === "studio:imageTraced" || message.type === "studio:traceError") {
         const pending = pendingTraces.current.get(message.requestId);
         if (pending) {
@@ -281,6 +304,63 @@ export function useStudioHost() {
             : current
         );
       }
+      if (message.type === "studio:toolProposed") {
+        const id = `${message.requestId}::${message.callId}`;
+        setToolCalls((current) =>
+          [
+            ...current.filter((call) => call.id !== id),
+            {
+              id,
+              requestId: message.requestId,
+              callId: message.callId,
+              name: message.name,
+              summary: message.summary,
+              requiresApproval: message.requiresApproval,
+              arguments: message.arguments,
+              status: "proposed" as const,
+              durationMs: null,
+              result: null,
+              readOnly: isReadOnlyTool(message.name)
+            }
+          ].slice(-24)
+        );
+      }
+      if (message.type === "studio:toolExecute") {
+        const execution = {
+          requestId: message.requestId,
+          callId: message.callId,
+          name: message.name,
+          arguments: message.arguments
+        };
+        setPendingToolExecutions((current) =>
+          current.some((item) => item.requestId === execution.requestId && item.callId === execution.callId)
+            ? current
+            : [...current, execution]
+        );
+        setToolCalls((current) =>
+          current.map((call) =>
+            call.requestId === message.requestId && call.callId === message.callId
+              ? { ...call, status: "running" }
+              : call
+          )
+        );
+      }
+      if (message.type === "studio:toolResult") {
+        setToolCalls((current) =>
+          current.map((call) => {
+            if (call.requestId !== message.requestId || call.callId !== message.callId || call.status === "rejected")
+              return call;
+            return { ...call, status: message.ok ? "applied" : "error", result: message.summary };
+          })
+        );
+      }
+      if (message.type === "studio:chatReasoning") {
+        setChatRun((current) =>
+          current?.requestId === message.requestId && current.status === "streaming"
+            ? { ...current, reasoning: `${current.reasoning ?? ""}${message.delta}`.slice(0, 256_000) }
+            : current
+        );
+      }
       if (message.type === "studio:chatComplete") {
         setChatRun((current) =>
           current?.requestId === message.requestId
@@ -289,17 +369,24 @@ export function useStudioHost() {
         );
       }
       if (message.type === "studio:chatError") {
+        setPendingToolExecutions((current) => current.filter((call) => call.requestId !== message.requestId));
+        setToolCalls((current) =>
+          current.map((call) =>
+            call.requestId === message.requestId && (call.status === "proposed" || call.status === "running")
+              ? { ...call, status: "error", result: message.message }
+              : call
+          )
+        );
         setChatRun((current) =>
           current?.requestId === message.requestId
             ? { ...current, status: "error", errorCode: message.code, message: message.message }
             : current
         );
       }
-    };
-    window.addEventListener("message", onMessage);
+    });
     sendToHost({ type: "studio:ready" });
     return () => {
-      window.removeEventListener("message", onMessage);
+      stop();
       for (const pending of pendingTraces.current.values()) pending.reject(new Error("The Studio panel closed."));
       pendingTraces.current.clear();
     };
@@ -358,12 +445,21 @@ export function useStudioHost() {
       modelId: string,
       history: Array<{ role: "user" | "assistant"; content: string }>,
       userMessage: string,
-      attachment?: StudioImageAttachment
+      attachment?: StudioImageAttachment,
+      mode?: "ask" | "plan" | "build" | "auto"
     ) => {
       if (!getVsCodeApi()) return null;
       const requestId = `chat-${crypto.randomUUID()}`;
       setChatRun({ requestId, modelId, status: "streaming", text: "" });
-      sendToHost({ type: "studio:chatRequest", requestId, modelId, history, userMessage, ...(attachment ? { attachment } : {}) });
+      sendToHost({
+        type: "studio:chatRequest",
+        requestId,
+        modelId,
+        history,
+        userMessage,
+        ...(attachment ? { attachment } : {}),
+        ...(mode ? { mode } : {})
+      });
       return requestId;
     },
     []
@@ -385,6 +481,72 @@ export function useStudioHost() {
   }, []);
 
   const clearChatRun = useCallback(() => setChatRun(null), []);
+
+  const approveToolCall = useCallback(
+    (id: string) => {
+      const call = toolCalls.find((item) => item.id === id);
+      if (
+        !call?.requiresApproval ||
+        call.status !== "proposed" ||
+        hostState.host !== "vscode" ||
+        !hostState.workspaceTrusted
+      )
+        return;
+      setToolCalls((current) => current.map((item) => (item.id === id ? { ...item, status: "running" } : item)));
+      sendToHost({ type: "studio:toolPermission", requestId: call.requestId, callId: call.callId, granted: true });
+    },
+    [hostState.host, hostState.workspaceTrusted, toolCalls]
+  );
+
+  const rejectToolCall = useCallback(
+    (id: string) => {
+      const call = toolCalls.find((item) => item.id === id);
+      if (
+        !call?.requiresApproval ||
+        call.status !== "proposed" ||
+        hostState.host !== "vscode" ||
+        !hostState.workspaceTrusted
+      )
+        return;
+      setToolCalls((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, status: "rejected", result: "Declined. No canvas changes were made." } : item
+        )
+      );
+      sendToHost({ type: "studio:toolPermission", requestId: call.requestId, callId: call.callId, granted: false });
+    },
+    [hostState.host, hostState.workspaceTrusted, toolCalls]
+  );
+
+  const completeToolExecution = useCallback(
+    (requestId: string, callId: string, result: { ok: boolean; content: string; imageDataUrl?: string }) => {
+      const boundedContent = result.content.slice(0, 16_384);
+      setPendingToolExecutions((current) =>
+        current.filter((call) => call.requestId !== requestId || call.callId !== callId)
+      );
+      setToolCalls((current) =>
+        current.map((call) =>
+          call.requestId === requestId && call.callId === callId
+            ? {
+                ...call,
+                status: result.ok ? "applied" : "error",
+                result: boundedContent,
+                ...(result.imageDataUrl ? { imageDataUrl: result.imageDataUrl } : {})
+              }
+            : call
+        )
+      );
+      sendToHost({
+        type: "studio:toolExecutionResult",
+        requestId,
+        callId,
+        ok: result.ok,
+        content: boundedContent,
+        ...(result.imageDataUrl ? { imageDataUrl: result.imageDataUrl } : {})
+      });
+    },
+    []
+  );
 
   const requestProjects = useCallback(() => {
     if (!getVsCodeApi()) return;
@@ -463,6 +625,8 @@ export function useStudioHost() {
     hostState,
     modelCatalog,
     chatRun,
+    toolCalls,
+    pendingToolExecutions,
     projects,
     projectAction,
     onConnectionAction,
@@ -471,6 +635,9 @@ export function useStudioHost() {
     traceImage,
     cancelChat,
     clearChatRun,
+    approveToolCall,
+    rejectToolCall,
+    completeToolExecution,
     requestProjects,
     openProject,
     importProject,
@@ -482,4 +649,8 @@ export function useStudioHost() {
     deleteProject,
     clearProjectAction
   };
+}
+
+function isReadOnlyTool(name: string): boolean {
+  return ["get_canvas_summary", "get_selection", "get_frame_tree", "screenshot_frame", "get_styles"].includes(name);
 }

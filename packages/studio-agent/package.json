@@ -1,0 +1,27 @@
+{
+  "name": "@codex-avatar-studio/studio-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./turnMachine": {
+      "types": "./dist/src/turnMachine.d.ts",
+      "import": "./dist/src/turnMachine.js"
+    },
+    "./canvasTools": {
+      "types": "./dist/src/canvasTools.d.ts",
+      "import": "./dist/src/canvasTools.js"
+    },
+    "./agentGuards": {
+      "types": "./dist/src/agentGuards.d.ts",
+      "import": "./dist/src/agentGuards.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

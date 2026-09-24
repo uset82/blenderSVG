@@ -1,0 +1,21 @@
+{
+  "name": "@codex-avatar-studio/studio-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit false",
+    "start": "node --experimental-strip-types src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm --workspace-root exec biome lint apps/studio-server",
+    "test": "pnpm --workspace-root exec vitest run apps/studio-server"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@codex-avatar-studio/studio-host-core": "workspace:*",
+    "hono": "^4.13.8"
+  }
+}

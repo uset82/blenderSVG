@@ -28,6 +28,10 @@ pnpm run ci
 
 `pnpm run ci` checks formatting, lint, type safety, unit/integration tests, and all workspace builds. The main workspace packages are `apps/extension`, `apps/webview`, `packages/avatar-core`, `packages/asset-pipeline`, and `packages/runtime-pixi`.
 
+## tldraw production license
+
+Studio passes `VITE_TLDRAW_LICENSE_KEY` into the canvas at build time. Set it in the environment before `pnpm --filter @codex-avatar-studio/studio dev` or `build` when you have a tldraw license. The repository does not include a key. When the variable is missing or blank, Studio leaves the license unset and tldraw keeps its production-license reminder.
+
 ## Develop the extension
 
 Run `pnpm dev:extension` for the extension TypeScript watcher, or use the VS Code launch configuration and press `F5`. In the Extension Development Host, run `Codex Avatar: Open Assistant`.

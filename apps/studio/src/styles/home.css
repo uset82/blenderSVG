@@ -9,6 +9,29 @@
   font-family: var(--studio-font-sans);
 }
 
+.recents__wordmark {
+  font-family: var(--studio-font-display);
+  font-size: 22px;
+  font-weight: 500;
+  font-variation-settings: "SOFT" 100, "WONK" 1;
+  letter-spacing: -0.02em;
+}
+
+#recents-title {
+  margin: 0;
+  font-family: var(--studio-font-display);
+  font-weight: 380;
+  font-size: clamp(32px, 4vw, 56px);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-align: center;
+}
+
+#recents-title em {
+  font-style: italic;
+  color: var(--k-vermilion-deep);
+}
+
 .recents__rail {
   display: flex;
   flex: 0 0 240px;

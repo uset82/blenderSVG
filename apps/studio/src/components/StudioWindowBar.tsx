@@ -12,9 +12,10 @@ import {
   Settings,
   Trash2
 } from "lucide-react";
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
 import brandMarkUrl from "../assets/brand-mark.svg?inline";
 import { formatEditorSaveStatus } from "../projects/exportProjectFile.js";
+import { zoomMenuItems, type ZoomCommand } from "./zoomMenu.js";
 
 export interface StudioWindowBarProps {
   projectTitle: string;
@@ -39,7 +40,13 @@ export interface StudioWindowBarProps {
   zoomLevel: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onZoomReset: () => void;
+  onZoomCommand: (command: ZoomCommand) => void;
+  canZoomSelection: boolean;
+  canManageConnection: boolean;
+  connected: boolean;
+  onConnectionAction: (action: "connect" | "replace" | "test" | "disconnect") => void;
+  agentSessions?: Array<{ id: string; title: string; status: "running" | "finished" | "idle" }>;
+  onStopAgent?: () => void;
 }
 
 export function StudioWindowBar({
@@ -65,16 +72,40 @@ export function StudioWindowBar({
   zoomLevel,
   onZoomIn,
   onZoomOut,
-  onZoomReset
+  onZoomCommand,
+  canZoomSelection,
+  canManageConnection,
+  connected,
+  onConnectionAction,
+  agentSessions = [],
+  onStopAgent
 }: StudioWindowBarProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState(projectTitle);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isZoomMenuOpen, setZoomMenuOpen] = useState(false);
 
   useEffect(() => {
     if (isEditingTitle) titleInputRef.current?.focus();
   }, [isEditingTitle]);
+
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest("input, textarea, [contenteditable='true']")) return;
+      if (event.code === "Digit1") {
+        event.preventDefault();
+        onZoomCommand("fit");
+      } else if (event.code === "Digit2") {
+        event.preventDefault();
+        onZoomCommand("selection");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onZoomCommand]);
 
   useEffect(() => {
     if (!isEditingTitle) setTitleInput(projectTitle);
@@ -99,6 +130,10 @@ export function StudioWindowBar({
   const runMenuAction = (action: () => void) => {
     setIsMenuOpen(false);
     action();
+  };
+
+  const closePopover = (event: MouseEvent<HTMLButtonElement>) => {
+    event.currentTarget.closest("details")?.removeAttribute("open");
   };
 
   const themeLabel = theme === "contrast" ? "High contrast" : theme === "light" ? "Light" : "Dark";
@@ -209,9 +244,29 @@ export function StudioWindowBar({
             </summary>
             <div className="studio-windowbar__menu-popover">
               <p className="studio-windowbar__menu-note">
-                This editor keeps one conversation. It does not store other agent sessions.
+                {agentSessions.length === 0
+                  ? "No agent sessions in this editor yet."
+                  : "Sessions in this editor. Stop only cancels a running reply."}
               </p>
-              <button type="button" onClick={onToggleAgentSidebar}>
+              <ul>
+                {agentSessions.map((session) => (
+                  <li key={session.id}>
+                    {session.title} · {session.status}
+                    {session.status === "running" ? (
+                      <button type="button" onClick={() => onStopAgent?.()}>
+                        Stop
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={(event) => {
+                  closePopover(event);
+                  onToggleAgentSidebar();
+                }}
+              >
                 {isAgentSidebarOpen ? "Close conversation" : "Open conversation"}
               </button>
             </div>
@@ -227,12 +282,56 @@ export function StudioWindowBar({
             </summary>
             <div className="studio-windowbar__menu-popover">
               <p className="studio-windowbar__menu-note">
-                Theme is {themeLabel}. API keys stay in the host and are not edited here.
+                Theme is {themeLabel}. Provider credentials stay in the trusted host and are never entered in this page.
               </p>
-              <button type="button" onClick={onCycleTheme}>
+              <p>
+                Key label: {connected ? "configured" : "not configured"}. The key is not shown. Credit usage was not
+                returned by the host.
+              </p>
+              <button
+                type="button"
+                disabled={!canManageConnection || connected}
+                onClick={() => onConnectionAction("connect")}
+              >
+                Connect
+              </button>
+              <button
+                type="button"
+                disabled={!canManageConnection || !connected}
+                onClick={() => onConnectionAction("test")}
+              >
+                Test
+              </button>
+              <button
+                type="button"
+                disabled={!canManageConnection || !connected}
+                onClick={() => onConnectionAction("replace")}
+              >
+                Replace
+              </button>
+              <button
+                type="button"
+                disabled={!canManageConnection || !connected}
+                onClick={() => onConnectionAction("disconnect")}
+              >
+                Disconnect
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  closePopover(event);
+                  onCycleTheme();
+                }}
+              >
                 Use the next theme
               </button>
-              <button type="button" onClick={onToggleInspector}>
+              <button
+                type="button"
+                onClick={(event) => {
+                  closePopover(event);
+                  onToggleInspector();
+                }}
+              >
                 <PanelRight size={14} aria-hidden="true" />
                 {isInspectorOpen ? "Hide properties" : "Show properties"}
               </button>
@@ -257,14 +356,36 @@ export function StudioWindowBar({
         <button
           className="studio-windowbar__zoom-level"
           type="button"
-          aria-label="Reset zoom to 100%"
-          onClick={onZoomReset}
+          aria-label="Zoom options"
+          aria-expanded={isZoomMenuOpen}
+          aria-controls="studio-zoom-menu"
+          onClick={() => setZoomMenuOpen((open) => !open)}
         >
           {Math.round(zoomLevel * 100)}%
         </button>
         <button type="button" aria-label="Zoom in" onClick={onZoomIn}>
           <Plus size={14} strokeWidth={1.75} aria-hidden="true" />
         </button>
+        {isZoomMenuOpen && (
+          <div className="studio-zoom-menu" id="studio-zoom-menu" role="menu" aria-label="Zoom">
+            {zoomMenuItems(canZoomSelection).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                disabled={!item.enabled}
+                title={item.reason ?? ""}
+                onClick={() => {
+                  setZoomMenuOpen(false);
+                  onZoomCommand(item.id);
+                }}
+              >
+                <span>{item.label}</span>
+                {item.shortcut && <kbd>{item.shortcut}</kbd>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

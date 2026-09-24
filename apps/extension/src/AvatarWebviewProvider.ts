@@ -104,7 +104,7 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider, vscode
         return;
       }
 
-      void this.handleWebviewMessage(parsed.data);
+      return this.handleWebviewMessage(parsed.data);
     });
     webviewView.onDidDispose(() => {
       if (this.view === webviewView) this.view = undefined;
@@ -1364,7 +1364,7 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider, vscode
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${cspSource} data:; connect-src ${cspSource}; style-src ${cspSource}; script-src 'nonce-${nonce}' ${cspSource}; object-src 'none'; base-uri 'none'; form-action 'none';">
-  <title>Codex Avatar Studio</title>
+  <title>Kurva</title>
   <link rel="stylesheet" href="${styleUri}">
 </head>
 <body>

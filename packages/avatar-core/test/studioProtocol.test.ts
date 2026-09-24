@@ -25,6 +25,25 @@ describe("Studio bridge protocol", () => {
 
   it("rejects versions, unknown actions, oversized content, and credential fields", () => {
     expect(parseStudioToHostMessage({ protocolVersion: 2, type: "studio:ready" }).success).toBe(false);
+    expect(parseStudioToHostMessage({ type: "studio:ready" }).success).toBe(true);
+    const turn = createHostToStudioMessage({
+      type: "studio:turnEvent",
+      requestId: "request-1",
+      state: "schedule-tools",
+      text: ""
+    });
+    expect(turn.protocolVersion).toBe(2);
+    expect(parseHostToStudioMessage(turn).success).toBe(true);
+    expect(
+      parseStudioToHostMessage({
+        protocolVersion: 2,
+        type: "studio:toolPermission",
+        requestId: "request-1",
+        callId: "call-1",
+        granted: false,
+        apiKey: "private"
+      }).success
+    ).toBe(false);
     expect(
       parseStudioToHostMessage({ protocolVersion: 1, type: "studio:openRouterConnection", action: "spend" }).success
     ).toBe(false);
@@ -49,6 +68,47 @@ describe("Studio bridge protocol", () => {
         connection: { status: "error", message: "x".repeat(501) }
       }).success
     ).toBe(false);
+  });
+
+  it("round-trips bounded tool approval, execution, and result messages", () => {
+    const proposal = createHostToStudioMessage({
+      type: "studio:toolProposed",
+      requestId: "request-1234",
+      callId: "call_123",
+      name: "create_frame",
+      summary: "Add a frame.",
+      requiresApproval: true,
+      arguments: JSON.stringify({ name: "Landing", width: 1440, height: 900 })
+    });
+    expect(parseHostToStudioMessage(proposal).success).toBe(true);
+
+    const execute = createHostToStudioMessage({
+      type: "studio:toolExecute",
+      requestId: "request-1234",
+      callId: "call_123",
+      name: "create_frame",
+      arguments: JSON.stringify({ name: "Landing", width: 1440, height: 900 })
+    });
+    expect(parseHostToStudioMessage(execute).success).toBe(true);
+
+    const permission = createStudioToHostMessage({
+      type: "studio:toolPermission",
+      requestId: "request-1234",
+      callId: "call_123",
+      granted: true
+    });
+    expect(parseStudioToHostMessage(permission).success).toBe(true);
+    const result = createStudioToHostMessage({
+      type: "studio:toolExecutionResult",
+      requestId: "request-1234",
+      callId: "call_123",
+      ok: true,
+      content: "Frame created."
+    });
+    expect(parseStudioToHostMessage(result).success).toBe(true);
+    expect(parseStudioToHostMessage({ ...result, content: "x".repeat(16_385) }).success).toBe(false);
+    expect(parseHostToStudioMessage({ ...proposal, arguments: "[]" }).success).toBe(false);
+    expect(parseHostToStudioMessage({ ...execute, apiKey: "must-not-cross-the-bridge" }).success).toBe(false);
   });
 
   it("bounds project import messages and keeps file paths out of the bridge", () => {

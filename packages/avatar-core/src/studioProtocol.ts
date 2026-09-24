@@ -5,7 +5,29 @@ export const STUDIO_CHAT_SYSTEM_PROMPT =
   "You are the Codex Avatar Studio design assistant. Help the user plan and refine their canvas. Describe suggestions clearly. You cannot directly change the canvas in this version; never claim to have applied edits, saved files, or inspected content that was not explicitly included in the conversation.";
 
 const version = z.literal(STUDIO_PROTOCOL_VERSION);
+const agentVersion = z.literal(2);
+export const STUDIO_AGENT_PROTOCOL_VERSION = 2 as const;
 const requestId = z.string().regex(/^[A-Za-z0-9-]{8,64}$/);
+const agentCallId = z.string().trim().min(1).max(80);
+const boundedToolArguments = z
+  .string()
+  .min(2)
+  .max(16_384)
+  .refine((value) => {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+    } catch {
+      return false;
+    }
+  }, "Tool arguments must be a JSON object.");
+const boundedToolImage = z
+  .string()
+  .max(2_100_000)
+  .refine(
+    (value) => /^data:image\/png;base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value),
+    "Tool image must be a bounded PNG data URL."
+  );
 const connection = z.strictObject({
   status: z.enum(["disconnected", "connected", "checking", "error"]),
   message: z.string().trim().min(1).max(500)
@@ -42,7 +64,8 @@ const chatImageAttachment = z
 const usage = z.strictObject({
   promptTokens: z.number().int().nonnegative().max(100_000_000).optional(),
   completionTokens: z.number().int().nonnegative().max(100_000_000).optional(),
-  totalTokens: z.number().int().nonnegative().max(200_000_000).optional()
+  totalTokens: z.number().int().nonnegative().max(200_000_000).optional(),
+  cost: z.number().nonnegative().max(1_000_000).optional()
 });
 const projectId = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
 const projectMeta = z.strictObject({
@@ -71,7 +94,11 @@ export const studioToHostMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("studio:traceImage"),
     requestId,
     mediaType: z.literal("image/png"),
-    dataBase64: z.string().min(4).max(11_200_000).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
+    dataBase64: z
+      .string()
+      .min(4)
+      .max(11_200_000)
+      .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
   }),
   z.strictObject({ protocolVersion: version, type: z.literal("studio:projectListRequest") }),
   z.strictObject({
@@ -107,9 +134,33 @@ export const studioToHostMessageSchema = z.discriminatedUnion("type", [
     modelId: z.string().trim().min(1).max(200),
     history: z.array(chatHistoryMessage).max(40),
     userMessage: z.string().trim().min(1).max(12_000),
-    attachment: chatImageAttachment.optional()
+    attachment: chatImageAttachment.optional(),
+    mode: z.enum(["ask", "plan", "build", "auto"]).optional()
   }),
-  z.strictObject({ protocolVersion: version, type: z.literal("studio:chatCancel"), requestId })
+  z.strictObject({ protocolVersion: version, type: z.literal("studio:chatCancel"), requestId }),
+  z.strictObject({
+    protocolVersion: agentVersion,
+    type: z.literal("studio:agentStart"),
+    requestId,
+    mode: z.enum(["ask", "plan", "build", "auto"])
+  }),
+  z.strictObject({ protocolVersion: agentVersion, type: z.literal("studio:agentStop"), requestId }),
+  z.strictObject({
+    protocolVersion: agentVersion,
+    type: z.literal("studio:toolPermission"),
+    requestId,
+    callId: agentCallId,
+    granted: z.boolean()
+  }),
+  z.strictObject({
+    protocolVersion: agentVersion,
+    type: z.literal("studio:toolExecutionResult"),
+    requestId,
+    callId: agentCallId,
+    ok: z.boolean(),
+    content: z.string().max(16_384),
+    imageDataUrl: boundedToolImage.optional()
+  })
 ]);
 
 /** Sanitized host state sent to the Studio UI. This schema has no key field. */
@@ -189,6 +240,12 @@ export const hostToStudioMessageSchema = z.discriminatedUnion("type", [
   }),
   z.strictObject({
     protocolVersion: version,
+    type: z.literal("studio:chatReasoning"),
+    requestId,
+    delta: z.string().min(1).max(16_384)
+  }),
+  z.strictObject({
+    protocolVersion: version,
     type: z.literal("studio:imageTraced"),
     requestId,
     svg: z.string().min(1).max(2_000_000)
@@ -223,6 +280,49 @@ export const hostToStudioMessageSchema = z.discriminatedUnion("type", [
       "offline"
     ]),
     message: z.string().trim().min(1).max(500)
+  }),
+  z.strictObject({
+    protocolVersion: agentVersion,
+    type: z.literal("studio:turnEvent"),
+    requestId,
+    state: z.enum([
+      "input",
+      "model",
+      "streaming",
+      "schedule-tools",
+      "await-permission",
+      "execute",
+      "aggregate",
+      "done",
+      "error"
+    ]),
+    text: z.string().max(8_000)
+  }),
+  z.strictObject({
+    protocolVersion: agentVersion,
+    type: z.literal("studio:toolProposed"),
+    requestId,
+    callId: agentCallId,
+    name: z.string().trim().min(1).max(80),
+    summary: z.string().max(500),
+    requiresApproval: z.boolean(),
+    arguments: boundedToolArguments
+  }),
+  z.strictObject({
+    protocolVersion: agentVersion,
+    type: z.literal("studio:toolExecute"),
+    requestId,
+    callId: agentCallId,
+    name: z.string().trim().min(1).max(80),
+    arguments: boundedToolArguments
+  }),
+  z.strictObject({
+    protocolVersion: agentVersion,
+    type: z.literal("studio:toolResult"),
+    requestId,
+    callId: agentCallId,
+    ok: z.boolean(),
+    summary: z.string().max(500)
   })
 ]);
 
@@ -237,18 +337,38 @@ type WithoutVersion<T> = T extends unknown ? Omit<T, "protocolVersion"> : never;
 export type StudioToHostMessageInput = WithoutVersion<StudioToHostMessage>;
 export type HostToStudioMessageInput = WithoutVersion<HostToStudioMessage>;
 
+const AGENT_MESSAGE_TYPES = new Set([
+  "studio:agentStart",
+  "studio:agentStop",
+  "studio:toolPermission",
+  "studio:toolExecutionResult",
+  "studio:toolExecute",
+  "studio:turnEvent",
+  "studio:toolProposed",
+  "studio:toolResult"
+]);
+
+export function migrateStudioMessage(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  if (record.protocolVersion !== undefined) return value;
+  return { ...record, protocolVersion: STUDIO_PROTOCOL_VERSION };
+}
+
 export function parseStudioToHostMessage(value: unknown) {
-  return studioToHostMessageSchema.safeParse(value);
+  return studioToHostMessageSchema.safeParse(migrateStudioMessage(value));
 }
 
 export function parseHostToStudioMessage(value: unknown) {
-  return hostToStudioMessageSchema.safeParse(value);
+  return hostToStudioMessageSchema.safeParse(migrateStudioMessage(value));
 }
 
 export function createStudioToHostMessage(value: StudioToHostMessageInput): StudioToHostMessage {
-  return studioToHostMessageSchema.parse({ ...value, protocolVersion: STUDIO_PROTOCOL_VERSION });
+  const protocolVersion = AGENT_MESSAGE_TYPES.has(value.type) ? STUDIO_AGENT_PROTOCOL_VERSION : STUDIO_PROTOCOL_VERSION;
+  return studioToHostMessageSchema.parse({ ...value, protocolVersion });
 }
 
 export function createHostToStudioMessage(value: HostToStudioMessageInput): HostToStudioMessage {
-  return hostToStudioMessageSchema.parse({ ...value, protocolVersion: STUDIO_PROTOCOL_VERSION });
+  const protocolVersion = AGENT_MESSAGE_TYPES.has(value.type) ? STUDIO_AGENT_PROTOCOL_VERSION : STUDIO_PROTOCOL_VERSION;
+  return hostToStudioMessageSchema.parse({ ...value, protocolVersion });
 }

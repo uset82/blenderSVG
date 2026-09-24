@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { createBlenderSceneFromSvg } from "../dist/blenderHandoff.js";
+
+import { createBlenderSceneFromSvg } from "../../../packages/studio-host-core/dist/src/blenderHandoff.js";
 
 const extensionRoot = fileURLToPath(new URL("..", import.meta.url));
 

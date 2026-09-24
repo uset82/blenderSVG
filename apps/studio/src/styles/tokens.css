@@ -1,6 +1,17 @@
 :root {
-  --studio-font-sans: "Geist Sans", "Segoe UI", sans-serif;
-  --studio-font-mono: "Geist Mono", Consolas, monospace;
+  --k-paper: #f3eee3;
+  --k-paper-2: #fbf8f1;
+  --k-ink: #1b1a17;
+  --k-ink-2: #5a554b;
+  --k-rule: rgb(27 26 23 / 14%);
+  --k-vermilion: #d2461e;
+  --k-vermilion-deep: #b53a17;
+  --k-blueprint: #2e5e8c;
+  --k-ease-draw: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  --studio-font-display: "Fraunces Variable", Fraunces, serif;
+  --studio-font-sans: "Hanken Grotesk", "Segoe UI", sans-serif;
+  --studio-font-mono: "IBM Plex Mono", Consolas, monospace;
 
   --studio-space-1: 4px;
   --studio-space-2: 8px;
@@ -18,49 +29,67 @@
   --studio-type-meta: 12px;
   --studio-type-body: 13px;
 
-  --studio-radius-control: 8px;
-  --studio-radius-panel: 12px;
+  --studio-radius-control: 6px;
+  --studio-radius-panel: 14px;
   --studio-radius-pill: 999px;
 }
 
 .studio-app {
-  --studio-canvas: #151516;
-  --studio-surface-0: #1b1b1d;
-  --studio-surface-1: #232326;
-  --studio-surface-2: #2b2b2f;
-  --studio-surface-active: #2b2b2f;
-  --studio-divider: #2e2e32;
-  --studio-hairline: rgb(255 255 255 / 8%);
-  --studio-control-border: #8b8b93;
-  --studio-text-primary: #ededef;
-  --studio-text-secondary: #a3a3aa;
-  --studio-text-muted: #8b8b93;
-  --studio-accent: #7aa7ff;
-  --studio-accent-contrast: #0d1526;
+  --k-paper: #16150f;
+  --k-paper-2: #201e17;
+  --k-ink: #efe9dc;
+  --k-ink-2: #a9a294;
+  --k-rule: rgb(239 233 220 / 14%);
+  --k-vermilion: #f0623a;
+  --k-vermilion-deep: #f0623a;
+  --k-blueprint: #7fa8d1;
+
+  --studio-canvas: #16150f;
+  --studio-surface-0: #16150f;
+  --studio-surface-1: #201e17;
+  --studio-surface-2: #2a271f;
+  --studio-surface-active: #2a271f;
+  --studio-divider: rgb(239 233 220 / 14%);
+  --studio-hairline: rgb(239 233 220 / 14%);
+  --studio-control-border: #a9a294;
+  --studio-text-primary: #efe9dc;
+  --studio-text-secondary: #a9a294;
+  --studio-text-muted: #a9a294;
+  --studio-accent: #f0623a;
+  --studio-accent-contrast: #16150f;
   --studio-success: #8fd694;
   --studio-warning: #f0a35e;
   --studio-danger: #ff9fa3;
   --studio-overlay: rgb(10 10 11 / 78%);
-  --studio-grid-dot: #2a2a2d;
+  --studio-grid-dot: #3a362c;
   --studio-shadow-panel: 0 1px 2px rgb(0 0 0 / 18%);
   --studio-shadow-dialog: 0 16px 48px rgb(0 0 0 / 42%);
   --studio-elevation-pill: 0 1px 2px rgb(0 0 0 / 18%), 0 8px 24px rgb(0 0 0 / 16%);
 }
 
 .studio-app[data-theme="light"] {
-  --studio-canvas: #f3f3f1;
-  --studio-surface-0: #ffffff;
-  --studio-surface-1: #f7f7f5;
-  --studio-surface-2: #efefec;
-  --studio-surface-active: #e7eefc;
-  --studio-divider: #e4e4e1;
-  --studio-hairline: rgb(24 24 27 / 8%);
-  --studio-control-border: #6b6b73;
-  --studio-text-primary: #18181b;
-  --studio-text-secondary: #52525b;
-  --studio-text-muted: #6b6b73;
-  --studio-accent: #2d62d6;
-  --studio-accent-contrast: #ffffff;
+  --k-paper: #f3eee3;
+  --k-paper-2: #fbf8f1;
+  --k-ink: #1b1a17;
+  --k-ink-2: #5a554b;
+  --k-rule: rgb(27 26 23 / 14%);
+  --k-vermilion: #d2461e;
+  --k-vermilion-deep: #b53a17;
+  --k-blueprint: #2e5e8c;
+
+  --studio-canvas: #f3eee3;
+  --studio-surface-0: #fbf8f1;
+  --studio-surface-1: #fbf8f1;
+  --studio-surface-2: #f3eee3;
+  --studio-surface-active: #efe8da;
+  --studio-divider: rgb(27 26 23 / 14%);
+  --studio-hairline: rgb(27 26 23 / 14%);
+  --studio-control-border: #5a554b;
+  --studio-text-primary: #1b1a17;
+  --studio-text-secondary: #5a554b;
+  --studio-text-muted: #5a554b;
+  --studio-accent: #b53a17;
+  --studio-accent-contrast: #fbf8f1;
   --studio-success: #1f7a4d;
   --studio-warning: #b4531f;
   --studio-danger: #b42335;
@@ -93,4 +122,28 @@
   --studio-shadow-panel: none;
   --studio-shadow-dialog: none;
   --studio-elevation-pill: none;
+}
+
+.studio-display {
+  font-family: var(--studio-font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+  letter-spacing: -0.02em;
+}
+
+@keyframes kurva-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+.kurva-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: kurva-draw 900ms var(--k-ease-draw) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kurva-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
 }
