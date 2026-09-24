@@ -13,7 +13,9 @@
   font-family: var(--studio-font-display);
   font-size: 22px;
   font-weight: 500;
-  font-variation-settings: "SOFT" 100, "WONK" 1;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1;
   letter-spacing: -0.02em;
 }
 

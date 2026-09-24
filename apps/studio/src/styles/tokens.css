@@ -126,13 +126,20 @@
 
 .studio-display {
   font-family: var(--studio-font-display);
-  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1,
+    "opsz" 144;
   letter-spacing: -0.02em;
 }
 
 @keyframes kurva-draw {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .kurva-draw {
