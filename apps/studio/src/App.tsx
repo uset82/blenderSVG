@@ -61,6 +61,7 @@ import {
   type VariantSession
 } from "./components/variantSessions.js";
 import { type ZoomCommand, zoomScale } from "./components/zoomMenu.js";
+import { isBlankCanvasSnapshot } from "./projects/blankSnapshot.js";
 import {
   buildStudioProjectExport,
   safeExportFileName,
@@ -83,6 +84,7 @@ import {
   svgTextToFile,
   traceImageFileLocally
 } from "./projects/localAssets.js";
+import { projectOpenFailureMessage } from "./projects/openFailure.js";
 import { browserProjectBackend, projectLibraryKind, standaloneProjectBackend } from "./projects/projectBackend.js";
 import { listStandaloneProjects, openStandaloneProject } from "./projects/standaloneProjects.js";
 import { useStudioRoute } from "./router/studioRoute.js";
@@ -90,7 +92,6 @@ import { canRenderTldrawCanvas, canvasLicenseRequired, readTldrawLicenseKey } fr
 import { rememberPersistentStorage } from "./web/BrowserStoragePanel.js";
 import { createBrowserAssetStore } from "./web/browserAssets.js";
 import { inlineAssetSources, storeInlinedAssets } from "./web/browserBackup.js";
-import { assertPortableAssetSources } from "./web/portableAssets.js";
 import {
   deleteBrowserConversation,
   ensureBrowserScratchpad,
@@ -103,7 +104,7 @@ import {
 } from "./web/browserProjects.js";
 import { isWebEdition, WEB_LIBRARY_STATUS } from "./web/kurvaTarget.js";
 import { beginWebOpenRouterConnect, disconnectWebOpenRouter } from "./web/openRouterConnect.js";
-import { shouldOfferAppUpdate, webChatAvailability } from "./web/webShell.js";
+import { assertPortableAssetSources } from "./web/portableAssets.js";
 import {
   acquireProjectLock,
   listenForLockRelease,
@@ -112,6 +113,7 @@ import {
   subscribeLibraryChanges
 } from "./web/projectLock.js";
 import { shouldPollMcpApi, showDesktopOnlyNotice, studioCapabilities } from "./web/studioCapabilities.js";
+import { shouldOfferAppUpdate, webChatAvailability } from "./web/webShell.js";
 
 const StudioCanvas = React.lazy(() =>
   import("./editor/StudioCanvas.js").then((module) => ({ default: module.StudioCanvas }))
@@ -448,6 +450,8 @@ export function App() {
   const traceInputRef = useRef<HTMLInputElement | null>(null);
   const screenshotInputRef = useRef<HTMLInputElement | null>(null);
   const [importNotice, setImportNotice] = useState<string | undefined>(undefined);
+  // Shown on Home when a saved project exists but its canvas data cannot be loaded.
+  const [openFailureNotice, setOpenFailureNotice] = useState<string | undefined>(undefined);
   const [isAgentSidebarOpen, setAgentSidebarOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth >= 1100 || window.innerWidth <= 700;
@@ -1026,7 +1030,7 @@ export function App() {
       (window as Window & { __studioEditor?: Editor }).__studioEditor = editor;
     }
     const pendingSnapshot = pendingSnapshotRef.current;
-    if (pendingSnapshot) {
+    if (pendingSnapshot && !isBlankCanvasSnapshot(pendingSnapshot)) {
       try {
         editor.loadSnapshot(pendingSnapshot as Parameters<Editor["loadSnapshot"]>[0]);
         if (!webEdition) projectWritableRef.current = true;
@@ -1034,10 +1038,17 @@ export function App() {
         projectIdRef.current = null;
         setActiveProjectId(null);
         setProjectSaveStatus("Could not open project");
+        setOpenFailureNotice(projectOpenFailureMessage(projectTitleRef.current));
         navigateRoute({ name: "home" });
       }
       pendingSnapshotRef.current = null;
     } else {
+      // A saved project with an empty canvas (the web Scratchpad placeholder) opens as a
+      // fresh canvas; the first save replaces the placeholder with a real snapshot.
+      if (pendingSnapshot) {
+        pendingSnapshotRef.current = null;
+        if (!webEdition) projectWritableRef.current = true;
+      }
       editor.renamePage(editor.getCurrentPageId(), projectTitleRef.current);
       const pendingCategory = pendingNewCanvasRef.current;
       const preset = HOME_CATEGORY_PRESETS.find((candidate) => candidate.id === pendingCategory);
@@ -1887,6 +1898,7 @@ export function App() {
   };
 
   const handleOpenProject = (projectId: string) => {
+    setOpenFailureNotice(undefined);
     if (projectId !== projectIdRef.current) persistProjectNow();
     routedProjectRef.current = null;
     navigateRoute({ name: "project", projectId });
@@ -2077,11 +2089,12 @@ export function App() {
     duplicateProject(projectId);
   };
 
-  const handleDeleteProject = (projectId: string) => {
+  /** `confirmed` is true when Home's in-app dialog already asked; other callers still confirm here. */
+  const handleDeleteProject = (projectId: string, confirmed = false) => {
     if (projectBackend) {
       const project = projectLibraryState.projects.find((candidate) => candidate.id === projectId);
       const title = project?.title ?? "this project";
-      if (!window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
+      if (!confirmed && !window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
       if (projectId === projectIdRef.current) persistProjectNow();
       void projectBackend
         .delete(projectId)
@@ -2723,13 +2736,15 @@ export function App() {
           hostThumbnailVersions={hostThumbnailVersions}
           activeProjectId={activeProjectId}
           projectActionMessage={
-            projectAction?.message ?? (isStandaloneHost ? projectLibraryState.message : importNotice)
+            openFailureNotice ??
+            projectAction?.message ??
+            (isStandaloneHost ? projectLibraryState.message : importNotice)
           }
           onClose={showEditor}
           onOpenCanvas={handleOpenCanvas}
           onOpenProject={handleOpenProject}
           onDuplicateProject={handleDuplicateProject}
-          onDeleteProject={handleDeleteProject}
+          onDeleteProject={(projectId) => handleDeleteProject(projectId, true)}
           onRenameProject={hasDurableLibrary ? handleRenameProject : undefined}
           onRevealProject={
             capabilities.vscodeActions && hostState.workspaceTrusted

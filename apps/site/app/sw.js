@@ -11,7 +11,9 @@ self.addEventListener("activate", (event) => {
     (async () => {
       const names = await caches.keys();
       await Promise.all(
-        names.filter((name) => name.startsWith("kurva-assets") && name !== ASSET_CACHE).map((name) => caches.delete(name))
+        names
+          .filter((name) => name.startsWith("kurva-assets") && name !== ASSET_CACHE)
+          .map((name) => caches.delete(name))
       );
       await self.clients.claim();
     })()
