@@ -30,13 +30,12 @@ The ordered roadmap lives in [docs/PLAN_CHECKLIST.md](docs/PLAN_CHECKLIST.md). I
 
 ## Quick start
 
-You need Git, Node.js 22 and pnpm 11.7.0. VS Code 1.96+ and Blender 3.6+ are optional.
+You need Git and Node.js 22. pnpm picks the project version (11.7.0) from `package.json` by itself. VS Code 1.96+ and Blender 3.6+ are optional.
 
 ```bash
 git clone https://github.com/uset82/blenderSVG.git
 cd blenderSVG
-corepack enable
-corepack prepare pnpm@11.7.0 --activate
+npm install -g pnpm
 pnpm install --frozen-lockfile
 ```
 

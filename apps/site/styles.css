@@ -1143,3 +1143,8 @@ a:hover {
     padding: 14px 16px;
   }
 }
+
+.step-note code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
