@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "pnpm --filter \"@codex-avatar-studio/studio-server...\" --filter \"@codex-avatar-studio/studio...\" build",
+    "watchPatterns": ["apps/studio-server/**", "apps/studio/**", "packages/**", "pnpm-lock.yaml", "railway.json"]
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @codex-avatar-studio/studio-server start",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}
