@@ -18,9 +18,9 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import brandMarkUrl from "../assets/brand-mark.svg?inline";
 import type { StudioProjectMeta } from "../bridge/studioHost.js";
 import { Button, Dialog } from "../ui/index.js";
+import { BrandMark } from "./BrandMark.js";
 import { formatEditedLabel } from "./recentCanvas.js";
 import { RecentEmptyState, RecentLoadingCards, RecentProjectNotice, recentListMode } from "./recentStates.js";
 import { HOME_CATEGORY_PRESETS, type HomeCategory, StudioComposer } from "./StudioComposer.js";
@@ -225,7 +225,7 @@ export function RecentsDashboard({
         <div className="recents__brand">
           <details className="recents__brand-menu">
             <summary aria-label="Workspace menu" title={projectMode ? "Trusted VS Code workspace" : "Browser session"}>
-              <img className="recents__brand-mark" src={brandMarkUrl} alt="" aria-hidden="true" />
+              <BrandMark className="recents__brand-mark" />
               <span className="recents__rail-text recents__wordmark">kurva</span>
               <ChevronDown size={14} aria-hidden="true" />
             </summary>
@@ -338,7 +338,7 @@ export function RecentsDashboard({
             </button>
           )}
           <p className={`recents__rail-note recents__rail-text${projectMode ? " recents__rail-note--saved" : ""}`}>
-            {projectMode ? "Projects save in this trusted workspace." : "Canvases stay in this browser session."}
+            {projectMode ? "Local host · saved to disk" : "Browser session · not saved to disk"}
           </p>
         </div>
       </aside>
@@ -802,40 +802,45 @@ function Preview({
 }) {
   const [hostThumbnailFailed, setHostThumbnailFailed] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [loadedSource, setLoadedSource] = useState<string | undefined>(undefined);
-  const [failedSource, setFailedSource] = useState<string | undefined>(undefined);
+  const [hostLoaded, setHostLoaded] = useState(false);
   const retryTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(retryTimer.current), []);
-  const base = projectThumbnailSource(hostThumbnailUrl, thumbnailUrl, hostThumbnailFailed);
-  const src = base && retry > 0 ? `${base}${base.includes("?") ? "&" : "?"}retry=${retry}` : base;
-  const showImage = Boolean(src && failedSource !== src);
+  useEffect(() => {
+    setHostLoaded(false);
+  }, [hostThumbnailUrl]);
+
+  const hostSrc =
+    hostThumbnailUrl && !hostThumbnailFailed
+      ? retry > 0
+        ? `${hostThumbnailUrl}${hostThumbnailUrl.includes("?") ? "&" : "?"}retry=${retry}`
+        : hostThumbnailUrl
+      : undefined;
+
+  // Local cache paints immediately. Host PNG replaces it only after a successful load,
+  // so missing host thumbnails never sit on "Loading preview…".
+  const displaySrc = hostLoaded && hostSrc ? hostSrc : thumbnailUrl;
+
   return (
     <span className="recents__canvas-preview" aria-hidden="true">
-      {showImage && src ? (
-        <>
-          {loadedSource !== src && <span className="recents__preview-caption">Loading preview…</span>}
-          <img
-            className={`recents__preview-image${loadedSource === src ? "" : " recents__preview-image--loading"}`}
-            src={src}
-            alt=""
-            onLoad={() => {
-              setLoadedSource(src);
-              setFailedSource(undefined);
-            }}
-            onError={() => {
-              if (hostThumbnailUrl && !hostThumbnailFailed) {
-                if (retry < 2) {
-                  window.clearTimeout(retryTimer.current);
-                  retryTimer.current = window.setTimeout(() => setRetry((current) => current + 1), 1200);
-                  return;
-                }
-                setHostThumbnailFailed(true);
-                return;
-              }
-              setFailedSource(src);
-            }}
-          />
-        </>
+      {hostSrc ? (
+        <img
+          className="recents__preview-image recents__preview-image--probe"
+          src={hostSrc}
+          alt=""
+          onLoad={() => setHostLoaded(true)}
+          onError={() => {
+            setHostLoaded(false);
+            if (retry < 2) {
+              window.clearTimeout(retryTimer.current);
+              retryTimer.current = window.setTimeout(() => setRetry((current) => current + 1), 1200);
+              return;
+            }
+            setHostThumbnailFailed(true);
+          }}
+        />
+      ) : null}
+      {displaySrc ? (
+        <img className="recents__preview-image" src={displaySrc} alt="" />
       ) : (
         <span className="recents__preview-caption">No preview yet</span>
       )}

@@ -13,8 +13,8 @@ import {
   Trash2
 } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
-import brandMarkUrl from "../assets/brand-mark.svg?inline";
 import { formatEditorSaveStatus } from "../projects/exportProjectFile.js";
+import { BrandMark } from "./BrandMark.js";
 import { type ZoomCommand, zoomMenuItems } from "./zoomMenu.js";
 
 export interface StudioWindowBarProps {
@@ -158,7 +158,7 @@ export function StudioWindowBar({
             aria-label="Home"
             title="Home"
           >
-            <img className="studio-windowbar__brand-mark" src={brandMarkUrl} alt="" aria-hidden="true" />
+            <BrandMark className="studio-windowbar__brand-mark" />
           </button>
           <button
             className="studio-windowbar__recents studio-windowbar__control studio-windowbar__desktop-only"
@@ -415,6 +415,14 @@ export function StudioWindowBar({
               >
                 <PanelRight size={14} aria-hidden="true" />
                 {isInspectorOpen ? "Hide properties" : "Show properties"}
+              </button>
+              <button
+                type="button"
+                onClick={onCycleTheme}
+                title="Switch theme (Light → Dark → High contrast)"
+                aria-label={`Theme: ${themeLabel}. Activate to switch.`}
+              >
+                Theme: {themeLabel}
               </button>
             </div>
           </details>

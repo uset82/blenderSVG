@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { type Editor, GeoShapeGeoStyle, type TLDefaultColorStyle, type TLPageId, type TLShapeId, Tldraw } from "tldraw";
 import "tldraw/tldraw.css";
 import "./styles/studio.css";
+import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import { type StudioProjectsState, useStudioHost } from "./bridge/studioHost.js";
 import type { AgentConversation, StoredAgentConversation } from "./components/agentConversations.js";
 import { stopRunningReply } from "./components/agentSessions.js";
@@ -47,6 +48,15 @@ import { StudioLeftPanel } from "./components/StudioLeftPanel.js";
 import { StudioToolbar } from "./components/StudioToolbar.js";
 import { StudioWindowBar } from "./components/StudioWindowBar.js";
 import { ensureSessionScratchpad, isSessionScratchpad } from "./components/sessionScratchpad.js";
+import {
+  nextStudioTheme,
+  readStoredStudioTheme,
+  readVsCodeTheme,
+  rememberStudioTheme,
+  resolveStudioTheme,
+  STUDIO_THEME_PAGE_BACKGROUNDS,
+  type StudioTheme
+} from "./components/studioTheme.js";
 import { setRichTextWeight } from "./components/textWeight.js";
 import { VectorAssetDialog } from "./components/VectorAssetDialog.js";
 import {
@@ -56,7 +66,6 @@ import {
   type VariantSession
 } from "./components/variantSessions.js";
 import { type ZoomCommand, zoomScale } from "./components/zoomMenu.js";
-import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import {
   buildStudioProjectExport,
   safeExportFileName,
@@ -105,7 +114,6 @@ const customShapeUtils = [
   DesignFrameShapeUtil
 ];
 const DevGallery = import.meta.env.DEV ? React.lazy(() => import("./components/ComponentGallery.js")) : null;
-type StudioTheme = "dark" | "light" | "contrast";
 interface ActivePanelResize {
   panel: ResizablePanel;
   axis: PanelSizeAxis;
@@ -113,16 +121,6 @@ interface ActivePanelResize {
   startCoordinate: number;
   startSize: number;
   direction: 1 | -1;
-}
-
-function readStudioTheme(): StudioTheme {
-  try {
-    const stored = window.localStorage.getItem("codex-avatar-studio-theme");
-    if (stored === "light" || stored === "contrast" || stored === "dark") return stored;
-  } catch {
-    // Theme choice is optional; use the default when browser storage is unavailable.
-  }
-  return "dark";
 }
 
 function readStandaloneHostMode(): boolean {
@@ -366,7 +364,7 @@ export function App() {
     Array<{ id: string; title: string; status: "running" | "finished" | "idle" }>
   >([]);
   const [vectorDialogOpen, setVectorDialogOpen] = useState(false);
-  const [theme, setTheme] = useState<StudioTheme>(readStudioTheme);
+  const [theme, setTheme] = useState<StudioTheme>(resolveStudioTheme);
   const [editorReady, setEditorReady] = useState(false);
   const [editorGeneration, setEditorGeneration] = useState(0);
   const [route, navigateRoute] = useStudioRoute();
@@ -386,10 +384,12 @@ export function App() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedShape, setSelectedShape] = useState<InspectedShape | null>(null);
   const [pageProperties, setPageProperties] = useState<PageProperties>({
-    background: "#16150f",
+    background: STUDIO_THEME_PAGE_BACKGROUNDS[theme],
     opacity: 100,
     grid: true
   });
+  const pagePropertiesRef = useRef(pageProperties);
+  pagePropertiesRef.current = pageProperties;
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
@@ -803,13 +803,17 @@ export function App() {
     }
   }, [projectAction, clearProjectAction, navigateRoute, route, projects.projects, scheduleProjectSave]);
 
+  // Inside the VS Code Webview, follow the editor theme until the user picks a Studio theme.
   useEffect(() => {
-    try {
-      window.localStorage.setItem("codex-avatar-studio-theme", theme);
-    } catch {
-      // Theme choice remains available for this session when storage is restricted.
-    }
-  }, [theme]);
+    if (typeof MutationObserver === "undefined" || !document.body) return undefined;
+    const observer = new MutationObserver(() => {
+      if (readStoredStudioTheme()) return;
+      const followed = readVsCodeTheme();
+      if (followed) setTheme((current) => (current === followed ? current : followed));
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = document.querySelector(".studio-canvas-content");
@@ -1501,8 +1505,23 @@ export function App() {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [route.name]);
-  const handleCycleTheme = () =>
-    setTheme((current) => (current === "dark" ? "light" : current === "light" ? "contrast" : "dark"));
+  const chooseTheme = React.useCallback((next: StudioTheme) => {
+    rememberStudioTheme(next);
+    setTheme(next);
+  }, []);
+
+  useEffect(() => {
+    const host = window as Window & { __studioSetTheme?: (next: StudioTheme) => void };
+    const previous = host.__studioSetTheme;
+    host.__studioSetTheme = chooseTheme;
+    return () => {
+      if (host.__studioSetTheme !== chooseTheme) return;
+      if (previous) host.__studioSetTheme = previous;
+      else delete host.__studioSetTheme;
+    };
+  }, [chooseTheme]);
+
+  const handleCycleTheme = () => chooseTheme(nextStudioTheme(theme));
 
   const handleInspectorUpdate = (property: GeometryProperty | "rotation" | "opacity" | "radius", value: number) => {
     if (!Number.isFinite(value)) return;
@@ -1557,6 +1576,16 @@ export function App() {
       canvas.style.backgroundColor = `${next.background}${alpha}`;
     }
   };
+
+  // An untouched inspector page background follows the theme's canvas color;
+  // a background the user picked stays as it is.
+  useEffect(() => {
+    const current = pagePropertiesRef.current;
+    if (!Object.values<string>(STUDIO_THEME_PAGE_BACKGROUNDS).includes(current.background.toLowerCase())) return;
+    const background = STUDIO_THEME_PAGE_BACKGROUNDS[theme];
+    if (current.background.toLowerCase() === background) return;
+    handlePageChange({ ...current, background });
+  }, [theme, handlePageChange]);
 
   const handleFramePreset = (width: number, height: number) => {
     const editor = editorRef.current;
@@ -2308,7 +2337,7 @@ export function App() {
             onHome={() => navigateRoute({ name: "home" })}
             onConnectors={() => navigateRoute({ name: "connectors" })}
             onSettings={() => navigateRoute({ name: "settings" })}
-            onTheme={setTheme}
+            onTheme={chooseTheme}
             onRefreshCatalog={requestModelCatalog}
             catalogStatus={modelCatalog.message}
             launchToken={launchToken}
@@ -2387,7 +2416,7 @@ export function App() {
                 onHome={() => navigateRoute({ name: "home" })}
                 onConnectors={() => navigateRoute({ name: "connectors" })}
                 onSettings={() => navigateRoute({ name: "settings" })}
-                onTheme={setTheme}
+                onTheme={chooseTheme}
                 onRefreshCatalog={requestModelCatalog}
                 catalogStatus={modelCatalog.message}
                 launchToken={launchToken}
@@ -2497,7 +2526,14 @@ function StudioRouteNotice({
     source: "none"
   });
   const [keyNotice, setKeyNotice] = useState("Credit usage was not returned by the host.");
-  const [quiverStatus, setQuiverStatus] = useState<{ configured: boolean; enabled: boolean; message: string }>({
+  const [replacingKey, setReplacingKey] = useState(false);
+  const [quiverStatus, setQuiverStatus] = useState<{
+    available: boolean;
+    configured: boolean;
+    enabled: boolean;
+    message: string;
+  }>({
+    available: true,
     configured: false,
     enabled: false,
     message: "QuiverAI stays off until you turn it on."
@@ -2505,6 +2541,13 @@ function StudioRouteNotice({
   const [alwaysPreview, setAlwaysPreview] = useState(() => {
     try {
       return window.localStorage.getItem("studio-always-preview") !== "no";
+    } catch {
+      return true;
+    }
+  });
+  const [warnPaidModels, setWarnPaidModels] = useState(() => {
+    try {
+      return window.localStorage.getItem("studio-warn-paid") !== "no";
     } catch {
       return true;
     }
@@ -2519,15 +2562,21 @@ function StudioRouteNotice({
         .catch(() => setKeyStatus({ configured: false, source: "none" }));
       void fetch("/api/quiver", { credentials: "same-origin" })
         .then((response) => response.json())
-        .then((body: { configured?: boolean; enabled?: boolean; message?: string }) =>
+        .then((body: { available?: boolean; configured?: boolean; enabled?: boolean; message?: string }) =>
           setQuiverStatus({
+            available: body.available !== false,
             configured: body.configured === true,
             enabled: body.enabled === true,
             message: body.message ?? "QuiverAI stays off until you turn it on."
           })
         )
         .catch(() =>
-          setQuiverStatus({ configured: false, enabled: false, message: "QuiverAI status is unavailable." })
+          setQuiverStatus({
+            available: false,
+            configured: false,
+            enabled: false,
+            message: "QuiverAI status is unavailable."
+          })
         );
     }
     if (route.name === "connectors") loadClients();
@@ -2607,13 +2656,13 @@ function StudioRouteNotice({
                 <span
                   className={`studio-settings-card__status${keyStatus.configured ? " studio-settings-card__status--on" : ""}`}
                 >
-                  {keyStatus.configured ? "Configured" : "Not connected"}
+                  {keyStatus.configured ? "Connected" : "Not connected"}
                 </span>
               </div>
               <dl className="studio-settings-card__facts">
                 <div>
                   <dt>Key</dt>
-                  <dd>Not shown</dd>
+                  <dd>{keyStatus.configured ? "Saved on this computer" : "Not shown"}</dd>
                 </div>
                 <div>
                   <dt>Stored in</dt>
@@ -2630,86 +2679,102 @@ function StudioRouteNotice({
                   <dd>Not returned</dd>
                 </div>
               </dl>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const input = event.currentTarget.elements.namedItem("openrouter-key");
-                  const key = input instanceof HTMLInputElement ? input.value : "";
-                  void fetch("/api/openrouter-key", {
-                    method: "POST",
-                    credentials: "same-origin",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ key })
-                  })
-                    .then((response) => response.json())
-                    .then((body: { configured?: boolean; source?: string }) => {
-                      setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" });
-                      setKeyNotice(
-                        body.configured ? "Key saved on this computer." : "The key was not saved. It is not shown."
-                      );
+              {(!keyStatus.configured || replacingKey) && (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const input = event.currentTarget.elements.namedItem("openrouter-key");
+                    const key = input instanceof HTMLInputElement ? input.value : "";
+                    void fetch("/api/openrouter-key", {
+                      method: "POST",
+                      credentials: "same-origin",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ key })
                     })
-                    .catch(() => setKeyNotice("The key was not saved. It is not shown."))
-                    .finally(() => {
-                      if (input instanceof HTMLInputElement) input.value = "";
-                    });
-                }}
-              >
-                <label>
-                  OpenRouter key
-                  <input name="openrouter-key" type="password" autoComplete="off" aria-label="OpenRouter key" />
-                </label>
-                <div className="studio-settings-card__actions">
-                  <button type="submit">Save key on this computer</button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void fetch("/api/openrouter-key", {
-                        method: "POST",
-                        credentials: "same-origin",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ action: "test" })
+                      .then((response) => response.json())
+                      .then((body: { configured?: boolean; source?: string }) => {
+                        setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" });
+                        setReplacingKey(false);
+                        setKeyNotice(
+                          body.configured ? "Key saved on this computer." : "The key was not saved. It is not shown."
+                        );
                       })
-                        .then((response) => response.json())
-                        .then((body: { configured?: boolean }) =>
-                          setKeyNotice(
-                            body.configured
-                              ? "A key is stored on this computer."
-                              : "No OpenRouter key is stored on this computer."
-                          )
+                      .catch(() => setKeyNotice("The key was not saved. It is not shown."))
+                      .finally(() => {
+                        if (input instanceof HTMLInputElement) input.value = "";
+                      });
+                  }}
+                >
+                  <label>
+                    OpenRouter key
+                    <input name="openrouter-key" type="password" autoComplete="off" aria-label="OpenRouter key" />
+                  </label>
+                  <div className="studio-settings-card__actions">
+                    <button type="submit">Save key on this computer</button>
+                    {replacingKey && (
+                      <button type="button" onClick={() => setReplacingKey(false)}>
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </form>
+              )}
+              <div className="studio-settings-card__actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void fetch("/api/openrouter-key", {
+                      method: "POST",
+                      credentials: "same-origin",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ action: "test" })
+                    })
+                      .then((response) => response.json())
+                      .then((body: { configured?: boolean }) =>
+                        setKeyNotice(
+                          body.configured
+                            ? "A key is stored on this computer."
+                            : "No OpenRouter key is stored on this computer."
                         )
-                        .catch(() => setKeyNotice("The key could not be checked."));
-                    }}
-                  >
-                    Test
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus()}
-                  >
-                    Replace key
-                  </button>
-                  <button
-                    className="studio-settings-card__danger"
-                    type="button"
-                    onClick={() => {
-                      void fetch("/api/openrouter-key", {
-                        method: "POST",
-                        credentials: "same-origin",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ action: "disconnect" })
+                      )
+                      .catch(() => setKeyNotice("The key could not be checked."));
+                  }}
+                >
+                  Test
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplacingKey(true);
+                    window.requestAnimationFrame(() =>
+                      document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus()
+                    );
+                  }}
+                >
+                  Replace key
+                </button>
+                <button
+                  className="studio-settings-card__danger"
+                  type="button"
+                  onClick={() => {
+                    void fetch("/api/openrouter-key", {
+                      method: "POST",
+                      credentials: "same-origin",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ action: "disconnect" })
+                    })
+                      .then((response) => response.json())
+                      .then((body: { configured?: boolean; source?: string }) => {
+                        setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" });
+                        setReplacingKey(false);
+                        setKeyNotice("The stored key was removed from this computer.");
                       })
-                        .then((response) => response.json())
-                        .then((body: { configured?: boolean; source?: string }) => {
-                          setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" });
-                          setKeyNotice("The stored key was removed from this computer.");
-                        })
-                        .catch(() => setKeyNotice("The key could not be removed."));
-                    }}
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              </form>
+                      .catch(() => setKeyNotice("The key could not be removed."));
+                  }}
+                >
+                  Disconnect
+                </button>
+              </div>
               <p>{keyNotice}</p>
               <p>Your key stays in the local Studio host. This page only learns whether a key is stored.</p>
             </section>
@@ -2721,13 +2786,27 @@ function StudioRouteNotice({
                   <span>No default. Each conversation keeps the model you choose in the composer.</span>
                 </span>
               </div>
-              <div className="studio-settings-card__row">
+              <label className="studio-settings-card__row">
                 <span>
                   <strong>Warn before using a paid model</strong>
-                  <span>Shows the model's price before the first message. That warning stays on.</span>
+                  <span>Shows the model's price before the first message.</span>
                 </span>
-                <span>On</span>
-              </div>
+                <input
+                  type="checkbox"
+                  checked={warnPaidModels}
+                  aria-label="Warn before using a paid model"
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setWarnPaidModels(next);
+                    try {
+                      window.localStorage.setItem("studio-warn-paid", next ? "yes" : "no");
+                    } catch {
+                      // The agent panel still receives the event for this page.
+                    }
+                    window.dispatchEvent(new Event("studio-warn-paid"));
+                  }}
+                />
+              </label>
               <label className="studio-settings-card__row">
                 <span>
                   <strong>Always show the full request preview</strong>
@@ -2772,96 +2851,121 @@ function StudioRouteNotice({
                 Generates SVG from a prompt and a reference image you choose. Saving a key does not turn it on. Turning
                 it on can send that prompt and image to QuiverAI.
               </p>
-              <p>{quiverStatus.message}</p>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const input = event.currentTarget.elements.namedItem("quiver-key");
-                  const key = input instanceof HTMLInputElement ? input.value : "";
-                  void fetch("/api/quiver", {
-                    method: "POST",
-                    credentials: "same-origin",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ action: "save", key })
-                  })
-                    .then((response) => response.json())
-                    .then((body: { configured?: boolean; enabled?: boolean; message?: string }) =>
-                      setQuiverStatus({
-                        configured: body.configured === true,
-                        enabled: body.enabled === true,
-                        message: body.message ?? "The QuiverAI key was not saved."
-                      })
-                    )
-                    .catch(() =>
-                      setQuiverStatus({
-                        configured: false,
-                        enabled: false,
-                        message: "The QuiverAI key was not saved."
-                      })
-                    )
-                    .finally(() => {
-                      if (input instanceof HTMLInputElement) input.value = "";
-                    });
-                }}
-              >
-                <label>
-                  QuiverAI key
-                  <input name="quiver-key" type="password" autoComplete="off" aria-label="QuiverAI API key" />
-                </label>
+              {quiverStatus.available ? (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const input = event.currentTarget.elements.namedItem("quiver-key");
+                    const key = input instanceof HTMLInputElement ? input.value : "";
+                    void fetch("/api/quiver", {
+                      method: "POST",
+                      credentials: "same-origin",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ action: "save", key })
+                    })
+                      .then((response) => response.json())
+                      .then(
+                        (body: { available?: boolean; configured?: boolean; enabled?: boolean; message?: string }) =>
+                          setQuiverStatus({
+                            available: body.available !== false,
+                            configured: body.configured === true,
+                            enabled: body.enabled === true,
+                            message: body.message ?? "The QuiverAI key was not saved."
+                          })
+                      )
+                      .catch(() =>
+                        setQuiverStatus({
+                          available: false,
+                          configured: false,
+                          enabled: false,
+                          message: "The QuiverAI key was not saved."
+                        })
+                      )
+                      .finally(() => {
+                        if (input instanceof HTMLInputElement) input.value = "";
+                      });
+                  }}
+                >
+                  <label>
+                    QuiverAI key
+                    <input name="quiver-key" type="password" autoComplete="off" aria-label="QuiverAI API key" />
+                  </label>
+                  <div className="studio-settings-card__actions">
+                    <button type="submit">Save key on this computer</button>
+                    <button
+                      type="button"
+                      disabled={!quiverStatus.configured || quiverStatus.enabled}
+                      onClick={() => {
+                        void fetch("/api/quiver", {
+                          method: "POST",
+                          credentials: "same-origin",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({ action: "enable" })
+                        })
+                          .then((response) => response.json())
+                          .then(
+                            (body: {
+                              available?: boolean;
+                              configured?: boolean;
+                              enabled?: boolean;
+                              message?: string;
+                            }) =>
+                              setQuiverStatus({
+                                available: body.available !== false,
+                                configured: body.configured === true,
+                                enabled: body.enabled === true,
+                                message: body.message ?? "QuiverAI was not turned on."
+                              })
+                          )
+                          .catch(() =>
+                            setQuiverStatus((current) => ({ ...current, message: "QuiverAI was not turned on." }))
+                          );
+                      }}
+                    >
+                      Turn on for this session
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!quiverStatus.enabled}
+                      onClick={() => {
+                        void fetch("/api/quiver", {
+                          method: "POST",
+                          credentials: "same-origin",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({ action: "disable" })
+                        })
+                          .then((response) => response.json())
+                          .then(
+                            (body: {
+                              available?: boolean;
+                              configured?: boolean;
+                              enabled?: boolean;
+                              message?: string;
+                            }) =>
+                              setQuiverStatus({
+                                available: body.available !== false,
+                                configured: body.configured === true,
+                                enabled: body.enabled === true,
+                                message: body.message ?? "QuiverAI was not turned off."
+                              })
+                          )
+                          .catch(() =>
+                            setQuiverStatus((current) => ({ ...current, message: "QuiverAI was not turned off." }))
+                          );
+                      }}
+                    >
+                      Turn off
+                    </button>
+                  </div>
+                </form>
+              ) : (
                 <div className="studio-settings-card__actions">
-                  <button type="submit">Save key on this computer</button>
-                  <button
-                    type="button"
-                    disabled={!quiverStatus.configured || quiverStatus.enabled}
-                    onClick={() => {
-                      void fetch("/api/quiver", {
-                        method: "POST",
-                        credentials: "same-origin",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ action: "enable" })
-                      })
-                        .then((response) => response.json())
-                        .then((body: { configured?: boolean; enabled?: boolean; message?: string }) =>
-                          setQuiverStatus({
-                            configured: body.configured === true,
-                            enabled: body.enabled === true,
-                            message: body.message ?? "QuiverAI was not turned on."
-                          })
-                        )
-                        .catch(() =>
-                          setQuiverStatus((current) => ({ ...current, message: "QuiverAI was not turned on." }))
-                        );
-                    }}
-                  >
-                    Turn on for this session
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!quiverStatus.enabled}
-                    onClick={() => {
-                      void fetch("/api/quiver", {
-                        method: "POST",
-                        credentials: "same-origin",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ action: "disable" })
-                      })
-                        .then((response) => response.json())
-                        .then((body: { configured?: boolean; enabled?: boolean; message?: string }) =>
-                          setQuiverStatus({
-                            configured: body.configured === true,
-                            enabled: body.enabled === true,
-                            message: body.message ?? "QuiverAI was not turned off."
-                          })
-                        )
-                        .catch(() =>
-                          setQuiverStatus((current) => ({ ...current, message: "QuiverAI was not turned off." }))
-                        );
-                    }}
-                  >
-                    Turn off
+                  <button type="button" disabled title={quiverStatus.message}>
+                    Add key and turn on…
                   </button>
                 </div>
-              </form>
+              )}
+              <p>{quiverStatus.message}</p>
             </section>
             <section id="appearance">
               <h2>Appearance</h2>
@@ -2890,12 +2994,11 @@ function StudioRouteNotice({
                   ["Hand", "H"],
                   ["Frame", "F"],
                   ["Rectangle", "R"],
-                  ["Ellipse", "O"],
-                  ["Line", "L"],
-                  ["Arrow", "A"],
                   ["Pen", "P"],
                   ["Text", "T"],
-                  ["Sticky", "N"],
+                  ["Sticky note", "N"],
+                  ["Image or SVG", "I"],
+                  ["Trace image locally", "trace"],
                   ["Command palette", "Ctrl+K"],
                   ["Toggle panels", "Ctrl+\\"],
                   ["Undo", "Ctrl+Z"],
@@ -2936,7 +3039,10 @@ function StudioRouteNotice({
                   type="button"
                   aria-label="Copy endpoint"
                   onClick={() => {
-                    void navigator.clipboard?.writeText(`${window.location.origin}/mcp`);
+                    const endpoint = launchToken
+                      ? `${window.location.origin}/mcp?studioToken=${encodeURIComponent(launchToken)}`
+                      : `${window.location.origin}/mcp`;
+                    void navigator.clipboard?.writeText(endpoint);
                   }}
                 >
                   Copy
@@ -2947,13 +3053,19 @@ function StudioRouteNotice({
               </div>
             </div>
             <p className="studio-route-page__endpoint-note">
-              {launchToken ? "Each snippet includes this launch token." : "Create a token before an IDE connects."}
+              {launchToken
+                ? "Visible snippets show the loopback endpoint. Copy snippet includes this session’s launch token."
+                : "Create a token before an IDE connects."}
             </p>
             <ul className="studio-route-page__connectors">
               {(launchToken ? connectorSnippetsForLaunch(window.location.origin, launchToken) : CONNECTOR_SNIPPETS).map(
                 (connector) => {
                   const client = mcpClients.find((item) => item.name.toLowerCase() === connector.name.toLowerCase());
                   const status = !client ? "Not connected" : client.revoked ? "Revoked" : client.permission;
+                  const copyText =
+                    "copySnippet" in connector && typeof connector.copySnippet === "string"
+                      ? connector.copySnippet
+                      : connector.snippet;
                   return (
                     <li key={connector.id}>
                       <div className="studio-route-page__connector-title">
@@ -3033,7 +3145,7 @@ function StudioRouteNotice({
                         <button
                           type="button"
                           onClick={() => {
-                            void navigator.clipboard?.writeText(connector.snippet);
+                            void navigator.clipboard?.writeText(copyText);
                           }}
                         >
                           Copy snippet

@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -7,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
+import { extractZip } from "./lib/zip.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const vsixPath = path.resolve(process.env.VSIX_PATH ?? path.join(root, "dist", "codex-avatar-studio-0.1.0.vsix"));
@@ -503,7 +503,8 @@ async function verifyInstalledStudioProjectRestart(extension, vscode, context, w
 }
 
 function extractVsix(vsixFile, outputDirectory) {
-  execFileSync("tar", ["-xf", vsixFile, "-C", outputDirectory], { stdio: "inherit" });
+  // The VSIX is a ZIP archive; extract it in Node because GNU tar on Linux cannot read ZIPs.
+  extractZip(vsixFile, outputDirectory);
 }
 
 function runBundledVectorPreview(workerPath, workerData) {

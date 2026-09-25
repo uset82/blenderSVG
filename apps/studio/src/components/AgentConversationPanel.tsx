@@ -300,6 +300,13 @@ export function AgentConversationPanel({
       return true;
     }
   });
+  const [warnPaidModels, setWarnPaidModels] = useState(() => {
+    try {
+      return window.localStorage.getItem("studio-warn-paid") !== "no";
+    } catch {
+      return true;
+    }
+  });
   useEffect(() => {
     const syncPreview = () => {
       try {
@@ -308,8 +315,19 @@ export function AgentConversationPanel({
         setAlwaysPreview(true);
       }
     };
+    const syncWarnPaid = () => {
+      try {
+        setWarnPaidModels(window.localStorage.getItem("studio-warn-paid") !== "no");
+      } catch {
+        setWarnPaidModels(true);
+      }
+    };
     window.addEventListener("studio-always-preview", syncPreview);
-    return () => window.removeEventListener("studio-always-preview", syncPreview);
+    window.addEventListener("studio-warn-paid", syncWarnPaid);
+    return () => {
+      window.removeEventListener("studio-always-preview", syncPreview);
+      window.removeEventListener("studio-warn-paid", syncWarnPaid);
+    };
   }, []);
   const transcriptsRef = useRef(new Map<string, ChatMessage[]>());
   const persistedTranscriptRef = useRef(new Map<string, string>());
@@ -1129,7 +1147,7 @@ export function AgentConversationPanel({
               <li key={line}>{line}</li>
             ))}
           </ul>
-          {selectedModel ? (
+          {selectedModel && warnPaidModels ? (
             <p>
               {paidModelCue(
                 readCatalogPrice(selectedModel.promptPrice),
@@ -1884,6 +1902,7 @@ export function AgentConversationPanel({
         <OutboundRequestDialog
           preview={outboundPreview}
           showFull={alwaysPreview}
+          warnPaidModels={warnPaidModels}
           sendRef={previewSendRef}
           onCancel={() => setOutboundPreview(null)}
           onSend={sendAfterPreview}
@@ -1896,12 +1915,14 @@ export function AgentConversationPanel({
 function OutboundRequestDialog({
   preview,
   showFull,
+  warnPaidModels,
   sendRef,
   onCancel,
   onSend
 }: {
   preview: OutboundPreview;
   showFull: boolean;
+  warnPaidModels: boolean;
   sendRef: React.RefObject<HTMLButtonElement | null>;
   onCancel: () => void;
   onSend: () => void;
@@ -1941,10 +1962,12 @@ function OutboundRequestDialog({
             Mode: {preview.mode}. {toolDisclosure(preview.mode)}
           </p>
           <p>
-            {paidModelCue(
-              readCatalogPrice(preview.model.promptPrice),
-              readCatalogPrice(preview.model.completionPrice)
-            ) ?? "This model is listed as free."}
+            {warnPaidModels
+              ? (paidModelCue(
+                  readCatalogPrice(preview.model.promptPrice),
+                  readCatalogPrice(preview.model.completionPrice)
+                ) ?? "This model is listed as free.")
+              : "Paid-model price warnings are off in Settings."}
           </p>
         </header>
         {showFull && (

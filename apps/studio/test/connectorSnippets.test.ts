@@ -19,7 +19,10 @@ describe("connector snippets", () => {
       expect(connector.snippet).not.toMatch(/sk-|Bearer [A-Za-z0-9]{8,}/);
     }
     const live = connectorSnippetsForLaunch("http://127.0.0.1:8787", "launch-token");
-    expect(live[0]?.snippet).toContain("http://127.0.0.1:8787/mcp?studioToken=launch-token");
+    expect(live[0]?.snippet).toContain("http://127.0.0.1:8787/mcp");
+    expect(live[0]?.snippet).not.toContain("studioToken=");
     expect(live[0]?.snippet).not.toContain("<port>");
+    expect(live[0]?.copySnippet).toContain("http://127.0.0.1:8787/mcp?studioToken=launch-token");
+    expect(live[0]?.copySnippet).not.toContain("<port>");
   });
 });

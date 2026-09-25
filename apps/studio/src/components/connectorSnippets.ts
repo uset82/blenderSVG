@@ -5,13 +5,27 @@ export interface ConnectorSnippet {
   snippet: string;
 }
 
+export interface LiveConnectorSnippet extends ConnectorSnippet {
+  /** Snippet with the session launch token for clipboard use. */
+  copySnippet: string;
+}
+
 const endpoint = "http://127.0.0.1:<port>/mcp";
 
-export function connectorSnippetsForLaunch(pageOrigin: string, launchToken: string): ConnectorSnippet[] {
-  const mcpUrl = `${pageOrigin.replace(/\/$/, "")}/mcp?studioToken=${encodeURIComponent(launchToken)}`;
+/**
+ * Builds Connectors-page snippets. The visible `snippet` keeps the loopback `/mcp`
+ * URL without embedding the launch token (Target UI + screenshot safety). `copySnippet`
+ * includes `?studioToken=` so Host/Origin + launch-token checks succeed for IDE clients
+ * that do not carry the browser session cookie.
+ */
+export function connectorSnippetsForLaunch(pageOrigin: string, launchToken: string): LiveConnectorSnippet[] {
+  const origin = pageOrigin.replace(/\/$/, "");
+  const displayUrl = `${origin}/mcp`;
+  const copyUrl = `${displayUrl}?studioToken=${encodeURIComponent(launchToken)}`;
   return CONNECTOR_SNIPPETS.map((connector) => ({
     ...connector,
-    snippet: connector.snippet.replaceAll(endpoint, mcpUrl)
+    snippet: connector.snippet.replaceAll(endpoint, displayUrl),
+    copySnippet: connector.snippet.replaceAll(endpoint, copyUrl)
   }));
 }
 
