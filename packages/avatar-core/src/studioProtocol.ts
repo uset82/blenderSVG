@@ -46,7 +46,12 @@ const model = z.strictObject({
   promptPrice: z.string().max(64),
   completionPrice: z.string().max(64),
   supportedParameters: z.array(z.string().max(100)).max(256),
-  textChatEligible: z.boolean()
+  textChatEligible: z.boolean(),
+  created: z.number().int().nonnegative().optional(),
+  intelligence: z.number().nullable().optional(),
+  codingIndex: z.number().nullable().optional(),
+  agenticIndex: z.number().nullable().optional(),
+  designArenaElo: z.number().nullable().optional()
 });
 const chatHistoryMessage = z.strictObject({
   role: z.enum(["user", "assistant"]),

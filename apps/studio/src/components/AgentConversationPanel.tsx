@@ -3,7 +3,7 @@ import {
   type StudioChatHistoryMessage,
   type StudioModel
 } from "@codex-avatar-studio/avatar-core";
-import { ArrowUp, Check, ChevronDown, Plus, RefreshCw, Search, Star, X } from "lucide-react";
+import { ArrowUp, ArrowUpDown, Check, ChevronDown, Plus, RefreshCw, Search, Star, X } from "lucide-react";
 import type React from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "tldraw";
@@ -26,7 +26,15 @@ import { type ComposerMenuAction, composerMenuItems } from "./composerMenu.js";
 import { COMPOSER_MODES, type ComposerMode, modeDescription, nextComposerMode } from "./composerModes.js";
 import { compactHistory } from "./contextBudget.js";
 import { DESIGN_SKILLS } from "./designSkills.js";
-import { filterStudioModels, type ModalityFilter, type PriceFilter, readCatalogPrice } from "./modelFilters.js";
+import {
+  filterStudioModels,
+  MODEL_SORT_OPTIONS,
+  type ModalityFilter,
+  type ModelSortOrder,
+  type PriceFilter,
+  readCatalogPrice,
+  sortStudioModels
+} from "./modelFilters.js";
 import { filterModelsByBadges, groupCatalogModels, modelBadges, type QuickModelFilter } from "./modelPicker.js";
 import { nextModelOptionIndex } from "./modelPickerNavigation.js";
 import { paidModelCue, sendContextLines } from "./privacyContext.js";
@@ -213,6 +221,9 @@ export function AgentConversationPanel({
   const [selectedModelId, setSelectedModelId] = useState(readSelectedModelId);
   const [modelQuery, setModelQuery] = useState("");
   const [quickModelFilters, setQuickModelFilters] = useState<QuickModelFilter[]>([]);
+  const [modelSortOrder, setModelSortOrder] = useState<ModelSortOrder>("most-popular");
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [authorFilter, setAuthorFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState<PriceFilter>("all");
@@ -509,6 +520,21 @@ export function AgentConversationPanel({
     () => filterModelsByBadges(matchingModels, quickModelFilters),
     [matchingModels, quickModelFilters]
   );
+  const sortedModels = useMemo(
+    () => sortStudioModels(quickMatchingModels, modelSortOrder),
+    [quickMatchingModels, modelSortOrder]
+  );
+
+  useEffect(() => {
+    if (!sortMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+        setSortMenuOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [sortMenuOpen]);
   const selectedModel = modelCatalog.models.find((model) => model.id === selectedModelId);
   const chooseModel = (modelId: string) => {
     setSelectedModelId(modelId);
@@ -1409,7 +1435,7 @@ export function AgentConversationPanel({
             ref={modelPickerAnchorRef}
             style={
               {
-                "--studio-model-picker-width": "440px"
+                "--studio-model-picker-width": "460px"
               } as React.CSSProperties
             }
           >
@@ -1454,25 +1480,68 @@ export function AgentConversationPanel({
                   </button>
                 </header>
 
-                <label className="studio-model-picker-popover__search">
-                  <Search size={15} aria-hidden="true" />
-                  <input
-                    ref={modelPickerSearchRef}
-                    type="search"
-                    value={modelQuery}
-                    onChange={(event) => setModelQuery(event.target.value)}
-                    placeholder="Search models or publishers"
-                    aria-label="Search models"
-                    onKeyDown={(event) => {
-                      if (event.key === "ArrowDown") {
-                        event.preventDefault();
-                        modelPickerListRef.current
-                          ?.querySelector<HTMLButtonElement>('button[role="option"]:not(:disabled)')
-                          ?.focus();
-                      }
-                    }}
-                  />
-                </label>
+                <div className="studio-model-picker-popover__search-row">
+                  <label className="studio-model-picker-popover__search">
+                    <Search size={15} aria-hidden="true" />
+                    <input
+                      ref={modelPickerSearchRef}
+                      type="search"
+                      value={modelQuery}
+                      onChange={(event) => setModelQuery(event.target.value)}
+                      placeholder="Search models or publishers"
+                      aria-label="Search models"
+                      onKeyDown={(event) => {
+                        if (event.key === "ArrowDown") {
+                          event.preventDefault();
+                          modelPickerListRef.current
+                            ?.querySelector<HTMLButtonElement>('button[role="option"]:not(:disabled)')
+                            ?.focus();
+                        }
+                      }}
+                    />
+                  </label>
+                  <div className="studio-model-picker-popover__sort" ref={sortMenuRef}>
+                    <button
+                      type="button"
+                      className="studio-model-picker-popover__sort-button"
+                      aria-haspopup="menu"
+                      aria-expanded={sortMenuOpen}
+                      title="Sort models"
+                      onClick={() => setSortMenuOpen((open) => !open)}
+                    >
+                      <ArrowUpDown size={13} aria-hidden="true" />
+                      <span className="studio-model-picker-popover__sort-label">
+                        {MODEL_SORT_OPTIONS.find((option) => option.id === modelSortOrder)?.label ?? "Sort"}
+                      </span>
+                      <ChevronDown size={13} aria-hidden="true" />
+                    </button>
+                    {sortMenuOpen && (
+                      <div className="studio-model-picker-popover__sort-menu" role="menu" aria-label="Model sort order">
+                        {MODEL_SORT_OPTIONS.map((option) => {
+                          const isSelected = option.id === modelSortOrder;
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={isSelected}
+                              className={`studio-model-picker-popover__sort-item${isSelected ? " is-selected" : ""}`}
+                              onClick={() => {
+                                setModelSortOrder(option.id);
+                                setSortMenuOpen(false);
+                              }}
+                            >
+                              <span className="studio-model-picker-popover__sort-check">
+                                {isSelected ? <Check size={14} aria-hidden="true" /> : null}
+                              </span>
+                              <span>{option.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <fieldset className="studio-model-picker-popover__quick-filters">
                   <legend className="sr-only">Quick filters</legend>
@@ -1481,7 +1550,8 @@ export function AgentConversationPanel({
                       ["free", "Free"],
                       ["vision", "Vision"],
                       ["tools", "Tools"],
-                      ["reasoning", "Reasoning"]
+                      ["reasoning", "Reasoning"],
+                      ["intelligence", "Intelligence"]
                     ] as const
                   ).map(([filter, label]) => {
                     const active = quickModelFilters.includes(filter);
@@ -1600,6 +1670,21 @@ export function AgentConversationPanel({
                         className="studio-agent__field"
                       />
                     </label>
+                    <label className="studio-agent__filter-label">
+                      Sort by
+                      <select
+                        aria-label="Sort models by"
+                        value={modelSortOrder}
+                        onChange={(event) => setModelSortOrder(event.target.value as ModelSortOrder)}
+                        className="studio-agent__field"
+                      >
+                        {MODEL_SORT_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                 </details>
 
@@ -1658,9 +1743,10 @@ export function AgentConversationPanel({
                   }}
                 >
                   {groupCatalogModels(
-                    quickMatchingModels,
+                    sortedModels,
                     readStoredIds(FAVORITE_MODELS_KEY),
-                    readStoredIds(RECENT_MODELS_KEY)
+                    readStoredIds(RECENT_MODELS_KEY),
+                    modelSortOrder
                   ).map((group) => (
                     // biome-ignore lint/a11y/useSemanticElements: A listbox group labels related options and must keep ARIA listbox semantics.
                     <div
@@ -1706,8 +1792,17 @@ export function AgentConversationPanel({
                                   {modelBadges(model)
                                     .filter((badge) => badge !== "Free")
                                     .map((badge) => (
-                                      <span className="studio-model-picker-popover__badge" key={badge}>
-                                        {badge}
+                                      <span
+                                        className={`studio-model-picker-popover__badge${
+                                          badge === "Intelligence"
+                                            ? " studio-model-picker-popover__badge--intelligence"
+                                            : ""
+                                        }`}
+                                        key={badge}
+                                      >
+                                        {badge === "Intelligence" && typeof model.intelligence === "number"
+                                          ? `Intelligence: ${model.intelligence.toFixed(1)}`
+                                          : badge}
                                       </span>
                                     ))}
                                   {!model.textChatEligible && (
@@ -1744,7 +1839,7 @@ export function AgentConversationPanel({
                       })}
                     </div>
                   ))}
-                  {quickMatchingModels.length === 0 && (
+                  {sortedModels.length === 0 && (
                     <p className="studio-model-picker-popover__empty">
                       {modelCatalog.status === "loading" ? "Loading models…" : "No models match these filters."}
                     </p>
@@ -1753,8 +1848,8 @@ export function AgentConversationPanel({
 
                 <footer className="studio-model-picker-popover__footer">
                   <span aria-live="polite">
-                    {quickMatchingModels.length.toLocaleString()} of {modelCatalog.models.length.toLocaleString()}{" "}
-                    models · $/1M input / output
+                    {sortedModels.length.toLocaleString()} of {modelCatalog.models.length.toLocaleString()} models ·
+                    $/1M input / output
                     {modelCatalog.refreshedAt
                       ? ` · refreshed ${formatCatalogRefresh(modelCatalog.refreshedAt)}`
                       : ` · ${modelCatalog.message}`}

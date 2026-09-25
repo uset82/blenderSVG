@@ -711,6 +711,19 @@ function normalizeModel(value: unknown): StudioModel | null {
       : 0;
   const promptPrice = priceString(pricing.prompt);
   const completionPrice = priceString(pricing.completion);
+  const created =
+    typeof value.created === "number" && Number.isFinite(value.created) ? Math.floor(value.created) : undefined;
+  const benchmarks = isRecord(value.benchmarks) ? value.benchmarks : {};
+  const aa = isRecord(benchmarks.artificial_analysis) ? benchmarks.artificial_analysis : {};
+  const intelligence =
+    typeof aa.intelligence_index === "number" && Number.isFinite(aa.intelligence_index) ? aa.intelligence_index : null;
+  const codingIndex = typeof aa.coding_index === "number" && Number.isFinite(aa.coding_index) ? aa.coding_index : null;
+  const agenticIndex =
+    typeof aa.agentic_index === "number" && Number.isFinite(aa.agentic_index) ? aa.agentic_index : null;
+  const designArenaList = Array.isArray(benchmarks.design_arena) ? benchmarks.design_arena : [];
+  const firstDa = isRecord(designArenaList[0]) ? designArenaList[0] : null;
+  const designArenaElo =
+    firstDa && typeof firstDa.elo === "number" && Number.isFinite(firstDa.elo) ? firstDa.elo : null;
 
   return {
     id,
@@ -723,7 +736,12 @@ function normalizeModel(value: unknown): StudioModel | null {
     promptPrice,
     completionPrice,
     supportedParameters,
-    textChatEligible: inputModalities.includes("text") && outputModalities.includes("text")
+    textChatEligible: inputModalities.includes("text") && outputModalities.includes("text"),
+    created,
+    intelligence,
+    codingIndex,
+    agenticIndex,
+    designArenaElo
   };
 }
 

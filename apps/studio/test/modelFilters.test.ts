@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StudioModel } from "@codex-avatar-studio/avatar-core";
-import { filterStudioModels, type StudioModelFilters } from "../src/components/modelFilters.js";
+import { filterStudioModels, sortStudioModels, type StudioModelFilters } from "../src/components/modelFilters.js";
 
 const models: StudioModel[] = [
   makeModel({
@@ -90,6 +90,37 @@ describe("OpenRouter model catalog filters", () => {
     expect(
       filterStudioModels(models, { ...noFilters, maximumOutputPricePerMillion: 8 }).map((model) => model.id)
     ).toEqual(["openai/free-text", "anthropic/vision-paid"]);
+  });
+
+  it("sorts models by intelligence (high to low and low to high)", () => {
+    const list: StudioModel[] = [
+      makeModel({ id: "a/no-intel", name: "A", intelligence: null }),
+      makeModel({ id: "b/high-intel", name: "B", intelligence: 60.5 }),
+      makeModel({ id: "c/mid-intel", name: "C", intelligence: 45.2 })
+    ];
+
+    expect(sortStudioModels(list, "intelligence-high-to-low").map((entry) => entry.id)).toEqual([
+      "b/high-intel",
+      "c/mid-intel",
+      "a/no-intel"
+    ]);
+
+    expect(sortStudioModels(list, "intelligence-low-to-high").map((entry) => entry.id)).toEqual([
+      "c/mid-intel",
+      "b/high-intel",
+      "a/no-intel"
+    ]);
+  });
+
+  it("sorts models by context length and price", () => {
+    const list: StudioModel[] = [
+      makeModel({ id: "low-ctx", contextLength: 8_000, promptPrice: "0.000005", completionPrice: "0.000005" }),
+      makeModel({ id: "high-ctx", contextLength: 200_000, promptPrice: "0.000001", completionPrice: "0.000001" })
+    ];
+
+    expect(sortStudioModels(list, "context-high-to-low").map((entry) => entry.id)).toEqual(["high-ctx", "low-ctx"]);
+
+    expect(sortStudioModels(list, "pricing-low-to-high").map((entry) => entry.id)).toEqual(["high-ctx", "low-ctx"]);
   });
 });
 

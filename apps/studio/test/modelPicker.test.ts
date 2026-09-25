@@ -21,15 +21,16 @@ function model(id: string, author: string, extra: Partial<StudioModel> = {}): St
 }
 
 describe("model picker", () => {
-  it("badges free, vision, tools, and reasoning from catalog fields", () => {
+  it("badges free, vision, tools, reasoning, and intelligence from catalog fields", () => {
     expect(
       modelBadges(
         model("openai/example", "openai", {
           inputModalities: ["text", "image"],
-          supportedParameters: ["tools", "reasoning"]
+          supportedParameters: ["tools", "reasoning"],
+          intelligence: 58.4
         })
       )
-    ).toEqual(["Free", "Vision", "Tools", "Reasoning"]);
+    ).toEqual(["Free", "Vision", "Tools", "Reasoning", "Intelligence"]);
   });
 
   it("puts favorites and recent models ahead of publisher groups", () => {
@@ -37,6 +38,16 @@ describe("model picker", () => {
     const groups = groupCatalogModels(models, ["b/two"], ["a/one"]);
     expect(groups.map((group) => group.label)).toEqual(["Favorites", "Recent", "alpha"]);
     expect(groups[0]?.models.map((entry) => entry.id)).toEqual(["b/two"]);
+  });
+
+  it("groups remaining models under a single ranked group when a non-default sortOrder is used", () => {
+    const models = [
+      model("anthropic/claude-3-5", "anthropic", { intelligence: 58.4 }),
+      model("openai/gpt-4o", "openai", { intelligence: 56.1 })
+    ];
+    const groups = groupCatalogModels(models, [], [], "intelligence-high-to-low");
+    expect(groups.map((group) => group.label)).toEqual(["Intelligence: High to Low"]);
+    expect(groups[0]?.models.map((entry) => entry.id)).toEqual(["anthropic/claude-3-5", "openai/gpt-4o"]);
   });
 
   it("applies quick filters together and returns all models when none are active", () => {
@@ -50,13 +61,14 @@ describe("model picker", () => {
         completionPrice: "0.2",
         supportedParameters: ["tools"]
       }),
-      model("free/text", "free")
+      model("free/text", "free", { intelligence: 52.0 })
     ];
 
     expect(filterModelsByBadges(models, [])).toEqual(models);
     expect(filterModelsByBadges(models, ["free", "vision"])).toEqual([models[0]]);
     expect(filterModelsByBadges(models, ["tools"])).toEqual([models[0], models[1]]);
     expect(filterModelsByBadges(models, ["reasoning"])).toEqual([]);
+    expect(filterModelsByBadges(models, ["intelligence"])).toEqual([models[2]]);
   });
 
   it("moves model focus with arrows and Home/End without skipping the first option", () => {

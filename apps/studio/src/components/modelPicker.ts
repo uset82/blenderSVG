@@ -1,5 +1,5 @@
 import type { StudioModel } from "@codex-avatar-studio/avatar-core";
-import { readCatalogPrice } from "./modelFilters.js";
+import { MODEL_SORT_OPTIONS, type ModelSortOrder, readCatalogPrice } from "./modelFilters.js";
 
 export interface ModelPickerGroup {
   id: string;
@@ -7,13 +7,14 @@ export interface ModelPickerGroup {
   models: StudioModel[];
 }
 
-export type QuickModelFilter = "free" | "vision" | "tools" | "reasoning";
+export type QuickModelFilter = "free" | "vision" | "tools" | "reasoning" | "intelligence";
 
 const QUICK_FILTER_BADGE: Record<QuickModelFilter, string> = {
   free: "Free",
   vision: "Vision",
   tools: "Tools",
-  reasoning: "Reasoning"
+  reasoning: "Reasoning",
+  intelligence: "Intelligence"
 };
 
 export function modelBadges(model: StudioModel): string[] {
@@ -26,6 +27,7 @@ export function modelBadges(model: StudioModel): string[] {
     badges.push("Tools");
   if (model.supportedParameters.some((parameter) => parameter.toLowerCase().includes("reason")))
     badges.push("Reasoning");
+  if (typeof model.intelligence === "number") badges.push("Intelligence");
   return badges;
 }
 
@@ -43,7 +45,8 @@ export function filterModelsByBadges(
 export function groupCatalogModels(
   models: readonly StudioModel[],
   favoriteIds: readonly string[],
-  recentIds: readonly string[]
+  recentIds: readonly string[],
+  sortOrder?: ModelSortOrder
 ): ModelPickerGroup[] {
   const byId = new Map(models.map((model) => [model.id, model]));
   const used = new Set<string>();
@@ -59,9 +62,18 @@ export function groupCatalogModels(
   const recent = take(recentIds);
   if (favorites.length > 0) groups.push({ id: "favorites", label: "Favorites", models: favorites });
   if (recent.length > 0) groups.push({ id: "recent", label: "Recent", models: recent });
+
+  const remaining = models.filter((model) => !used.has(model.id));
+
+  if (sortOrder && sortOrder !== "most-popular") {
+    const sortOption = MODEL_SORT_OPTIONS.find((opt) => opt.id === sortOrder);
+    const label = sortOption ? sortOption.label : "Ranked";
+    groups.push({ id: `sorted:${sortOrder}`, label, models: remaining });
+    return groups;
+  }
+
   const publishers = new Map<string, StudioModel[]>();
-  for (const model of models) {
-    if (used.has(model.id)) continue;
+  for (const model of remaining) {
     const label = model.author || "Other";
     const list = publishers.get(label) ?? [];
     list.push(model);
