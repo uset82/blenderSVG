@@ -1,18 +1,16 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { listZipEntries, readZipEntry } from "./lib/zip.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const vsixPath = path.resolve(process.argv[2] ?? path.join(root, "dist", "codex-avatar-studio-0.1.0.vsix"));
 
 if (!existsSync(vsixPath)) throw new Error(`VSIX does not exist: ${vsixPath}`);
 
-const entries = execFileSync("tar", ["-tf", vsixPath], { encoding: "utf8" })
-  .split(/\r?\n/)
-  .map((entry) => entry.trim())
-  .filter(Boolean);
+// The VSIX is a ZIP archive; read it in Node because GNU tar on Linux cannot list ZIPs.
+const entries = listZipEntries(vsixPath);
 const entrySet = new Set(entries);
 
 for (const required of [
@@ -67,10 +65,7 @@ assert.ok(
   entries.some((entry) => /^extension\/media\/studio\/assets\/[^/]+\.css$/.test(entry)),
   "VSIX contains Studio styles"
 );
-const studioHtml = execFileSync("tar", ["-xOf", vsixPath, "extension/media/studio/index.html"], {
-  encoding: "utf8",
-  maxBuffer: 1024 * 1024
-});
+const studioHtml = readZipEntry(vsixPath, "extension/media/studio/index.html").toString("utf8");
 assert.doesNotMatch(
   studioHtml,
   /<script[^>]+src=["']https?:|<link[^>]+href=["']https?:/i,
@@ -90,10 +85,7 @@ assert.ok(
   "VSIX contains the clean-room Pixi avatar"
 );
 
-const extensionBundle = execFileSync("tar", ["-xOf", vsixPath, "extension/dist/extension.js"], {
-  encoding: "utf8",
-  maxBuffer: 8 * 1024 * 1024
-});
+const extensionBundle = readZipEntry(vsixPath, "extension/dist/extension.js").toString("utf8");
 assert.doesNotMatch(extensionBundle, /potrace/i, "VSIX does not contain the removed GPL-2.0 Potrace runtime");
 for (const requiredBlenderFeature of [
   "--disable-autoexec",
@@ -109,10 +101,7 @@ for (const requiredBlenderFeature of [
   );
 }
 
-const webviewBundle = execFileSync("tar", ["-xOf", vsixPath, "extension/media/webview/index.js"], {
-  encoding: "utf8",
-  maxBuffer: 2 * 1024 * 1024
-});
+const webviewBundle = readZipEntry(vsixPath, "extension/media/webview/index.js").toString("utf8");
 for (const label of [
   "Blender Tools",
   "Auto-detect",
