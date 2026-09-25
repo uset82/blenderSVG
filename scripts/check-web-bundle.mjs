@@ -99,9 +99,21 @@ for (const file of files) {
     );
     if (referencedByHome) throw new Error(`Home JS references ${relative}.`);
   }
+  if (file.endsWith(".html")) {
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/gi)) {
+      const src = match[1] ?? "";
+      if (/^https?:/i.test(src) || src.startsWith("//")) {
+        throw new Error(`Third-party script in ${path.relative(dist, file)}: ${src}`);
+      }
+    }
+  }
   if (/\.(html|css|js)$/.test(file)) {
     const source = readFileSync(file, "utf8");
     if (REMOTE_FONT.test(source)) throw new Error(`Remote font request in ${path.relative(dist, file)}.`);
+    if (/cdn\.jsdelivr|unpkg\.com|cdnjs\.cloudflare|esm\.sh/i.test(source)) {
+      throw new Error(`CDN script reference in ${path.relative(dist, file)}.`);
+    }
     if (/from["']node:|require\(["']node:/.test(source)) {
       throw new Error(`Node import in the web bundle: ${path.relative(dist, file)}.`);
     }

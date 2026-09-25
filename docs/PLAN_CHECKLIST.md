@@ -1349,15 +1349,15 @@ The web edition runs the Studio as a public static site at `https://app.kurva.ag
 - [x] W2 IndexedDB local library — §W2
   - Evidence (2026-09-25): `pnpm --filter @codex-avatar-studio/studio test` passed (61 files, 173 tests) and `pnpm --filter @codex-avatar-studio/studio typecheck` passed. `build:web` stayed inside budget (home JS 374448 bytes gzip, editor JS 960896 bytes gzip, one WASM file). Chrome 153.0.8010.53 on `http://127.0.0.1:4183/` created Scratchpad in IndexedDB, kept it across reload, showed Settings → Storage, and sent no `/api/*` request. Drawing on that production build waits for the tldraw key (W0.3). Per-task evidence is in `docs/plan/futureplan.md` §W2.
 - [x] W3 OpenRouter in the browser (OAuth PKCE) — §W3
-  - Evidence (2026-09-25): PKCE, the browser key store, and `createWebHostTransport` are covered by `openRouterPkce.test.ts` and `webOpenRouter.test.ts`. A live staging Connect journey stays blocked until W5. Per-task evidence is in `docs/plan/futureplan.md` §W3. W3.10 stays blocked on the live host.
+  - Evidence (2026-09-25): PKCE, the browser key store, and `createWebHostTransport` are covered by `openRouterPkce.test.ts`, `webOpenRouter.test.ts`, and `webCspGates.test.ts`. W3.10 passed on local HTTPS with the Caddyfile headers in Chrome 153.0.8010.12 and Firefox 155.0. A live staging Connect journey stays blocked until W5. Per-task evidence is in `docs/plan/futureplan.md` §W3.
 - [x] W4 Browser versions of host-only flows — §W4
-  - Evidence (2026-09-25): `browserAvatarPackage.test.ts` imports a browser-built avatar ZIP with `AvatarPackageRegistry.importPackage`. Web import rejects remote asset URLs. A live canvas trace in Firefox and Safari stays blocked on W0.3. Per-task evidence is in `docs/plan/futureplan.md` §W4.
+  - Evidence (2026-09-25): `browserAvatarPackage.test.ts` imports a browser-built avatar ZIP with `AvatarPackageRegistry.importPackage`. Web import rejects remote asset URLs. Chrome 153.0.8010.12 and Firefox 155.0 compiled the built trace worker under the production CSP and cancelled an in-flight trace. W4.2 stays open for Safari. Per-task evidence is in `docs/plan/futureplan.md` §W4.
 - [ ] W5 Static hosting on Railway (blocked on W0.3) — §W5
   - BLOCKED (2026-09-25): no tldraw license, DNS confirmation, or Railway account. The Caddyfile and `docs/WEB_DEPLOYMENT.md` are in the repo. Safe next action: add the license and create the Railway service.
 - [ ] W6 Installable offline PWA — §W6
   - BLOCKED (2026-09-25): manifest, service worker, update gate, and install copy are in the repo and covered by `webShell.test.ts`. The staging airplane-mode and kill-switch rehearsal need a live host. See `docs/plan/futureplan.md` §W6.
 - [ ] W7 Security and privacy hardening — §W7
-  - BLOCKED (2026-09-25): privacy, notices, and security.txt pages exist, and the key-handling and asset-address tests pass. The staging network journey needs a live host. See `docs/plan/futureplan.md` §W7.
+  - BLOCKED (2026-09-25): W7.2 and W7.4 passed on local HTTPS (Chrome 153.0.8010.12 and Firefox 155.0; `pnpm audit --prod` and `pnpm validate:notices` exited 0). The phase stays open until the staging security pass. See `docs/plan/futureplan.md` §W7.
 - [x] W8 Landing page integration — §W8
   - Evidence (2026-09-25): `apps/site/index.html` primary buttons open `https://app.kurva.agency` and stay script-free. In-app Privacy, Notices, GitHub, and desktop links are on web Settings. Per-task evidence is in `docs/plan/futureplan.md` §W8.
 - [ ] W9 Testing and QA — §W9

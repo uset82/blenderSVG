@@ -224,6 +224,17 @@ function sendToHost(message: StudioToHostMessageInput): void {
   currentTransport().send(message);
 }
 
+/** Web chat is connected without a desktop workspace. Other hosts still need a trusted workspace. */
+export function shouldLoadModelCatalog(input: {
+  host: string;
+  workspaceTrusted: boolean;
+  connectionStatus: string;
+}): boolean {
+  if (input.connectionStatus !== "connected") return false;
+  if (input.host === "web") return true;
+  return (input.host === "vscode" || input.host === "standalone") && input.workspaceTrusted;
+}
+
 export function useStudioHost() {
   const [hostState, setHostState] = useState<HostStateMessage>(initialHostState);
   const [modelCatalog, setModelCatalog] = useState<StudioModelCatalog>({
@@ -548,10 +559,11 @@ export function useStudioHost() {
   }, [hostState.host, hostState.workspaceTrusted]);
 
   useEffect(() => {
-    const connectedAndTrusted =
-      (hostState.host === "vscode" || hostState.host === "standalone") &&
-      hostState.workspaceTrusted &&
-      hostState.connection.status === "connected";
+    const connectedAndTrusted = shouldLoadModelCatalog({
+      host: hostState.host,
+      workspaceTrusted: hostState.workspaceTrusted,
+      connectionStatus: hostState.connection.status
+    });
     if (!connectedAndTrusted) {
       requestedCatalog.current = false;
       if (modelCatalog.status !== "idle")

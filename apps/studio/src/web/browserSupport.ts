@@ -29,11 +29,11 @@ export function browserSupportGaps(features: BrowserFeatures): string[] {
 }
 
 function supportsModuleWorker(): boolean {
-  if (typeof Worker === "undefined") return false;
+  if (typeof Worker === "undefined" || typeof window === "undefined") return false;
   try {
-    const worker = new Worker(URL.createObjectURL(new Blob(["export {}"], { type: "text/javascript" })), {
-      type: "module"
-    });
+    // A blob: probe fires a worker-src violation under the production CSP, which
+    // allows only same-origin workers. Image tracing uses that same-origin kind.
+    const worker = new Worker(new URL("/module-worker-probe.js", window.location.href), { type: "module" });
     worker.terminate();
     return true;
   } catch {

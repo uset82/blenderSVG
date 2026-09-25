@@ -1,3 +1,4 @@
+import "./web/zodCsp.js";
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.js";
@@ -22,13 +23,15 @@ function OpenRouterReturn() {
   const [message, setMessage] = useState("Connecting to OpenRouter…");
   useEffect(() => {
     void completeWebOpenRouterConnect({
-      search: window.location.search,
-      replaceUrl: () => window.history.replaceState(null, "", "/")
+      search: window.location.search
     })
       .then((result) => {
+        // Keep this replace on /oauth/openrouter. Moving to "/" first turns the
+        // return into a hash-only change, and the callback screen stays mounted.
         window.location.replace(`${window.location.origin}/${result.returnHash}`);
       })
       .catch((error: unknown) => {
+        window.history.replaceState(null, "", "/oauth/openrouter");
         setMessage(error instanceof Error ? error.message : "OpenRouter did not connect.");
       });
   }, []);

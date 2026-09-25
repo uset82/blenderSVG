@@ -22,7 +22,12 @@ export interface WebHostTransportOptions {
 export function createWebHostTransport(options: WebHostTransportOptions = {}): StudioTransport {
   const listeners = new Set<(message: HostToStudioMessage) => void>();
   const secrets = options.secrets ?? browserOpenRouterSecretStore();
-  const request = options.request ?? fetch;
+  // The chat controller calls this as a method. Native fetch then throws
+  // "Illegal invocation" because its receiver is no longer the window.
+  const request =
+    options.request ??
+    ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
+      globalThis.fetch.call(globalThis, input, init));
   const deliver = (message: Parameters<typeof createHostToStudioMessage>[0]) => {
     const parsed = parseHostToStudioMessage(createHostToStudioMessage(message));
     if (!parsed.success) return;

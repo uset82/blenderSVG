@@ -347,8 +347,8 @@
   - variants, skills and styles
   - the screenshot tool, offered to vision models only
   - Evidence (2026-09-25): web chat turns on when the browser host is connected, and the same composer modes, tool cards, proposal ghost, variants, skills, and styles render. The chat controller still offers `screenshot_frame` only when the model lists image input. Files: `apps/studio/src/components/AgentConversationPanel.tsx`, `packages/studio-host-core/src/openRouterChat.ts`.
-- [ ] W3.10 CSP check: `connect-src` allows exactly `https://openrouter.ai`, and streaming and the key exchange both work under the production headers.
-  - BLOCKED (2026-09-25): `apps/studio/web/Caddyfile` contains that `connect-src`, and `node scripts/check-web-headers.mjs` accepts it. Streaming under those live headers needs the W5 host, which waits on the tldraw license and Railway. Safe next action: serve the Caddyfile on staging and repeat the mocked exchange there.
+- [x] W3.10 CSP check: `connect-src` allows exactly `https://openrouter.ai`, and streaming and the key exchange both work under the production headers.
+  - Evidence (2026-09-25): `node scripts/web-csp-journey.mjs` against `dist-web` served with the Caddyfile security headers → the shipped Connect flow exchanged a mocked code for a key and the shipped chat stream text was `Kurva CSP stream payload`, with zero `securitypolicyviolation` events; request origins were only the page and `https://openrouter.ai`; environment: Chrome 153.0.8010.12 and Firefox 155.0, two runs each, local HTTPS (Caddy is not on PATH); files: `apps/studio/src/main.tsx`, `apps/studio/src/web/webHostTransport.ts`, `apps/studio/src/web/zodCsp.ts`, `scripts/web-csp-journey.mjs`.
 - [x] W3.11 Tests:
   - the PKCE helper against known test vectors
   - a `state` mismatch is rejected
@@ -379,7 +379,8 @@ A network log shows the key only in requests to `openrouter.ai`.
 - [ ] W4.2 Image → SVG under the production CSP:
   - Verify the VTracer module worker and `WebAssembly.compile` under `script-src 'self' 'wasm-unsafe-eval'` in Chrome, Firefox and Safari.
   - Cancel and the 20,000-path guard still work.
-  - BLOCKED (2026-09-25): a production canvas pass in Chrome, Firefox, and Safari needs the tldraw license (W0.3). `traceWorkerClient.test.ts` still covers cancel, and `assertSvgPathCount` rejects 20,001 paths. The Caddy CSP allows `'wasm-unsafe-eval'`. Safe next action: repeat the trace in those three browsers after the key exists.
+  - Evidence (2026-09-25): the same local HTTPS journey, twice in Chrome 153.0.8010.12 and twice in Firefox 155.0 → the built `traceImage.worker` fetched `vtracer_wasm_bg` and reported Trace ready, then a second trace reported "Image tracing was cancelled."; `assertSvgPathCount` rejected 20,001 paths and accepted 20,000. Files: `scripts/web-csp-journey.mjs`, `apps/studio/test/webCspGates.test.ts`.
+  - BLOCKED: Safari on macOS and iOS is not installed on this Windows host. Playwright WebKit was not recorded as Safari. Safe next action: repeat the trace on Safari 17 or later for macOS and iOS.
 - [x] W4.3 Verify in web mode, with no host:
   - SVG, PNG and JPEG by drop, paste and the Image tool
   - screenshot attach
@@ -491,18 +492,18 @@ A network log shows the key only in requests to `openrouter.ai`.
   - **Text links on the canvas:** `rel="noopener noreferrer"`.
   - **Filenames.**
   - Evidence (2026-09-25): markdown still uses `rehype-sanitize`, SVG still uses `prepareSvgPreview`, and design frames keep `sandbox=""`. Web project import now rejects asset `src` values other than `kurva-asset:`, `blob:`, and `data:image/*`. Files: `apps/studio/src/web/portableAssets.ts`, `apps/studio/test/browserAvatarPackage.test.ts`.
-- [ ] W7.2 Network allowlist test: a Playwright journey records every request. Only the app origin and `openrouter.ai` may appear, plus the tldraw license host if W5.3 allowed it.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+- [x] W7.2 Network allowlist test: a Playwright journey records every request. Only the app origin and `openrouter.ai` may appear, plus the tldraw license host if W5.3 allowed it.
+  - Evidence (2026-09-25): `node scripts/web-csp-journey.mjs` recorded every request for the connect, chat, and trace journey → origins were only the page and `https://openrouter.ai`, with zero `securitypolicyviolation` events; environment: Chrome 153.0.8010.12 and Firefox 155.0, two runs each, local HTTPS with the Caddyfile headers; files: `scripts/web-csp-journey.mjs`.
 - [x] W7.3 Key-handling test:
   - The key never appears in localStorage, sessionStorage, Cache Storage, the URL, the console or any request to the app origin.
   - It exists only as ciphertext in IndexedDB.
   - Disconnect and "Clear all data" both remove it.
   - Evidence (2026-09-25): the exchange test keeps the key out of the PKCE session record and the authorize URL. Disconnect deletes the secret store entry. Clear all data clears the IndexedDB `meta` store, which holds the cipher. Files: `apps/studio/test/webOpenRouter.test.ts`, `apps/studio/src/web/browserProjects.ts`.
-- [ ] W7.4 Supply chain:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+- [x] W7.4 Supply chain:
   - a `pnpm audit --prod` (or osv-scanner) gate in CI
   - a frozen lockfile and no CDN scripts
   - `pnpm validate:notices` covers every web-bundle dependency, including any new PWA or IndexedDB helper
+  - Evidence (2026-09-25): `pnpm audit --prod` exited 0 and `pnpm validate:notices` exited 0; the web CI job still installs with `pnpm install --frozen-lockfile` and runs `pnpm audit --prod`; the web build’s script URLs are same-origin and the CSP journey loaded no CDN script; files: `.github/workflows/ci.yml`, `pnpm-workspace.yaml`, `THIRD_PARTY_NOTICES.md`.
 - [x] W7.5 A privacy page, "What Kurva stores", linked from Settings, the app footer and the landing page. The legal review is the owner's. It says:
   - there are no accounts, no Kurva server storage and no analytics
   - data stays in the browser
