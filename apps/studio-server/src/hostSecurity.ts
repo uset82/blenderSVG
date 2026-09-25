@@ -1,4 +1,6 @@
 export const MAX_BODY_BYTES = 1_000_000;
+export const MAX_AVATAR_PACKAGE_REQUEST_BYTES = 950_000;
+export const MAX_QUIVER_GENERATION_BODY_BYTES = 6_000_000;
 export const MAX_REQUESTS_PER_WINDOW = 120;
 
 const CSP = [
@@ -7,7 +9,7 @@ const CSP = [
   "style-src 'self'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "connect-src 'self'",
+  "connect-src 'self' ws://127.0.0.1:* ws://localhost:* ws://[::1]:*",
   "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'none'"
@@ -21,6 +23,7 @@ export interface StudioGuardInput {
   cookieToken: string | null;
   queryToken: string | null;
   contentLength: number | null;
+  maxBodyBytes?: number;
   upgrade: boolean;
   launchToken: string;
   recentCount: number;
@@ -41,19 +44,22 @@ export function guardStudioRequest(input: StudioGuardInput): StudioGuardDecision
   if (!isLoopbackHost(input.host) || !isLoopbackHost(input.urlHost)) {
     return { status: 421, message: "Unknown host.", setCookie: false, headers };
   }
-  if ((input.contentLength ?? 0) > MAX_BODY_BYTES) {
+  if ((input.contentLength ?? 0) > (input.maxBodyBytes ?? MAX_BODY_BYTES)) {
     return { status: 413, message: "The request is too large.", setCookie: false, headers };
   }
   const method = input.method.toUpperCase();
   if (method === "OPTIONS") {
     return { status: 403, message: "Cross-origin requests are not accepted.", setCookie: false, headers };
   }
-  const presented = input.cookieToken ?? input.queryToken;
+  const presented = input.queryToken === input.launchToken ? input.queryToken : (input.cookieToken ?? input.queryToken);
   if (presented !== input.launchToken) {
     return { status: 401, message: "Missing or invalid session.", setCookie: false, headers };
   }
   if (input.upgrade || (method !== "GET" && method !== "HEAD")) {
-    if (!input.origin || !originMatchesHost(input.origin, input.host)) {
+    if (input.origin && !originMatchesHost(input.origin, input.host)) {
+      return { status: 403, message: "The request origin is not this Studio host.", setCookie: false, headers };
+    }
+    if (!input.origin && input.upgrade) {
       return { status: 403, message: "The request origin is not this Studio host.", setCookie: false, headers };
     }
   }

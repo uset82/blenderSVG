@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -107,6 +107,11 @@ const cdp = await connectCdp(workbench.webSocketDebuggerUrl);
 await cdp.send("Runtime.enable");
 await cdp.send("Page.enable");
 if (!targets.some((target) => target.type === "iframe" && target.url.startsWith("vscode-webview://"))) {
+  await waitUntil(
+    async () => /Explorer|Show All Commands/.test((await evaluate(cdp, "document.body?.innerText")) ?? ""),
+    "VS Code workbench UI",
+    30_000
+  );
   await cdp.send("Input.dispatchKeyEvent", {
     type: "keyDown",
     key: "P",
@@ -121,39 +126,89 @@ if (!targets.some((target) => target.type === "iframe" && target.url.startsWith(
     modifiers: 10,
     windowsVirtualKeyCode: 80
   });
-  await new Promise((resolve) => setTimeout(resolve, 350));
+  await waitUntil(
+    async () => await evaluate(cdp, "Boolean(document.querySelector('.quick-input-widget'))"),
+    "Command Palette"
+  );
   await cdp.send("Input.insertText", { text: "Codex Avatar: Open Studio" });
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await waitUntil(
+    async () =>
+      (await evaluate(cdp, "document.querySelector('.quick-input-widget')?.innerText"))?.includes(
+        "Codex Avatar: Open Studio"
+      ),
+    "Open Studio command result"
+  );
   assert.match(await evaluate(cdp, "document.body.innerText"), /Codex Avatar: Open Studio/);
   await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
   await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
   await new Promise((resolve) => setTimeout(resolve, 1500));
 }
-const afterTargets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
-const studioTarget = afterTargets.find(
-  (target) => target.type === "iframe" && target.url.startsWith("vscode-webview://")
+const studioTarget = await waitUntil(
+  async () => {
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    return targets.find((target) => target.type === "iframe" && target.url.startsWith("vscode-webview://"));
+  },
+  "Studio editor Webview",
+  15_000
 );
 assert.ok(studioTarget?.webSocketDebuggerUrl, "Studio editor Webview did not open");
 const studioCdp = await connectCdp(studioTarget.webSocketDebuggerUrl);
 await studioCdp.send("Runtime.enable");
 const innerDocument = "document.querySelector('iframe')?.contentDocument";
-const initialText = await evaluate(studioCdp, `${innerDocument}?.body?.innerText`);
-const isRecentsHome = /RECENTS/.test(initialText ?? "") && /New file/.test(initialText ?? "");
+const initialText = await waitUntil(async () => {
+  const text = await evaluate(studioCdp, `${innerDocument}?.body?.innerText`);
+  return (/Recents/i.test(text ?? "") && /New file/.test(text ?? "")) ||
+    (/Auto-saved/.test(text ?? "") && /Agents/.test(text ?? ""))
+    ? text
+    : undefined;
+}, "Studio Webview content");
+const isRecentsHome = /Recents/i.test(initialText ?? "") && /New file/.test(initialText ?? "");
 const isStudioEditor = /Auto-saved/.test(initialText ?? "") && /Agents/.test(initialText ?? "");
 assert.ok(isRecentsHome || isStudioEditor, "Studio Recents or canvas editor is visible");
 console.log(`Studio opened: ${initialText?.slice(0, 300)}`);
 
 if (isRecentsHome) {
-  const openedScratchpad = await evaluate(
+  const startedProject = await evaluate(
     studioCdp,
-    `(() => { const cards = [...${innerDocument}?.querySelectorAll(".recents__canvas") ?? []]; const card = cards.find((item) => item.innerText.includes("Scratchpad")); card?.click(); return Boolean(card); })()`
+    `(() => { const buttons = [...${innerDocument}?.querySelectorAll(".recents__button--primary") ?? []]; const button = buttons.find((item) => item.innerText.trim() === "New file"); button?.click(); return Boolean(button); })()`
   );
-  assert.equal(openedScratchpad, true, "Scratchpad project card is available");
+  assert.equal(startedProject, true, "New file action is available");
 }
-await waitUntil(
-  async () => (await evaluate(studioCdp, `${innerDocument}?.body?.innerText`))?.includes("Auto-saved"),
-  "Scratchpad editor canvas"
+const canvasState = await waitUntil(
+  async () =>
+    await evaluate(
+      studioCdp,
+      `(() => { const doc = ${innerDocument}; if (doc?.querySelector('.studio-canvas-license')) return 'license-required'; if (doc?.querySelector('.tl-container')) return 'canvas'; return null; })()`
+    ),
+  "new project canvas or license setup notice"
 );
+if (canvasState === "license-required") {
+  const notice = (await evaluate(studioCdp, `${innerDocument}?.querySelector('.studio-canvas-license')?.innerText`))
+    ?.replaceAll(/\s+/g, " ")
+    .trim();
+  assert.ok(notice, "The missing-license notice explains the production canvas state");
+  if (process.env.STUDIO_SKIP_EDIT !== "1") {
+    throw new Error(
+      `Live canvas acceptance needs a licensed Studio build. Set VITE_TLDRAW_LICENSE_KEY before rebuilding. Notice: ${notice}`
+    );
+  }
+  console.log(`Canvas setup notice: ${notice}`);
+  const projectFiles = existsSync(projectDir) ? readdirSync(projectDir).filter((name) => name.endsWith(".json")) : [];
+  assert.equal(projectFiles.length, 0, "An unavailable editor does not create a misleading empty project");
+  const screenshot = await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true });
+  writeFileSync(path.join(profileRoot, "studio-live-license-notice.png"), Buffer.from(screenshot.data, "base64"));
+  console.log(
+    "Verified installed VS Code Webview opens the project route and explains that editing requires a license."
+  );
+  studioCdp.close();
+  cdp.close();
+  process.exit(0);
+} else {
+  await waitUntil(
+    async () => (await evaluate(studioCdp, `${innerDocument}?.body?.innerText`))?.includes("Auto-saved"),
+    "new project editor autosave status"
+  );
+}
 
 await waitUntil(() => {
   const files = existsSync(projectDir) ? readdirSync(projectDir).filter((name) => name.endsWith(".json")) : [];
@@ -173,11 +228,24 @@ if (process.env.STUDIO_SKIP_EDIT !== "1") {
     `Boolean(${innerDocument}?.querySelector('button[aria-label="Rectangle (R)"]'))`
   );
   assert.equal(rectangleFound, true, "Rectangle canvas tool is visible");
-  const canvasBounds = await evaluate(
+  const canvasLocalBounds = await evaluate(
     studioCdp,
     `(() => { const frame = document.querySelector("iframe"); const canvas = frame?.contentDocument?.querySelector(".tl-container"); if (!frame || !canvas) return null; const frameRect = frame.getBoundingClientRect(); const canvasRect = canvas.getBoundingClientRect(); return { x: frameRect.x + canvasRect.x, y: frameRect.y + canvasRect.y, width: canvasRect.width, height: canvasRect.height }; })()`
   );
-  assert.ok(canvasBounds, "Canvas bounds are available for the live editor interaction");
+  const webviewBounds = await evaluate(
+    cdp,
+    `(() => { const frame = [...document.querySelectorAll("iframe")].find((item) => item.src.startsWith("vscode-webview://")); if (!frame) return null; const rect = frame.getBoundingClientRect(); return { x: rect.x, y: rect.y }; })()`
+  );
+  assert.ok(
+    canvasLocalBounds && webviewBounds,
+    "Canvas and Webview bounds are available for the live editor interaction"
+  );
+  const canvasBounds = {
+    x: canvasLocalBounds.x + webviewBounds.x,
+    y: canvasLocalBounds.y + webviewBounds.y,
+    width: canvasLocalBounds.width,
+    height: canvasLocalBounds.height
+  };
   console.log("Live canvas bounds:", canvasBounds);
   writeFileSync(
     path.join(profileRoot, "studio-live-before-edit.png"),
@@ -191,11 +259,21 @@ if (process.env.STUDIO_SKIP_EDIT !== "1") {
       `[...${innerDocument}.querySelectorAll(".studio-toolbar__button")].filter((button) => button.getAttribute("aria-pressed") === "true").map((button) => button.getAttribute("aria-label"))`
     )
   );
-  const pointerResult = await evaluate(
-    studioCdp,
-    `(() => { const canvas = ${innerDocument}?.querySelector(".tl-container"); if (!canvas) return null; const rect = canvas.getBoundingClientRect(); const startX = rect.x + rect.width * 0.4; const startY = rect.y + rect.height * 0.4; const endX = startX + 140; const endY = startY + 100; canvas.setPointerCapture = () => undefined; canvas.releasePointerCapture = () => undefined; const send = (type, x, y, buttons) => canvas.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, pointerId: 1, pointerType: "mouse", isPrimary: true, button: 0, buttons, clientX: x, clientY: y })); send("pointerdown", startX, startY, 1); send("pointermove", endX, endY, 1); send("pointerup", endX, endY, 0); return { startX, startY, endX, endY }; })()`
-  );
-  assert.ok(pointerResult, "Canvas received a pointer drag");
+  const startX = canvasBounds.x + canvasBounds.width * 0.4;
+  const startY = canvasBounds.y + canvasBounds.height * 0.4;
+  const endX = startX + 140;
+  const endY = startY + 100;
+  for (const event of [
+    { type: "mouseMoved", x: startX, y: startY },
+    { type: "mousePressed", x: startX, y: startY, button: "left", buttons: 1, clickCount: 1 },
+    { type: "mouseMoved", x: startX + 35, y: startY + 25, button: "left", buttons: 1 },
+    { type: "mouseMoved", x: startX + 80, y: startY + 55, button: "left", buttons: 1 },
+    { type: "mouseMoved", x: endX, y: endY, button: "left", buttons: 1 },
+    { type: "mouseReleased", x: endX, y: endY, button: "left", buttons: 0, clickCount: 1 }
+  ]) {
+    await cdp.send("Input.dispatchMouseEvent", event);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  }
   writeFileSync(
     path.join(profileRoot, "studio-live-after-draw.png"),
     Buffer.from((await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true })).data, "base64")

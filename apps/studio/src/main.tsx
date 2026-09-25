@@ -7,6 +7,6 @@ if (!rootElement) throw new Error("Failed to find the root element in index.html
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-  <App />
+    <App />
   </React.StrictMode>
 );

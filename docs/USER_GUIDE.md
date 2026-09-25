@@ -89,3 +89,15 @@ The Webview keeps Enabled, Focus mode, Intensity, Speech bubble, and Reduced mot
 - Shareable avatar ZIPs: the location selected in the **Export Avatar** save dialog
 
 The [SECURITY_PRIVACY.md](SECURITY_PRIVACY.md), [PERFORMANCE.md](PERFORMANCE.md), and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) documents explain data handling, resource limits, and recovery steps.
+
+## Standalone Studio
+
+`pnpm studio` serves the infinite canvas from a loopback host. VS Code is optional. Open the printed `http://127.0.0.1:<port>/?studioToken=…` URL. The token is required on every request.
+
+Home lists recent projects. **New file** opens the editor. Image tracing stays on this computer. **Send to Blender** is available only for one selected SVG and writes a new working copy.
+
+Chat uses your own OpenRouter key, stored by the host. The first send in a project asks for consent and shows the draft that will leave the machine. The composer shows the selected model's price before a paid send. Replies can show token counts and `usage.cost` when OpenRouter returns them. Stop, retry, and model switching stay on the conversation. A missing key, an unavailable model, and a missing price are stated in the panel. They are not replaced with a guessed cost.
+
+Optional QuiverAI SVG generation is off until you enable it for the session and confirm the exact prompt and reference image. Local tracing remains the default.
+
+Connectors are documented in [MCP_CONNECTORS.md](MCP_CONNECTORS.md).

@@ -46,7 +46,9 @@ export function RecentProjectNotice({
           <p>{projectMessage}</p>
         </details>
       )}
-      <button className="recents__notice-retry" type="button" onClick={onRetry}>Try again</button>
+      <button className="recents__notice-retry" type="button" onClick={onRetry}>
+        Try again
+      </button>
     </div>
   );
 }
@@ -79,13 +81,19 @@ export function RecentEmptyState({
 }) {
   return (
     <div className="recents__empty" role="status">
-      <span className="recents__empty-mark" aria-hidden="true"><FolderOpen size={24} strokeWidth={1.5} /></span>
+      <span className="recents__empty-mark" aria-hidden="true">
+        <FolderOpen size={24} strokeWidth={1.5} />
+      </span>
       <h3>{query ? "No matches found" : projectMode ? "No projects yet" : "No canvases yet"}</h3>
       <p>{query ? "Try another name or clear the search." : "Create a file to start designing."}</p>
       {query ? (
-        <button className="recents__button recents__button--quiet" type="button" onClick={onClearSearch}>Clear search</button>
+        <button className="recents__button recents__button--quiet" type="button" onClick={onClearSearch}>
+          Clear search
+        </button>
       ) : (
-        <button className="recents__button recents__button--primary" type="button" onClick={onNewCanvas}><Plus size={16} aria-hidden="true" /> New file</button>
+        <button className="recents__button recents__button--primary" type="button" onClick={onNewCanvas}>
+          <Plus size={16} aria-hidden="true" /> New file
+        </button>
       )}
     </div>
   );

@@ -21,6 +21,8 @@ export interface StoredConversation {
   messages: StoredConversationMessage[];
 }
 
+export type StoredConversationSummary = Pick<StoredConversation, "id" | "title" | "modelId" | "updatedAt">;
+
 export function conversationRecord(value: unknown): StoredConversation | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -82,6 +84,27 @@ export async function readConversation(
   } catch {
     return null;
   }
+}
+
+export async function listConversations(libraryRoot: string, projectId: string): Promise<StoredConversationSummary[]> {
+  if (!ID.test(projectId)) return [];
+  const directory = containedLibraryPath(libraryRoot, path.join("conversations", projectId));
+  if (!directory) return [];
+  let names: string[];
+  try {
+    names = await readdir(directory);
+  } catch {
+    return [];
+  }
+  const ids = names
+    .filter((name) => name.endsWith(".json") && ID.test(name.slice(0, -5)))
+    .map((name) => name.slice(0, -5));
+  const records = await Promise.all(ids.map((id) => readConversation(libraryRoot, projectId, id)));
+  return records
+    .filter((record): record is StoredConversation => record !== null)
+    .map(({ id, title, modelId, updatedAt }) => ({ id, title, modelId, updatedAt }))
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .slice(0, MAX_CONVERSATIONS);
 }
 
 export async function renameConversation(

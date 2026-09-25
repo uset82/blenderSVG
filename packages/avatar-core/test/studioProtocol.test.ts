@@ -17,10 +17,17 @@ describe("Studio bridge protocol", () => {
       workspaceTrusted: true,
       connection: { status: "connected", message: "OpenRouter key verified." }
     });
+    const standaloneState = createHostToStudioMessage({
+      type: "studio:hostState",
+      host: "standalone",
+      workspaceTrusted: true,
+      connection: { status: "connected", message: "OpenRouter key verified on this computer." }
+    });
     expect(ready.protocolVersion).toBe(STUDIO_PROTOCOL_VERSION);
     expect(parseStudioToHostMessage(ready).success).toBe(true);
     expect(parseStudioToHostMessage(request).success).toBe(true);
     expect(parseHostToStudioMessage(state).success).toBe(true);
+    expect(parseHostToStudioMessage(standaloneState).success).toBe(true);
   });
 
   it("rejects versions, unknown actions, oversized content, and credential fields", () => {
@@ -152,6 +159,57 @@ describe("Studio bridge protocol", () => {
       }
     });
     expect(parseHostToStudioMessage(response).success).toBe(true);
+  });
+
+  it("round-trips local conversation operations and rejects credentials or oversized transcripts", () => {
+    const projectId = "44a4252c-5bc5-41e6-b7b7-68a79736c7d5";
+    const conversationId = "00000000-0000-4000-8000-000000000001";
+    const list = createStudioToHostMessage({
+      type: "studio:conversationListRequest",
+      requestId: "conversation-list-1",
+      projectId
+    });
+    const save = createStudioToHostMessage({
+      type: "studio:conversationSaveRequest",
+      requestId: "conversation-save-1",
+      projectId,
+      conversation: {
+        id: conversationId,
+        title: "Canvas review",
+        modelId: "openrouter/auto",
+        messages: [{ role: "user", content: "Remember this." }]
+      }
+    });
+    if (save.type !== "studio:conversationSaveRequest")
+      throw new Error("Conversation request factory returned the wrong message.");
+    expect(parseStudioToHostMessage(list).success).toBe(true);
+    expect(parseStudioToHostMessage(save).success).toBe(true);
+    expect(parseStudioToHostMessage({ ...save, apiKey: "private" }).success).toBe(false);
+    expect(
+      parseStudioToHostMessage({
+        ...save,
+        conversation: {
+          ...save.conversation,
+          messages: Array.from({ length: 201 }, () => ({ role: "user", content: "x" }))
+        }
+      }).success
+    ).toBe(false);
+
+    const record = {
+      id: conversationId,
+      projectId,
+      title: "Canvas review",
+      modelId: "openrouter/auto",
+      updatedAt: "2026-01-03T03:04:05.000Z",
+      messages: [{ role: "user" as const, content: "Remember this." }]
+    };
+    const read = createHostToStudioMessage({
+      type: "studio:conversationRead",
+      requestId: "conversation-read-1",
+      conversation: record
+    });
+    expect(parseHostToStudioMessage(read).success).toBe(true);
+    expect(parseHostToStudioMessage({ ...read, conversation: { ...record, apiKey: "private" } }).success).toBe(false);
   });
 
   it("accepts bounded raster tracing and chat image attachments only", () => {

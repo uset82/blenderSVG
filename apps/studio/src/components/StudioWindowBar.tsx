@@ -15,7 +15,7 @@ import {
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
 import brandMarkUrl from "../assets/brand-mark.svg?inline";
 import { formatEditorSaveStatus } from "../projects/exportProjectFile.js";
-import { zoomMenuItems, type ZoomCommand } from "./zoomMenu.js";
+import { type ZoomCommand, zoomMenuItems } from "./zoomMenu.js";
 
 export interface StudioWindowBarProps {
   projectTitle: string;
@@ -45,6 +45,10 @@ export interface StudioWindowBarProps {
   canManageConnection: boolean;
   connected: boolean;
   onConnectionAction: (action: "connect" | "replace" | "test" | "disconnect") => void;
+  onSaveHostKey?: (key: string) => void;
+  canSendToBlender?: boolean;
+  onSendToBlender?: () => string;
+  onBlenderAssets?: (result: { sceneFile: string; pngSrc: string; glbSrc: string }) => void;
   agentSessions?: Array<{ id: string; title: string; status: "running" | "finished" | "idle" }>;
   onStopAgent?: () => void;
 }
@@ -77,11 +81,16 @@ export function StudioWindowBar({
   canManageConnection,
   connected,
   onConnectionAction,
+  onSaveHostKey,
+  canSendToBlender = false,
+  onSendToBlender,
+  onBlenderAssets,
   agentSessions = [],
   onStopAgent
 }: StudioWindowBarProps) {
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [blenderStatus, setBlenderStatus] = useState("Blender has not been checked.");
   const [titleInput, setTitleInput] = useState(projectTitle);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isZoomMenuOpen, setZoomMenuOpen] = useState(false);
@@ -152,7 +161,7 @@ export function StudioWindowBar({
             <img className="studio-windowbar__brand-mark" src={brandMarkUrl} alt="" aria-hidden="true" />
           </button>
           <button
-            className="studio-windowbar__recents studio-windowbar__control"
+            className="studio-windowbar__recents studio-windowbar__control studio-windowbar__desktop-only"
             type="button"
             onClick={onShowHome}
             title="Home"
@@ -162,7 +171,7 @@ export function StudioWindowBar({
             <House size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>
           <button
-            className="studio-windowbar__control studio-windowbar__open"
+            className="studio-windowbar__control studio-windowbar__open studio-windowbar__desktop-only"
             type="button"
             onClick={onOpenFile}
             title="Open project file"
@@ -200,7 +209,10 @@ export function StudioWindowBar({
               </button>
             ) : (
               <span className="studio-windowbar__unsaved" role="status">
-                — {displayedSaveStatus.label}
+                <span className="studio-windowbar__status-dash" aria-hidden="true">
+                  —{" "}
+                </span>
+                {displayedSaveStatus.label}
               </span>
             )}
             <details
@@ -237,10 +249,15 @@ export function StudioWindowBar({
         </div>
 
         <div className="studio-windowbar__actions">
-          <details className="studio-windowbar__menu">
+          <details className="studio-windowbar__menu studio-windowbar__desktop-only">
             <summary className="studio-windowbar__control studio-windowbar__labeled" aria-label="Agents">
               <Bot size={15} strokeWidth={1.75} aria-hidden="true" />
-              <span>Agents</span>
+              <span className="studio-windowbar__action-label">Agents</span>
+              {agentSessions.some((session) => session.status !== "idle") ? (
+                <span className="studio-windowbar__count">
+                  {agentSessions.filter((session) => session.status !== "idle").length}
+                </span>
+              ) : null}
             </summary>
             <div className="studio-windowbar__menu-popover">
               <p className="studio-windowbar__menu-note">
@@ -271,20 +288,43 @@ export function StudioWindowBar({
               </button>
             </div>
           </details>
-          <button className="studio-windowbar__control studio-windowbar__labeled" type="button" onClick={onExport}>
+          <button
+            className="studio-windowbar__control studio-windowbar__labeled"
+            type="button"
+            aria-label="Export"
+            onClick={onExport}
+          >
             <Download size={15} strokeWidth={1.75} aria-hidden="true" />
-            <span>Export</span>
+            <span className="studio-windowbar__action-label">Export</span>
           </button>
           <span className="studio-windowbar__separator" aria-hidden="true" />
-          <details className="studio-windowbar__menu">
+          <details className="studio-windowbar__menu studio-windowbar__menu--settings studio-windowbar__desktop-only">
             <summary className="studio-windowbar__control" aria-label="Settings" title="Settings">
               <Settings size={16} strokeWidth={1.75} aria-hidden="true" />
             </summary>
             <div className="studio-windowbar__menu-popover">
               <p className="studio-windowbar__menu-note">
-                Theme is {themeLabel}. Provider credentials stay in the trusted host and are never entered in this page.
+                The key is sent once to this computer and is not kept in the page.
               </p>
-              <p>
+              {onSaveHostKey && (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const input = event.currentTarget.elements.namedItem("openrouter-key");
+                    if (!(input instanceof HTMLInputElement)) return;
+                    const key = input.value;
+                    input.value = "";
+                    onSaveHostKey(key);
+                  }}
+                >
+                  <label>
+                    OpenRouter key
+                    <input name="openrouter-key" type="password" autoComplete="off" aria-label="OpenRouter key" />
+                  </label>
+                  <button type="submit">Save key on this computer</button>
+                </form>
+              )}
+              <p className="studio-windowbar__menu-status">
                 Key label: {connected ? "configured" : "not configured"}. The key is not shown. Credit usage was not
                 returned by the host.
               </p>
@@ -316,14 +356,55 @@ export function StudioWindowBar({
               >
                 Disconnect
               </button>
+              <p className="studio-windowbar__menu-status" role="status">
+                {blenderStatus}
+              </p>
               <button
                 type="button"
-                onClick={(event) => {
-                  closePopover(event);
-                  onCycleTheme();
+                onClick={() => {
+                  void fetch("/api/blender", { credentials: "same-origin" })
+                    .then((response) => response.json())
+                    .then((body: { message?: string }) =>
+                      setBlenderStatus(body.message ?? "Blender could not be checked.")
+                    )
+                    .catch(() => setBlenderStatus("Blender could not be checked. No scene file was changed."));
                 }}
               >
-                Use the next theme
+                Check Blender
+              </button>
+              <button
+                type="button"
+                disabled={!canSendToBlender}
+                onClick={() => {
+                  const svg = onSendToBlender?.() ?? "";
+                  void fetch("/api/blender", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ svg, sourceName: "selection.svg" })
+                  })
+                    .then(async (response) => ({
+                      ok: response.ok,
+                      body: (await response.json()) as {
+                        message?: string;
+                        sent?: boolean;
+                        sceneFile?: string;
+                        pngSrc?: string;
+                        glbSrc?: string;
+                      }
+                    }))
+                    .then(({ ok, body }) => {
+                      setBlenderStatus(
+                        body.message ?? (ok ? "SVG sent to a new Blender copy." : "Send to Blender failed.")
+                      );
+                      if (body.sent && body.sceneFile && body.pngSrc && body.glbSrc) {
+                        onBlenderAssets?.({ sceneFile: body.sceneFile, pngSrc: body.pngSrc, glbSrc: body.glbSrc });
+                      }
+                    })
+                    .catch(() => setBlenderStatus("Send to Blender failed. No scene file was changed."));
+                }}
+              >
+                Send to Blender
               </button>
               <button
                 type="button"
@@ -338,7 +419,7 @@ export function StudioWindowBar({
             </div>
           </details>
           <button
-            className="studio-windowbar__control"
+            className="studio-windowbar__control studio-windowbar__desktop-only"
             type="button"
             aria-label="Present selected frame"
             title={canPresent ? "Present the selected frame" : "Select a frame to present it"}

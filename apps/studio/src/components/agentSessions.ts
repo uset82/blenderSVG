@@ -6,3 +6,13 @@ export function sessionPillStatus(isActive: boolean, chatStatus: string | null):
   if (chatStatus === "complete") return "finished";
   return "idle";
 }
+
+export function stopRunningReply(
+  chatStatus: string | null,
+  cancel: (requestId: string) => void,
+  requestId: string
+): boolean {
+  if (chatStatus !== "streaming" && chatStatus !== "stopping") return false;
+  cancel(requestId);
+  return true;
+}

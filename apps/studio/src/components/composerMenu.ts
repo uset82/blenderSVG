@@ -31,8 +31,7 @@ export function composerMenuItems(input: { hasEditor: boolean; selectedCount: nu
     {
       id: "pick-skill",
       label: "Pick a skill",
-      enabled: false,
-      reason: "Skills are not connected to this chat yet."
+      enabled: true
     }
   ];
 }

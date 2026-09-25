@@ -6,6 +6,12 @@ Codex Avatar Studio processes avatar assets locally. It does not upload images, 
 
 The VS Code extension keeps the OpenRouter key in SecretStorage. The standalone Studio host keeps it in the OS keychain through `@napi-rs/keyring`, with `OPENROUTER_API_KEY` only as an environment fallback. The Settings form posts the key once to the authenticated host. The key is not written to browser storage, not returned to the page, and not written to logs. The page only receives whether a key is configured and whether it came from the keychain or the environment.
 
+The first chat send in each project opens a consent dialog. A review step shows the draft, earlier messages, and an attached image only when one is attached. The context row lists the model, draft size, message count, and that the key is not included. Paid models show their catalog price before send. The reply footer shows token counts and `usage.cost` when OpenRouter returns them, and says the cost was not returned otherwise.
+
+QuiverAI SVG generation is off until that Studio session is enabled. Generation also requires a checkbox that the prompt and selected reference were reviewed. The host sends only that prompt and the selected PNG or JPEG bytes to `api.quiver.ai`. The key stays on the host. Returned SVG is sanitized before it can be inserted. Local tracing does not call QuiverAI.
+
+MCP clients use a separate bearer token from Connectors. That token is not an OpenRouter key. A missing or revoked token is rejected. A read-only client cannot write.
+
 ## Conversations
 
 Standalone Studio stores a conversation at `conversations/<projectId>/<id>.json` in the library. The file keeps the title, the selected model id, and the message text. It does not keep the OpenRouter key. The host keeps the 50 newest conversations for each project and deletes older files.

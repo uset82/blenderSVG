@@ -758,7 +758,7 @@ export class AvatarWebviewProvider implements vscode.WebviewViewProvider, vscode
         canSelectFiles: true,
         canSelectFolders: true,
         canSelectMany: false,
-        filters: { "Avatar package manifest": ["json"] }
+        filters: { "Avatar package": ["json", "zip"] }
       });
       const source = selected?.[0];
       if (!source) return "Import cancelled; no files were changed.";

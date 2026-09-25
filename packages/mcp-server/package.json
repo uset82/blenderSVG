@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": "./dist/src/index.js",
+  "bin": {
+    "blender-svg-mcp": "./dist/src/index.js",
+    "blendersvg-mcp": "./dist/src/stdioProxyCli.js"
+  },
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "scripts": {

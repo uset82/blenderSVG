@@ -26,11 +26,13 @@ pnpm install --frozen-lockfile
 pnpm run ci
 ```
 
-`pnpm run ci` checks formatting, lint, type safety, unit/integration tests, and all workspace builds. The main workspace packages are `apps/extension`, `apps/webview`, `packages/avatar-core`, `packages/asset-pipeline`, and `packages/runtime-pixi`.
+`pnpm run ci` checks formatting, lint, type safety, unit/integration tests, and all workspace builds. The workspace includes `apps/studio`, `apps/studio-server`, `apps/extension`, `apps/webview`, `packages/avatar-core`, `packages/asset-pipeline`, `packages/studio-host-core`, `packages/studio-agent`, and `packages/runtime-pixi`.
+
+`pnpm studio` starts the loopback Studio host. `pnpm test:e2e:studio` runs the Playwright journey in Microsoft Edge against a fixture OpenRouter provider: Home, New file, editor, chat, Apply, Undo, and Export.
 
 ## tldraw production license
 
-Studio passes `VITE_TLDRAW_LICENSE_KEY` into the canvas at build time. Set it in the environment before `pnpm --filter @codex-avatar-studio/studio dev` or `build` when you have a tldraw license. The repository does not include a key. When the variable is missing or blank, Studio leaves the license unset and tldraw keeps its production-license reminder.
+Studio passes `VITE_TLDRAW_LICENSE_KEY` into the canvas at build time. Set it in the environment before `pnpm --filter @codex-avatar-studio/studio build` when you have a tldraw license. The repository does not include a key. In production, an empty value leaves the canvas disabled and shows an in-app setup notice; tldraw otherwise stops rendering after five seconds without a valid license. Development mode remains available without a key.
 
 ## Develop the extension
 
@@ -56,6 +58,8 @@ pnpm run validate:notices
 pnpm run validate:vsix
 pnpm run smoke:vsix
 pnpm run smoke:clean-profile
+pnpm run validate:docs
+pnpm run test:e2e:studio
 pnpm run package:vsix:pre
 ```
 

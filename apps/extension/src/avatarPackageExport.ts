@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { lstat, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, lstat, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AvatarManifest } from "@codex-avatar-studio/avatar-core";
 import {
@@ -73,6 +73,60 @@ export async function exportAvatarPackageArchive(
     byteLength: archive.byteLength,
     fileCount: files.length
   };
+}
+
+export async function extractAvatarPackageArchive(archivePath: string, destinationRoot: string): Promise<string> {
+  const archive = await readFile(archivePath);
+  const entries = readStoredZipEntries(archive);
+  if (!entries.length) throw new AvatarPackageError("The avatar package archive is empty.");
+  const destination = path.resolve(destinationRoot);
+  await mkdir(destination, { recursive: true });
+  for (const entry of entries) {
+    const relative = entry.name.replaceAll("\\", "/");
+    if (!relative || relative.startsWith("/") || relative.split("/").some((part) => part === ".." || part === "")) {
+      throw new AvatarPackageError("The avatar package archive contains an unsafe path.");
+    }
+    const target = path.resolve(destination, ...relative.split("/"));
+    if (!target.startsWith(`${destination}${path.sep}`)) {
+      throw new AvatarPackageError("The avatar package archive escapes its folder.");
+    }
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, entry.bytes);
+  }
+  const manifest = entries.find(
+    (entry) => entry.name.endsWith("/avatar.manifest.json") || entry.name === "avatar.manifest.json"
+  );
+  if (!manifest) throw new AvatarPackageError("The avatar package archive has no manifest.");
+  const folder = path.posix.dirname(manifest.name);
+  return folder === "." ? destination : path.resolve(destination, ...folder.split("/"));
+}
+
+function readStoredZipEntries(archive: Buffer): Array<{ name: string; bytes: Buffer }> {
+  const endOffset = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (endOffset < 0) throw new AvatarPackageError("The avatar package archive is not a ZIP file.");
+  const count = archive.readUInt16LE(endOffset + 10);
+  let offset = archive.readUInt32LE(endOffset + 16);
+  const entries: Array<{ name: string; bytes: Buffer }> = [];
+  if (count > MAX_AVATAR_PACKAGE_FILES) throw new AvatarPackageError("The avatar package archive has too many files.");
+  for (let index = 0; index < count; index += 1) {
+    if (archive.readUInt32LE(offset) !== 0x02014b50)
+      throw new AvatarPackageError("The avatar package archive is damaged.");
+    const method = archive.readUInt16LE(offset + 10);
+    const size = archive.readUInt32LE(offset + 20);
+    const nameLength = archive.readUInt16LE(offset + 28);
+    const extraLength = archive.readUInt16LE(offset + 30);
+    const commentLength = archive.readUInt16LE(offset + 32);
+    const localOffset = archive.readUInt32LE(offset + 42);
+    const name = archive.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
+    if (method !== 0) throw new AvatarPackageError("The avatar package archive must be stored without compression.");
+    if (size > MAX_AVATAR_PACKAGE_FILE_BYTES) throw new AvatarPackageError("An archived avatar file is too large.");
+    const localNameLength = archive.readUInt16LE(localOffset + 26);
+    const localExtraLength = archive.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    entries.push({ name, bytes: archive.subarray(dataStart, dataStart + size) });
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
 }
 
 export function avatarPackageArchiveFileName(manifest: Pick<AvatarManifest, "id" | "version">): string {

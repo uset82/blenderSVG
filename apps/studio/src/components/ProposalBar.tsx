@@ -25,6 +25,7 @@ export function ProposalBar({
       <button type="button" onClick={onReject}>
         Reject
       </button>
+      <p className="studio-proposal__note">Apply to keep · Reject to discard</p>
     </section>
   );
 }

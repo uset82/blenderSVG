@@ -56,7 +56,7 @@ export function stampCanvasTimes(
     const previous = next[page.id];
     next[page.id] = {
       createdAt: previous?.createdAt ?? now,
-      updatedAt: touchCurrent && page.id === currentId ? now : previous?.updatedAt ?? previous?.createdAt ?? now
+      updatedAt: touchCurrent && page.id === currentId ? now : (previous?.updatedAt ?? previous?.createdAt ?? now)
     };
   }
   return next;

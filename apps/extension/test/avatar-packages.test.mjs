@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { exportAvatarPackageArchive } from "../dist/avatarPackageExport.js";
 import { AvatarPackageRegistry, MAX_AVATAR_PACKAGE_FILE_BYTES, validateAvatarPackage } from "../dist/avatarPackages.js";
 
 const extensionRoot = path.join(import.meta.dirname, "..");
@@ -238,6 +239,33 @@ test("restores package files when a removal registry update fails", async () => 
     registry.writeRegistry = originalWriteRegistry;
     assert.equal((await registry.getPackage("remove-rollback-avatar")).id, "remove-rollback-avatar");
     assert.equal((await registry.getActivePackage()).id, "remove-rollback-avatar");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("imports a saved avatar ZIP and activates it for the sidebar", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "codex-avatar-zip-import-"));
+  const source = path.join(root, "source");
+  const workspace = path.join(root, "workspace");
+  const archive = path.join(root, "local-test-avatar-1.0.0.codex-avatar.zip");
+  await mkdir(source, { recursive: true });
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>';
+  await writeFile(path.join(source, "avatar.svg"), svg);
+  const checksum = createHash("sha256").update(svg).digest("hex");
+  await writeFile(
+    path.join(source, "avatar.manifest.json"),
+    JSON.stringify(manifest("avatar.svg", { "avatar.svg": checksum }))
+  );
+  try {
+    await exportAvatarPackageArchive(source, archive);
+    const registry = new AvatarPackageRegistry(
+      () => workspace,
+      () => ".codex-avatar"
+    );
+    const imported = await registry.importPackage(archive);
+    await registry.activateAvatar(imported.id);
+    assert.equal((await registry.getActivePackage())?.id, "local-test-avatar");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -20,6 +20,21 @@
       "types": "./dist/src/tracePixels.d.ts",
       "import": "./dist/src/tracePixels.js",
       "default": "./dist/src/tracePixels.js"
+    },
+    "./raster-prep": {
+      "types": "./dist/src/rasterPrep.d.ts",
+      "import": "./dist/src/rasterPrep.js",
+      "default": "./dist/src/rasterPrep.js"
+    },
+    "./optimize-svg": {
+      "types": "./dist/src/optimizeSvg.d.ts",
+      "import": "./dist/src/optimizeSvg.js",
+      "default": "./dist/src/optimizeSvg.js"
+    },
+    "./optimize-svg/browser": {
+      "types": "./dist/src/optimizeSvgBrowser.d.ts",
+      "import": "./dist/src/optimizeSvgBrowser.js",
+      "default": "./dist/src/optimizeSvgBrowser.js"
     }
   },
   "scripts": {

@@ -10,7 +10,7 @@ interface PanelSizeRange {
 const PANEL_SIZE_RANGES: Record<ResizablePanel, Record<PanelSizeAxis, PanelSizeRange>> = {
   chat: {
     width: { initial: 320, minimum: 260, maximum: 480 },
-    height: { initial: 380, minimum: 180, maximum: 520 }
+    height: { initial: 460, minimum: 180, maximum: 520 }
   },
   inspector: {
     width: { initial: 280, minimum: 240, maximum: 420 },
@@ -25,9 +25,13 @@ export function getPanelSizeRange(
 ): PanelSizeRange {
   const range = PANEL_SIZE_RANGES[panel][axis];
   if (axis !== "height" || workspaceHeight === undefined) return range;
+  const workspaceRatio = panel === "chat" ? 0.58 : 0.48;
   return {
     ...range,
-    maximum: Math.max(range.minimum, Math.floor(Math.min(range.maximum, workspaceHeight * 0.48, workspaceHeight - 188)))
+    maximum: Math.max(
+      range.minimum,
+      Math.floor(Math.min(range.maximum, workspaceHeight * workspaceRatio, workspaceHeight - 188))
+    )
   };
 }
 

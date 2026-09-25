@@ -52,26 +52,15 @@ export class VectorStudioShapeUtil extends ShapeUtil<VectorStudioShape> {
       <HTMLContainer
         className="studio-shape studio-shape--vector"
         style={{ width: shape.props.w, height: shape.props.h }}
+        title="Sanitized SVG vector asset"
       >
-        <div className="studio-shape__title">Vector preview</div>
-        <p className="studio-shape__copy">
-          Picture tracing is available in Avatar Studio. This canvas panel will use the local tracing pipeline after its
-          host connection is complete.
-        </p>
-
-        <div className="studio-shape__preview">
-          {preview.image ? (
-            <img src={preview.image.src} alt="Sanitized vector preview" draggable={false} />
-          ) : (
-            <span className="studio-shape__meta" role={preview.error ? "alert" : undefined}>
-              {preview.error || "No vector has been added yet."}
-            </span>
-          )}
-        </div>
-
-        <div className="studio-shape__note">
-          Text-to-SVG providers and canvas insertion are unavailable while the local asset workflow is being connected.
-        </div>
+        {preview.image ? (
+          <img src={preview.image.src} alt="Vector artwork" draggable={false} />
+        ) : (
+          <span className="studio-shape__meta" role={preview.error ? "alert" : undefined}>
+            {preview.error || "No vector has been added yet."}
+          </span>
+        )}
       </HTMLContainer>
     );
   }

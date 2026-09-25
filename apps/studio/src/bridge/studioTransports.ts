@@ -2,6 +2,7 @@ import {
   createStudioToHostMessage,
   type HostToStudioMessage,
   parseHostToStudioMessage,
+  STUDIO_PROTOCOL_VERSION,
   type StudioToHostMessageInput
 } from "@codex-avatar-studio/avatar-core";
 
@@ -63,14 +64,44 @@ export function createWebSocketTransport(
   };
 }
 
-type SocketLike = Pick<WebSocket, "send" | "addEventListener" | "removeEventListener">;
+type SocketLike = Pick<WebSocket, "send" | "addEventListener" | "removeEventListener"> & {
+  readyState?: number;
+  close?: (code?: number, reason?: string) => void;
+};
 
 /** Reopens the socket after a close and sends studio:ready so the host can resync state. */
 export function createReconnectingWebSocketTransport(connect: () => SocketLike): StudioTransport & { close(): void } {
-  let socket = connect();
   let stopped = false;
+  let socket: SocketLike | undefined;
+  let reconnectTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+  let reconnectDelay = 250;
   const listeners = new Set<(message: HostToStudioMessage) => void>();
-  const attach = (current: SocketLike) => {
+  const queuedReady: string[] = [];
+  const isOpen = (current: SocketLike | undefined) =>
+    current !== undefined && (current.readyState === undefined || current.readyState === 1);
+  const deliver = (message: HostToStudioMessage) => {
+    for (const listener of listeners) listener(message);
+  };
+  const sendReady = (current: SocketLike) => {
+    current.send(JSON.stringify(createStudioToHostMessage({ type: "studio:ready" })));
+  };
+  const scheduleReconnect = () => {
+    if (stopped || reconnectTimer !== undefined) return;
+    reconnectTimer = globalThis.setTimeout(() => {
+      reconnectTimer = undefined;
+      openSocket();
+    }, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, 5_000);
+  };
+  const openSocket = () => {
+    if (stopped) return;
+    try {
+      socket = connect();
+    } catch {
+      scheduleReconnect();
+      return;
+    }
+    const current = socket;
     const onMessage = (event: MessageEvent<unknown>) => {
       let payload: unknown = event.data;
       if (typeof event.data === "string") {
@@ -81,24 +112,43 @@ export function createReconnectingWebSocketTransport(connect: () => SocketLike):
         }
       }
       const parsed = parseHostToStudioMessage(payload);
-      if (parsed.success) for (const listener of listeners) listener(parsed.data);
+      if (parsed.success) deliver(parsed.data);
+    };
+    const onOpen = () => {
+      reconnectDelay = 250;
+      const queued = queuedReady.splice(0);
+      if (queued.length === 0) sendReady(current);
+      else for (const message of queued) current.send(message);
     };
     const onClose = () => {
       current.removeEventListener("message", onMessage as EventListener);
+      current.removeEventListener("open", onOpen as EventListener);
       current.removeEventListener("close", onClose as EventListener);
+      current.removeEventListener("error", onError as EventListener);
       if (stopped) return;
-      socket = connect();
-      socket.send(JSON.stringify(createStudioToHostMessage({ type: "studio:ready" })));
-      attach(socket);
+      deliver({
+        protocolVersion: STUDIO_PROTOCOL_VERSION,
+        type: "studio:hostState",
+        host: "standalone",
+        workspaceTrusted: true,
+        connection: { status: "error", message: "Connection to the local Studio host was interrupted. Reconnecting…" }
+      });
+      scheduleReconnect();
     };
+    const onError = () => current.close?.();
     current.addEventListener("message", onMessage as EventListener);
+    current.addEventListener("open", onOpen as EventListener);
     current.addEventListener("close", onClose as EventListener);
+    current.addEventListener("error", onError as EventListener, { once: true } as EventListenerOptions);
+    if (isOpen(current)) onOpen();
   };
-  attach(socket);
+  openSocket();
   return {
     kind: "websocket",
     send(message) {
-      socket.send(JSON.stringify(createStudioToHostMessage(message)));
+      const serialized = JSON.stringify(createStudioToHostMessage(message));
+      if (isOpen(socket)) socket?.send(serialized);
+      else if (message.type === "studio:ready" && queuedReady.length === 0) queuedReady.push(serialized);
     },
     subscribe(listener) {
       listeners.add(listener);
@@ -106,6 +156,8 @@ export function createReconnectingWebSocketTransport(connect: () => SocketLike):
     },
     close() {
       stopped = true;
+      if (reconnectTimer !== undefined) globalThis.clearTimeout(reconnectTimer);
+      socket?.close?.(1000, "Studio panel closed.");
     }
   };
 }

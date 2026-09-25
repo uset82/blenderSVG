@@ -79,6 +79,21 @@ const projectDocument = z.strictObject({
   formatVersion: z.literal(1),
   snapshot: z.string().min(2).max(20_000_000)
 });
+const conversationMeta = z.strictObject({
+  id: projectId,
+  title: z.string().trim().min(1).max(120),
+  modelId: z.string().max(200),
+  updatedAt: z.string().datetime()
+});
+const conversationMessage = z.strictObject({
+  role: z.enum(["user", "assistant"]),
+  content: z.string().max(12_000)
+});
+const conversationRecord = z.strictObject({
+  ...conversationMeta.shape,
+  projectId,
+  messages: z.array(conversationMessage).max(200)
+});
 
 /** Messages accepted by the trusted Studio host. No provider credential is permitted. */
 export const studioToHostMessageSchema = z.discriminatedUnion("type", [
@@ -127,6 +142,41 @@ export const studioToHostMessageSchema = z.discriminatedUnion("type", [
   }),
   z.strictObject({ protocolVersion: version, type: z.literal("studio:projectReveal"), requestId, projectId }),
   z.strictObject({ protocolVersion: version, type: z.literal("studio:projectDelete"), requestId, projectId }),
+  z.strictObject({ protocolVersion: version, type: z.literal("studio:conversationListRequest"), requestId, projectId }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationReadRequest"),
+    requestId,
+    projectId,
+    conversationId: projectId
+  }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationSaveRequest"),
+    requestId,
+    projectId,
+    conversation: z.strictObject({
+      id: projectId,
+      title: z.string().trim().min(1).max(120),
+      modelId: z.string().max(200),
+      messages: z.array(conversationMessage).max(200)
+    })
+  }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationRenameRequest"),
+    requestId,
+    projectId,
+    conversationId: projectId,
+    title: z.string().trim().min(1).max(120)
+  }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationDeleteRequest"),
+    requestId,
+    projectId,
+    conversationId: projectId
+  }),
   z.strictObject({
     protocolVersion: version,
     type: z.literal("studio:chatRequest"),
@@ -168,7 +218,7 @@ export const hostToStudioMessageSchema = z.discriminatedUnion("type", [
   z.strictObject({
     protocolVersion: version,
     type: z.literal("studio:hostState"),
-    host: z.enum(["vscode", "browser"]),
+    host: z.enum(["vscode", "standalone", "browser"]),
     workspaceTrusted: z.boolean(),
     connection
   }),
@@ -230,6 +280,43 @@ export const hostToStudioMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("studio:projectError"),
     requestId,
     code: z.enum(["workspace", "missing", "corrupt", "too-large", "invalid-title", "io", "cancelled"]),
+    message: z.string().trim().min(1).max(500)
+  }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationList"),
+    requestId,
+    conversations: z.array(conversationMeta).max(50)
+  }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationRead"),
+    requestId,
+    conversation: conversationRecord.nullable()
+  }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationSaved"),
+    requestId,
+    conversation: conversationRecord
+  }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationRenamed"),
+    requestId,
+    conversation: conversationMeta
+  }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationDeleted"),
+    requestId,
+    conversationId: projectId
+  }),
+  z.strictObject({
+    protocolVersion: version,
+    type: z.literal("studio:conversationError"),
+    requestId,
+    code: z.enum(["workspace", "missing", "invalid", "io"]),
     message: z.string().trim().min(1).max(500)
   }),
   z.strictObject({
@@ -333,6 +420,8 @@ export type StudioChatHistoryMessage = z.output<typeof chatHistoryMessage>;
 export type StudioChatUsage = z.output<typeof usage>;
 export type StudioProjectMeta = z.output<typeof projectMeta>;
 export type StudioProjectDocument = z.output<typeof projectDocument>;
+export type StudioConversationMeta = z.output<typeof conversationMeta>;
+export type StudioConversationRecord = z.output<typeof conversationRecord>;
 type WithoutVersion<T> = T extends unknown ? Omit<T, "protocolVersion"> : never;
 export type StudioToHostMessageInput = WithoutVersion<StudioToHostMessage>;
 export type HostToStudioMessageInput = WithoutVersion<HostToStudioMessage>;

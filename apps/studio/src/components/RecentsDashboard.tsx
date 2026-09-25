@@ -11,7 +11,9 @@ import {
   Plus,
   ScanLine,
   Search,
+  Settings,
   Upload,
+  Cable,
   X
 } from "lucide-react";
 import type React from "react";
@@ -49,13 +51,15 @@ export interface RecentsDashboardProps {
   projectActionMessage?: string | undefined;
   corruptCount?: number;
   thumbnailUrls?: Readonly<Record<string, string>> | undefined;
+  hostProjectThumbnails?: boolean | undefined;
+  hostThumbnailVersions?: Readonly<Record<string, number>> | undefined;
   onClose: () => void;
   onOpenCanvas: (canvasId: string) => void;
   onOpenProject: (projectId: string) => void;
   onDuplicateProject: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
   onRefreshProjects: () => void;
-  onNewCanvas: () => void;
+  onNewCanvas: (categoryId?: string) => void;
   onOpenFile?: (() => void) | undefined;
   onNavigate?: ((route: HomeRoute) => void) | undefined;
   onStartDesign?: ((categoryId: string, prompt: string) => void) | undefined;
@@ -67,6 +71,8 @@ export interface RecentsDashboardProps {
   onImageToSvg?: (() => void) | undefined;
   onRecreateScreenshot?: (() => void) | undefined;
   onImportAsset?: (() => void) | undefined;
+  currentNav?: "home" | "connectors" | undefined;
+  companion?: React.ReactNode | undefined;
 }
 
 const LAYOUT_KEY = "codex-avatar-studio-home-layout";
@@ -105,12 +111,15 @@ export function RecentsDashboard({
   projectActionMessage,
   corruptCount = 0,
   thumbnailUrls,
+  hostProjectThumbnails = false,
+  hostThumbnailVersions,
   onClose,
   onOpenCanvas,
   onOpenProject,
   onDuplicateProject,
   onDeleteProject,
   onRefreshProjects,
+  onNavigate,
   onNewCanvas,
   onOpenFile,
   onStartDesign,
@@ -121,7 +130,9 @@ export function RecentsDashboard({
   onDeleteCanvas,
   onImageToSvg,
   onRecreateScreenshot,
-  onImportAsset
+  onImportAsset,
+  currentNav = "home",
+  companion
 }: RecentsDashboardProps) {
   const [query, setQuery] = useState("");
   const [layout, setLayout] = useState<Layout>(() => readPreference(LAYOUT_KEY, ["grid", "list"], "grid"));
@@ -185,7 +196,8 @@ export function RecentsDashboard({
 
   const goToRecents = () => {
     setDrawerOpen(false);
-    recentsRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+    if (companion) onNavigate?.("home");
+    else recentsRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
   };
   const category = HOME_CATEGORY_PRESETS.find((preset) => preset.id === categoryId) ?? HOME_CATEGORY_PRESETS[0];
   const selectCategory = (preset: HomeCategory) => {
@@ -200,7 +212,7 @@ export function RecentsDashboard({
   const visibleCount = projectMode ? visibleProjects.length : visibleCanvases.length;
 
   return (
-    <section className="recents" aria-labelledby="recents-title">
+    <section className="recents" aria-label={companion ? "Studio connectors" : "Studio home"}>
       {drawerOpen && (
         <button
           className="recents__drawer-scrim"
@@ -230,7 +242,7 @@ export function RecentsDashboard({
                   type="button"
                   onClick={(event) => {
                     closeCardMenu(event);
-                    onNewCanvas();
+                    onNewCanvas(categoryId);
                   }}
                 >
                   <Plus size={15} aria-hidden="true" /> New file
@@ -274,29 +286,58 @@ export function RecentsDashboard({
         </button>
         <nav className="recents__nav" aria-label="Workspace">
           <button
-            className="recents__nav-item recents__nav-item--active"
+            className={`recents__nav-item${currentNav === "home" ? " recents__nav-item--active" : ""}`}
             type="button"
             onClick={goToRecents}
-            aria-current="page"
+            aria-current={currentNav === "home" ? "page" : undefined}
             title="Recents"
           >
             <Clock3 size={17} strokeWidth={1.75} aria-hidden="true" />
             <span className="recents__rail-text">Recents</span>
           </button>
+          {projects.some((project) => project.id === SCRATCHPAD_PROJECT_ID) && (
+            <button className="recents__nav-item" type="button" onClick={() => onOpenProject(SCRATCHPAD_PROJECT_ID)}>
+              <span className="recents__rail-text">Scratchpad</span>
+            </button>
+          )}
         </nav>
-        {projects.some((project) => project.id === SCRATCHPAD_PROJECT_ID) && (
-          <button className="recents__nav-item" type="button" onClick={() => onOpenProject(SCRATCHPAD_PROJECT_ID)}>
-            <span className="recents__rail-text">Scratchpad</span>
-          </button>
-        )}
         <div className="recents__rail-bottom">
+          {onNavigate && (
+            <>
+              <button
+                className={`recents__nav-item${currentNav === "connectors" ? " recents__nav-item--active" : ""}`}
+                type="button"
+                aria-current={currentNav === "connectors" ? "page" : undefined}
+                onClick={() => {
+                  setDrawerOpen(false);
+                  onNavigate("connectors");
+                }}
+                title="Connectors"
+              >
+                <Cable size={17} strokeWidth={1.75} aria-hidden="true" />
+                <span className="recents__rail-text">Connectors</span>
+              </button>
+              <button
+                className="recents__nav-item"
+                type="button"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  onNavigate("settings");
+                }}
+                title="Settings"
+              >
+                <Settings size={17} strokeWidth={1.75} aria-hidden="true" />
+                <span className="recents__rail-text">Settings</span>
+              </button>
+            </>
+          )}
           {hasCurrentCanvas && (
             <button className="recents__nav-item" type="button" onClick={onClose} title="Return to canvas">
               <ArrowLeft size={17} strokeWidth={1.75} aria-hidden="true" />
               <span className="recents__rail-text">Return to canvas</span>
             </button>
           )}
-          <p className="recents__rail-note recents__rail-text">
+          <p className={`recents__rail-note recents__rail-text${projectMode ? " recents__rail-note--saved" : ""}`}>
             {projectMode ? "Projects save in this trusted workspace." : "Canvases stay in this browser session."}
           </p>
         </div>
@@ -312,323 +353,344 @@ export function RecentsDashboard({
           >
             <Menu size={20} aria-hidden="true" />
           </button>
-          <h1 id="recents-title">
-            what are we <em>drawing</em> today?
-          </h1>
-          <div className="recents__header-actions">
-            {onOpenFile && (
-              <button className="recents__button recents__button--quiet" type="button" onClick={onOpenFile}>
-                <FolderOpen size={16} strokeWidth={1.75} aria-hidden="true" /> Open file
+          {companion ? (
+            <h1 className="recents__page-title">Connectors</h1>
+          ) : (
+            <h1 className="recents__page-title">Home</h1>
+          )}
+          {!companion && (
+            <div className="recents__header-actions">
+              {onOpenFile && (
+                <button className="recents__button recents__button--quiet" type="button" onClick={onOpenFile}>
+                  <FolderOpen size={16} strokeWidth={1.75} aria-hidden="true" /> Open file
+                </button>
+              )}
+              <button
+                className="recents__button recents__button--primary"
+                type="button"
+                data-category={categoryId}
+                onClick={() => onNewCanvas(categoryId)}
+              >
+                <Plus size={16} strokeWidth={2} aria-hidden="true" /> New file
               </button>
-            )}
-            <button className="recents__button recents__button--primary" type="button" onClick={onNewCanvas}>
-              <Plus size={16} strokeWidth={2} aria-hidden="true" /> New file
-            </button>
-          </div>
+            </div>
+          )}
         </header>
 
-        <div className="recents__content">
-          <div className="recents__content-inner">
-            <StudioComposer
-              className="studio-composer--home"
-              prompt={prompt}
-              onPromptChange={setPrompt}
-              categories={HOME_CATEGORY_PRESETS}
-              categoryId={categoryId}
-              onCategoryChange={selectCategory}
-              onSubmit={onStartDesign ? () => onStartDesign(categoryId, prompt.trim()) : undefined}
-              submitEnabled={Boolean(onStartDesign && prompt.trim() !== category.starterPrompt.trim())}
-              submitHelp={
-                onStartDesign
-                  ? "Open this prompt in the editor"
-                  : "Prompt handoff is coming soon. Use New file to start a canvas."
-              }
-              footnote={
-                <>
-                  <span>
-                    New frame: {category.label} · {category.width} × {category.height}
-                  </span>
-                  <span>
-                    {onStartDesign ? "Opens in editor · review before sending" : "Use New file to start a canvas"}
-                  </span>
-                </>
-              }
-            />
-
-            <section className="recents__start-cards" aria-label="Other ways to start">
-              <StartCard
-                title="Image → SVG"
-                description="Trace a picture into editable vectors on this computer."
-                icon={<ScanLine size={20} strokeWidth={1.7} aria-hidden="true" />}
-                onClick={onImageToSvg}
+        {companion ? (
+          <div className="recents__content recents__companion">{companion}</div>
+        ) : (
+          <div className="recents__content">
+            <div className="recents__content-inner">
+              <StudioComposer
+                className="studio-composer--home"
+                prompt={prompt}
+                onPromptChange={setPrompt}
+                categories={HOME_CATEGORY_PRESETS}
+                categoryId={categoryId}
+                onCategoryChange={selectCategory}
+                onSubmit={onStartDesign ? () => onStartDesign(categoryId, prompt.trim()) : undefined}
+                submitEnabled={Boolean(onStartDesign && prompt.trim() !== category.starterPrompt.trim())}
+                submitHelp={
+                  onStartDesign
+                    ? "Open this prompt in the editor"
+                    : "Prompt handoff is coming soon. Use New file to start a canvas."
+                }
+                footnote={
+                  <>
+                    <span>
+                      New frame: {category.label} · {category.width} × {category.height}
+                    </span>
+                    <span>
+                      {onStartDesign ? "Opens in editor · review before sending" : "Use New file to start a canvas"}
+                    </span>
+                  </>
+                }
               />
-              <StartCard
-                title="Recreate a screenshot"
-                description="Place it locally and attach it to a reviewed vision-model request."
-                icon={<Image size={20} strokeWidth={1.7} aria-hidden="true" />}
-                onClick={onRecreateScreenshot}
-              />
-              <StartCard
-                title="Import SVG or image"
-                description="Bring a local file in as a sanitized canvas asset."
-                icon={<Upload size={20} strokeWidth={1.7} aria-hidden="true" />}
-                onClick={onImportAsset}
-              />
-            </section>
 
-            <div className="recents__recents" id="recents" ref={recentsRef}>
-              <div className="recents__section-heading">
-                <h2>Recents</h2>
-                <span>
-                  {visibleCount}{" "}
-                  {visibleCount === 1 ? (projectMode ? "project" : "canvas") : projectMode ? "projects" : "canvases"}
-                </span>
-                <div className="recents__section-controls">
-                  <label className="recents__sort">
-                    <span className="sr-only">Sort recents</span>
-                    <select
-                      value={currentSort}
-                      onChange={(event) => setSortOrder(event.currentTarget.value as SortOrder)}
-                    >
-                      <option value="updated">Last edited</option>
-                      <option value="name">Name</option>
-                      <option value="created">Created</option>
-                    </select>
-                  </label>
-                  <fieldset className="recents__layout">
-                    <legend className="sr-only">Layout</legend>
-                    <button
-                      type="button"
-                      aria-label="Grid view"
-                      aria-pressed={layout === "grid"}
-                      onClick={() => setLayout("grid")}
-                    >
-                      <LayoutGrid size={16} strokeWidth={1.75} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="List view"
-                      aria-pressed={layout === "list"}
-                      onClick={() => setLayout("list")}
-                    >
-                      <List size={16} strokeWidth={1.75} aria-hidden="true" />
-                    </button>
-                  </fieldset>
-                </div>
-              </div>
-
-              <label className="recents__search">
-                <Search size={16} strokeWidth={1.75} aria-hidden="true" />
-                <span className="sr-only">Search {projectMode ? "projects" : "canvases"}</span>
-                <input
-                  ref={searchRef}
-                  type="search"
-                  placeholder={`Search ${projectMode ? "projects" : "canvases"}`}
-                  value={query}
-                  onChange={(event) => setQuery(event.currentTarget.value)}
+              <section className="recents__start-cards" aria-label="Other ways to start">
+                <StartCard
+                  title="Image → SVG"
+                  description="Trace a picture into editable vectors on this computer."
+                  icon={<ScanLine size={20} strokeWidth={1.7} aria-hidden="true" />}
+                  onClick={onImageToSvg}
                 />
-                {query && (
-                  <button type="button" aria-label="Clear search" onClick={() => setQuery("")}>
-                    <X size={15} strokeWidth={1.75} aria-hidden="true" />
-                  </button>
+                <StartCard
+                  title="Recreate a screenshot"
+                  description="Place it locally and attach it to a reviewed vision-model request."
+                  icon={<Image size={20} strokeWidth={1.7} aria-hidden="true" />}
+                  onClick={onRecreateScreenshot}
+                />
+                <StartCard
+                  title="Import SVG or image"
+                  description="Bring a local file in as a sanitized canvas asset."
+                  icon={<Upload size={20} strokeWidth={1.7} aria-hidden="true" />}
+                  onClick={onImportAsset}
+                />
+              </section>
+
+              <div className="recents__recents" id="recents" ref={recentsRef}>
+                <div className="recents__section-heading">
+                  <h2>Recents</h2>
+                  <span>
+                    {visibleCount}{" "}
+                    {visibleCount === 1 ? (projectMode ? "project" : "canvas") : projectMode ? "projects" : "canvases"}
+                  </span>
+                  <div className="recents__section-controls">
+                    <label className="recents__sort">
+                      <span className="sr-only">Sort recents</span>
+                      <select
+                        value={currentSort}
+                        onChange={(event) => setSortOrder(event.currentTarget.value as SortOrder)}
+                      >
+                        <option value="updated">Last edited</option>
+                        <option value="name">Name</option>
+                        <option value="created">Created</option>
+                      </select>
+                    </label>
+                    <fieldset className="recents__layout">
+                      <legend className="sr-only">Layout</legend>
+                      <button
+                        type="button"
+                        aria-label="Grid view"
+                        aria-pressed={layout === "grid"}
+                        onClick={() => setLayout("grid")}
+                      >
+                        <LayoutGrid size={16} strokeWidth={1.75} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="List view"
+                        aria-pressed={layout === "list"}
+                        onClick={() => setLayout("list")}
+                      >
+                        <List size={16} strokeWidth={1.75} aria-hidden="true" />
+                      </button>
+                    </fieldset>
+                  </div>
+                </div>
+
+                <label className="recents__search">
+                  <Search size={16} strokeWidth={1.75} aria-hidden="true" />
+                  <span className="sr-only">Search {projectMode ? "projects" : "canvases"}</span>
+                  <input
+                    ref={searchRef}
+                    type="search"
+                    placeholder={`Search ${projectMode ? "projects" : "canvases"}`}
+                    value={query}
+                    onChange={(event) => setQuery(event.currentTarget.value)}
+                  />
+                  {query && (
+                    <button type="button" aria-label="Clear search" onClick={() => setQuery("")}>
+                      <X size={15} strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                  )}
+                </label>
+
+                {projectActionMessage && (
+                  <p className="recents__notice" role="status">
+                    {projectActionMessage}
+                  </p>
                 )}
-              </label>
+                <RecentProjectNotice
+                  projectMode={projectMode}
+                  projectStatus={projectStatus}
+                  corruptCount={corruptCount}
+                  projectMessage={projectMessage}
+                  onRetry={onRefreshProjects}
+                />
 
-              {projectActionMessage && (
-                <p className="recents__notice" role="status">
-                  {projectActionMessage}
-                </p>
-              )}
-              <RecentProjectNotice
-                projectMode={projectMode}
-                projectStatus={projectStatus}
-                corruptCount={corruptCount}
-                projectMessage={projectMessage}
-                onRetry={onRefreshProjects}
-              />
-
-              {recentListMode({
-                projectMode,
-                projectStatus,
-                visibleProjects: visibleProjects.length,
-                visibleCanvases: visibleCanvases.length,
-                corruptCount
-              }) === "loading" ? (
-                <RecentLoadingCards />
-              ) : projectMode && visibleProjects.length > 0 ? (
-                <div className={`recents__canvases recents__canvases--${layout}`}>
-                  {visibleProjects.map((project) => (
-                    <div className="recents__project-card" key={project.id}>
-                      <button
-                        className={`recents__canvas${project.id === activeProjectId ? " recents__canvas--current" : ""}`}
-                        type="button"
-                        onClick={() => onOpenProject(project.id)}
-                      >
-                        <Preview thumbnailUrl={thumbnailUrls?.[project.id]} />
-                        <span className="recents__canvas-details">
-                          <span className="recents__canvas-title">
-                            {project.title}
-                            {project.id === SCRATCHPAD_PROJECT_ID && <span className="recents__pinned">Pinned</span>}
-                          </span>
-                          <time className="recents__canvas-meta" dateTime={project.updatedAt}>
-                            {formatEditedLabel(project.updatedAt)}
-                          </time>
-                        </span>
-                      </button>
-                      <details className="recents__card-menu">
-                        <summary aria-label={`More actions for ${project.title}`} title="More actions">
-                          <MoreHorizontal size={19} strokeWidth={1.8} aria-hidden="true" />
-                        </summary>
-                        <div className="recents__card-menu-items">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              closeCardMenu(event);
-                              onOpenProject(project.id);
-                            }}
-                          >
-                            Open
-                          </button>
-                          {onRenameProject && project.id !== SCRATCHPAD_PROJECT_ID && (
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                closeCardMenu(event);
-                                setRenamingProject(project);
-                                setRenameTitle(project.title);
-                              }}
-                            >
-                              Rename
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              closeCardMenu(event);
-                              onDuplicateProject(project.id);
-                            }}
-                          >
-                            Duplicate
-                          </button>
-                          {onRevealProject && (
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                closeCardMenu(event);
-                                onRevealProject(project.id);
-                              }}
-                            >
-                              Reveal in folder
-                            </button>
-                          )}
-                          {project.id !== SCRATCHPAD_PROJECT_ID && (
-                            <button
-                              className="recents__delete-action"
-                              type="button"
-                              onClick={(event) => {
-                                closeCardMenu(event);
-                                onDeleteProject(project.id);
-                              }}
-                            >
-                              Delete…
-                            </button>
-                          )}
-                        </div>
-                      </details>
-                    </div>
-                  ))}
-                </div>
-              ) : !projectMode && visibleCanvases.length > 0 ? (
-                <div className={`recents__canvases recents__canvases--${layout}`}>
-                  {visibleCanvases.map((canvas) => (
-                    <div className="recents__project-card" key={canvas.id}>
-                      <button
-                        className={`recents__canvas${canvas.id === currentCanvasId ? " recents__canvas--current" : ""}`}
-                        type="button"
-                        onClick={() => onOpenCanvas(canvas.id)}
-                      >
-                        <Preview thumbnailUrl={thumbnailUrls?.[canvas.id]} />
-                        <span className="recents__canvas-details">
-                          <span className="recents__canvas-title">
-                            {canvas.title}
-                            {canvas.pinned && <span className="recents__pinned">Pinned</span>}
-                          </span>
-                          <time className="recents__canvas-meta" dateTime={canvas.updatedAt}>
-                            {formatEditedLabel(canvas.updatedAt)}
-                          </time>
-                        </span>
-                      </button>
-                      <details className="recents__card-menu">
-                        <summary aria-label={`More actions for ${canvas.title}`} title="More actions">
-                          <MoreHorizontal size={19} strokeWidth={1.8} aria-hidden="true" />
-                        </summary>
-                        <div className="recents__card-menu-items">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              closeCardMenu(event);
-                              onOpenCanvas(canvas.id);
-                            }}
-                          >
-                            Open
-                          </button>
-                          {onRenameCanvas && !canvas.pinned && (
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                closeCardMenu(event);
-                                setRenamingCanvas(canvas);
-                                setRenameTitle(canvas.title);
-                              }}
-                            >
-                              Rename
-                            </button>
-                          )}
-                          {onDuplicateCanvas && (
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                closeCardMenu(event);
-                                onDuplicateCanvas(canvas.id);
-                              }}
-                            >
-                              Duplicate
-                            </button>
-                          )}
-                          {onDeleteCanvas && !canvas.pinned && canvases.length > 1 && (
-                            <button
-                              className="recents__delete-action"
-                              type="button"
-                              onClick={(event) => {
-                                closeCardMenu(event);
-                                setDeletingCanvas(canvas);
-                              }}
-                            >
-                              Delete…
-                            </button>
-                          )}
-                        </div>
-                      </details>
-                    </div>
-                  ))}
-                </div>
-              ) : recentListMode({
+                {recentListMode({
                   projectMode,
                   projectStatus,
                   visibleProjects: visibleProjects.length,
                   visibleCanvases: visibleCanvases.length,
                   corruptCount
-                }) === "empty" ? (
-                <RecentEmptyState
-                  query={query}
-                  projectMode={projectMode}
-                  onClearSearch={() => setQuery("")}
-                  onNewCanvas={onNewCanvas}
-                />
-              ) : null}
+                }) === "loading" ? (
+                  <RecentLoadingCards />
+                ) : projectMode && visibleProjects.length > 0 ? (
+                  <div className={`recents__canvases recents__canvases--${layout}`}>
+                    {visibleProjects.map((project) => (
+                      <div className="recents__project-card" key={project.id}>
+                        <button
+                          className={`recents__canvas${project.id === activeProjectId ? " recents__canvas--current" : ""}`}
+                          type="button"
+                          onClick={() => onOpenProject(project.id)}
+                        >
+                          <Preview
+                            key={`${project.id}:${hostThumbnailVersions?.[project.id] ?? 0}`}
+                            thumbnailUrl={thumbnailUrls?.[project.id]}
+                            hostThumbnailUrl={
+                              hostProjectThumbnails
+                                ? `/api/projects/${encodeURIComponent(project.id)}/thumbnail?v=${hostThumbnailVersions?.[project.id] ?? 0}`
+                                : undefined
+                            }
+                          />
+                          <span className="recents__canvas-details">
+                            <span className="recents__canvas-title">
+                              {project.title}
+                              {project.id === SCRATCHPAD_PROJECT_ID && <span className="recents__pinned">Pinned</span>}
+                            </span>
+                            <time className="recents__canvas-meta" dateTime={project.updatedAt}>
+                              {formatEditedLabel(project.updatedAt)}
+                            </time>
+                          </span>
+                        </button>
+                        <details className="recents__card-menu">
+                          <summary aria-label={`More actions for ${project.title}`} title="More actions">
+                            <MoreHorizontal size={19} strokeWidth={1.8} aria-hidden="true" />
+                          </summary>
+                          <div className="recents__card-menu-items">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                closeCardMenu(event);
+                                onOpenProject(project.id);
+                              }}
+                            >
+                              Open
+                            </button>
+                            {onRenameProject && project.id !== SCRATCHPAD_PROJECT_ID && (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  closeCardMenu(event);
+                                  setRenamingProject(project);
+                                  setRenameTitle(project.title);
+                                }}
+                              >
+                                Rename
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                closeCardMenu(event);
+                                onDuplicateProject(project.id);
+                              }}
+                            >
+                              Duplicate
+                            </button>
+                            {onRevealProject && (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  closeCardMenu(event);
+                                  onRevealProject(project.id);
+                                }}
+                              >
+                                Reveal in folder
+                              </button>
+                            )}
+                            {project.id !== SCRATCHPAD_PROJECT_ID && (
+                              <button
+                                className="recents__delete-action"
+                                type="button"
+                                onClick={(event) => {
+                                  closeCardMenu(event);
+                                  onDeleteProject(project.id);
+                                }}
+                              >
+                                Delete…
+                              </button>
+                            )}
+                          </div>
+                        </details>
+                      </div>
+                    ))}
+                  </div>
+                ) : !projectMode && visibleCanvases.length > 0 ? (
+                  <div className={`recents__canvases recents__canvases--${layout}`}>
+                    {visibleCanvases.map((canvas) => (
+                      <div className="recents__project-card" key={canvas.id}>
+                        <button
+                          className={`recents__canvas${canvas.id === currentCanvasId ? " recents__canvas--current" : ""}`}
+                          type="button"
+                          onClick={() => onOpenCanvas(canvas.id)}
+                        >
+                          <Preview thumbnailUrl={thumbnailUrls?.[canvas.id]} />
+                          <span className="recents__canvas-details">
+                            <span className="recents__canvas-title">
+                              {canvas.title}
+                              {canvas.pinned && <span className="recents__pinned">Pinned</span>}
+                            </span>
+                            <time className="recents__canvas-meta" dateTime={canvas.updatedAt}>
+                              {formatEditedLabel(canvas.updatedAt)}
+                            </time>
+                          </span>
+                        </button>
+                        <details className="recents__card-menu">
+                          <summary aria-label={`More actions for ${canvas.title}`} title="More actions">
+                            <MoreHorizontal size={19} strokeWidth={1.8} aria-hidden="true" />
+                          </summary>
+                          <div className="recents__card-menu-items">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                closeCardMenu(event);
+                                onOpenCanvas(canvas.id);
+                              }}
+                            >
+                              Open
+                            </button>
+                            {onRenameCanvas && !canvas.pinned && (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  closeCardMenu(event);
+                                  setRenamingCanvas(canvas);
+                                  setRenameTitle(canvas.title);
+                                }}
+                              >
+                                Rename
+                              </button>
+                            )}
+                            {onDuplicateCanvas && (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  closeCardMenu(event);
+                                  onDuplicateCanvas(canvas.id);
+                                }}
+                              >
+                                Duplicate
+                              </button>
+                            )}
+                            {onDeleteCanvas && !canvas.pinned && canvases.length > 1 && (
+                              <button
+                                className="recents__delete-action"
+                                type="button"
+                                onClick={(event) => {
+                                  closeCardMenu(event);
+                                  setDeletingCanvas(canvas);
+                                }}
+                              >
+                                Delete…
+                              </button>
+                            )}
+                          </div>
+                        </details>
+                      </div>
+                    ))}
+                  </div>
+                ) : recentListMode({
+                    projectMode,
+                    projectStatus,
+                    visibleProjects: visibleProjects.length,
+                    visibleCanvases: visibleCanvases.length,
+                    corruptCount
+                  }) === "empty" ? (
+                  <RecentEmptyState
+                    query={query}
+                    projectMode={projectMode}
+                    onClearSearch={() => setQuery("")}
+                    onNewCanvas={() => onNewCanvas(categoryId)}
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </main>
       <Dialog.Root
         open={renamingProject !== null || renamingCanvas !== null}
@@ -731,16 +793,62 @@ export function RecentsDashboard({
   );
 }
 
-function Preview({ thumbnailUrl }: { thumbnailUrl?: string | undefined }) {
+function Preview({
+  thumbnailUrl,
+  hostThumbnailUrl
+}: {
+  thumbnailUrl?: string | undefined;
+  hostThumbnailUrl?: string | undefined;
+}) {
+  const [hostThumbnailFailed, setHostThumbnailFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [loadedSource, setLoadedSource] = useState<string | undefined>(undefined);
+  const [failedSource, setFailedSource] = useState<string | undefined>(undefined);
+  const retryTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(retryTimer.current), []);
+  const base = projectThumbnailSource(hostThumbnailUrl, thumbnailUrl, hostThumbnailFailed);
+  const src = base && retry > 0 ? `${base}${base.includes("?") ? "&" : "?"}retry=${retry}` : base;
+  const showImage = Boolean(src && failedSource !== src);
   return (
     <span className="recents__canvas-preview" aria-hidden="true">
-      {thumbnailUrl ? (
-        <img className="recents__preview-image" src={thumbnailUrl} alt="" />
+      {showImage && src ? (
+        <>
+          {loadedSource !== src && <span className="recents__preview-caption">Loading preview…</span>}
+          <img
+            className={`recents__preview-image${loadedSource === src ? "" : " recents__preview-image--loading"}`}
+            src={src}
+            alt=""
+            onLoad={() => {
+              setLoadedSource(src);
+              setFailedSource(undefined);
+            }}
+            onError={() => {
+              if (hostThumbnailUrl && !hostThumbnailFailed) {
+                if (retry < 2) {
+                  window.clearTimeout(retryTimer.current);
+                  retryTimer.current = window.setTimeout(() => setRetry((current) => current + 1), 1200);
+                  return;
+                }
+                setHostThumbnailFailed(true);
+                return;
+              }
+              setFailedSource(src);
+            }}
+          />
+        </>
       ) : (
-        <span className="recents__preview-caption">Preview unavailable</span>
+        <span className="recents__preview-caption">No preview yet</span>
       )}
     </span>
   );
+}
+
+export function projectThumbnailSource(
+  hostThumbnailUrl: string | undefined,
+  fallbackUrl: string | undefined,
+  hostThumbnailFailed: boolean
+): string | undefined {
+  return hostThumbnailUrl && !hostThumbnailFailed ? hostThumbnailUrl : fallbackUrl;
 }
 
 function StartCard({

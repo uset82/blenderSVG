@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { containedLibraryPath } from "./studioLibrary.js";
 
@@ -26,8 +26,19 @@ export async function writeProjectThumbnail(libraryRoot: string, projectId: stri
   }
 }
 
-export async function readProjectThumbnail(libraryRoot: string, projectId: string): Promise<Uint8Array> {
+export async function readProjectThumbnail(libraryRoot: string, projectId: string): Promise<Uint8Array | null> {
   const target = containedLibraryPath(libraryRoot, path.join("thumbnails", `${projectId}.png`));
   if (!target) throw new Error("The thumbnail path leaves the Studio library.");
-  return readFile(target);
+  try {
+    return await readFile(target);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+export async function removeProjectThumbnail(libraryRoot: string, projectId: string): Promise<void> {
+  const target = containedLibraryPath(libraryRoot, path.join("thumbnails", `${projectId}.png`));
+  if (!target) throw new Error("The thumbnail path leaves the Studio library.");
+  await rm(target, { force: true });
 }

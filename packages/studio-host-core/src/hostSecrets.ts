@@ -32,11 +32,11 @@ export async function saveOpenRouterSecret(keyring: SecretKeyring, value: string
   return { configured: true, source: "keychain" };
 }
 
-export async function openSystemKeyring(): Promise<SecretKeyring> {
+export async function openSystemKeyring(account = "openrouter"): Promise<SecretKeyring> {
   const loaded = (await import("@napi-rs/keyring")) as {
     Entry: new (service: string, account: string) => { getPassword(): string | null; setPassword(value: string): void };
   };
-  return napiKeyring(new loaded.Entry("blenderSVG Studio", "openrouter"));
+  return napiKeyring(new loaded.Entry("blenderSVG Studio", account));
 }
 
 export function napiKeyring(entry: { getPassword(): string | null; setPassword(value: string): void }): SecretKeyring {

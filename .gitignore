@@ -7,13 +7,7 @@ build/
 .env.local
 .env.*
 
-.codex-avatar/cache/
-.codex-avatar/exports/
-.codex-avatar/previews/
-.codex-avatar/studio/projects/
-.codex-avatar/imports/
-.codex-avatar/avatars/
-.codex-avatar/avatar-registry.json
+.codex-avatar/
 # Workspace-specific avatar selection and private/local artwork.
 .vscode/settings.json
 .cursor/mcp.json

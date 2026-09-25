@@ -33,17 +33,21 @@ export class OpenRouterConnectionController {
     private readonly secrets: SecretStore,
     private readonly prompt: PasswordPrompt,
     private readonly emit: (state: OpenRouterConnectionState) => void,
-    private readonly request: typeof fetch = fetch
+    private readonly request: typeof fetch = fetch,
+    private readonly storageLabel = "VS Code secret storage"
   ) {}
 
   public async currentState(): Promise<OpenRouterConnectionState> {
     try {
       const key = await this.secrets.get(OPENROUTER_SECRET_KEY);
       return key
-        ? { status: "connected", message: "An OpenRouter key is saved in VS Code. Test to verify it is still valid." }
+        ? {
+            status: "connected",
+            message: `An OpenRouter key is saved in ${this.storageLabel}. Test to verify it is still valid.`
+          }
         : { status: "disconnected", message: "Connect your own OpenRouter key to use text chat." };
     } catch {
-      return { status: "error", message: "VS Code could not read its secret storage." };
+      return { status: "error", message: `The host could not read ${this.storageLabel}.` };
     }
   }
 
@@ -53,7 +57,7 @@ export class OpenRouterConnectionController {
     try {
       if (action === "disconnect") {
         await this.secrets.delete(OPENROUTER_SECRET_KEY);
-        return { status: "disconnected", message: "OpenRouter key removed from VS Code secret storage." };
+        return { status: "disconnected", message: `OpenRouter key removed from ${this.storageLabel}.` };
       }
 
       if (action === "test") {
@@ -65,7 +69,7 @@ export class OpenRouterConnectionController {
 
       const input = await this.prompt({
         title: action === "replace" ? "Replace OpenRouter API Key" : "Connect OpenRouter API Key",
-        prompt: "The key stays in VS Code secret storage. Text you choose to send to OpenRouter leaves this device.",
+        prompt: `The key stays in ${this.storageLabel}. Text you choose to send to OpenRouter leaves this device.`,
         password: true,
         ignoreFocusOut: true,
         validateInput: (value) =>
@@ -79,9 +83,9 @@ export class OpenRouterConnectionController {
       const checked = await this.validate(key);
       if (checked.status !== "connected") return checked;
       await this.secrets.store(OPENROUTER_SECRET_KEY, key);
-      return { status: "connected", message: `${checked.message} Saved in VS Code secret storage.` };
+      return { status: "connected", message: `${checked.message} Saved in ${this.storageLabel}.` };
     } catch {
-      return { status: "error", message: "VS Code could not complete the OpenRouter connection action." };
+      return { status: "error", message: "The host could not complete the OpenRouter connection action." };
     } finally {
       this.busy = false;
       this.abortController = undefined;

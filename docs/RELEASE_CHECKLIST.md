@@ -13,6 +13,8 @@
 - [ ] Run `pnpm validate:vsix`.
 - [ ] Run `pnpm smoke:vsix`.
 - [ ] Run `pnpm smoke:clean-profile` (requires a local VS Code CLI; uses `code.cmd`, not `Code.exe`).
+- [ ] Run `pnpm test:e2e:studio` (Microsoft Edge and a fixture OpenRouter provider).
+- [ ] Run `pnpm validate:docs`.
 
 ## VSIX
 

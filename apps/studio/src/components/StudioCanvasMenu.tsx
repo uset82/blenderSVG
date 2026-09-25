@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
-import type { Editor, TLContent } from "tldraw";
+import type { Editor, TLContent, TLShape } from "tldraw";
 import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
-import { safeExportFileName } from "../projects/exportProjectFile.js";
+import { safeExportFileName, stableExportSvgIds } from "../projects/exportProjectFile.js";
 import { canvasMenuItems, describeSelection, type CanvasMenuAction } from "./canvasContextMenu.js";
 
 function downloadExport(body: BlobPart, fileName: string, type: string): void {
@@ -25,6 +25,8 @@ export function StudioCanvasMenu({
   children: ReactNode;
 }) {
   const clipboardRef = useRef<TLContent | null>(null);
+  const editStackRef = useRef<Array<{ before: TLShape[]; after: TLShape[] }>>([]);
+  const redoStackRef = useRef<Array<{ before: TLShape[]; after: TLShape[] }>>([]);
   const [menu, setMenu] = useState<{ x: number; y: number; selectedCount: number; snapEnabled: boolean } | null>(null);
 
   useEffect(() => {
@@ -64,41 +66,70 @@ export function StudioCanvasMenu({
   });
 
   const run = async (action: CanvasMenuAction) => {
+    if (editor.getCurrentToolId() !== "select") {
+      editor.setCurrentTool("select");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
     const ids = [...editor.getSelectedShapeIds()];
     const copied = () => editor.getContentFromCurrentPage(ids);
+    const recordCanvasEdit = (name: string, change: () => void) => {
+      const before = editor.getCurrentPageShapes().map((shape) => JSON.parse(JSON.stringify(shape)) as TLShape);
+      editor.markHistoryStoppingPoint(name);
+      change();
+      editStackRef.current.push({
+        before,
+        after: editor.getCurrentPageShapes().map((shape) => JSON.parse(JSON.stringify(shape)) as TLShape)
+      });
+      redoStackRef.current = [];
+    };
+    const restoreShapes = (next: TLShape[], removeFrom: TLShape[]) => {
+      const keep = new Set(next.map((shape) => shape.id));
+      const remove = removeFrom.map((shape) => shape.id).filter((id) => !keep.has(id));
+      editor.store.mergeRemoteChanges(() => {
+        if (next.length) editor.store.put(next);
+        if (remove.length) editor.store.remove(remove);
+      });
+    };
     if (action === "undo") {
+      const entry = editStackRef.current.pop();
+      if (entry) {
+        restoreShapes(entry.before, entry.after);
+        redoStackRef.current.push(entry);
+        return;
+      }
       editor.undo();
     } else if (action === "redo") {
+      const entry = redoStackRef.current.pop();
+      if (entry) {
+        restoreShapes(entry.after, entry.before);
+        editStackRef.current.push(entry);
+        return;
+      }
       editor.redo();
     } else if (action === "copy" || action === "cut") {
       const next = copied();
       if (!next) return;
       clipboardRef.current = next;
       if (action === "cut") {
-        editor.markHistoryStoppingPoint("cut");
-        editor.deleteShapes(ids);
+        recordCanvasEdit("cut", () => editor.deleteShapes(ids));
       }
     } else if (action === "paste" && clipboardRef.current && menu) {
-      editor.markHistoryStoppingPoint("paste");
-      editor.putContentOntoCurrentPage(clipboardRef.current, {
-        select: true,
-        point: editor.screenToPage({ x: menu.x, y: menu.y })
-      });
+      recordCanvasEdit("paste", () =>
+        editor.putContentOntoCurrentPage(clipboardRef.current!, {
+          select: true,
+          point: editor.screenToPage({ x: menu.x, y: menu.y })
+        })
+      );
     } else if (action === "duplicate") {
-      editor.markHistoryStoppingPoint("duplicate");
-      editor.duplicateShapes(ids, { x: 24, y: 24 });
+      recordCanvasEdit("duplicate", () => editor.duplicateShapes(ids, { x: 24, y: 24 }));
     } else if (action === "delete") {
-      editor.markHistoryStoppingPoint("delete");
-      editor.deleteShapes(ids);
+      recordCanvasEdit("delete", () => editor.deleteShapes(ids));
     } else if (action === "bring-forward") {
-      editor.markHistoryStoppingPoint("bring forward");
-      editor.bringForward(ids);
+      recordCanvasEdit("bring forward", () => editor.bringForward(ids));
     } else if (action === "send-backward") {
-      editor.markHistoryStoppingPoint("send backward");
-      editor.sendBackward(ids);
+      recordCanvasEdit("send backward", () => editor.sendBackward(ids));
     } else if (action === "group") {
-      editor.markHistoryStoppingPoint("group");
-      editor.groupShapes(ids);
+      recordCanvasEdit("group", () => editor.groupShapes(ids));
     } else if (
       action === "align-left" ||
       action === "align-center" ||
@@ -115,11 +146,11 @@ export function StudioCanvasMenu({
         "align-middle": "center-vertical",
         "align-bottom": "bottom"
       } as const;
-      editor.markHistoryStoppingPoint("align");
-      editor.alignShapes(ids, alignment[action]);
+      recordCanvasEdit("align", () => editor.alignShapes(ids, alignment[action]));
     } else if (action === "distribute-horizontal" || action === "distribute-vertical") {
-      editor.markHistoryStoppingPoint("distribute");
-      editor.distributeShapes(ids, action === "distribute-horizontal" ? "horizontal" : "vertical");
+      recordCanvasEdit("distribute", () =>
+        editor.distributeShapes(ids, action === "distribute-horizontal" ? "horizontal" : "vertical")
+      );
     } else if (action === "snap") {
       editor.user.updateUserPreferences({ isSnapMode: !editor.user.getIsSnapMode() });
     } else if (action === "export-svg" || action === "export-png-1" || action === "export-png-2") {
@@ -129,7 +160,11 @@ export function StudioCanvasMenu({
           onNotice("The selection could not be exported.");
           return;
         }
-        downloadExport(sanitizeSvg(exported.svg), safeExportFileName("selection", "svg"), "image/svg+xml");
+        downloadExport(
+          sanitizeSvg(stableExportSvgIds(exported.svg)),
+          safeExportFileName("selection", "svg"),
+          "image/svg+xml"
+        );
       } else {
         const image = await editor.toImage(ids, {
           format: "png",
@@ -170,11 +205,16 @@ export function StudioCanvasMenu({
     event.preventDefault();
     const point = editor.screenToPage({ x: event.clientX, y: event.clientY });
     const hit = editor.getShapeAtPoint(point, { hitInside: true, hitFrameInside: true, hitLabels: true });
-    if (hit) {
-      if (!editor.getSelectedShapeIds().includes(hit.id)) editor.select(hit.id);
-    } else {
-      editor.selectNone();
-    }
+    editor.run(
+      () => {
+        if (hit) {
+          if (!editor.getSelectedShapeIds().includes(hit.id)) editor.select(hit.id);
+        } else {
+          editor.selectNone();
+        }
+      },
+      { history: "ignore" }
+    );
     setMenu({
       x: event.clientX,
       y: event.clientY,

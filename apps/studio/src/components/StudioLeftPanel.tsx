@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { type CSSProperties, type KeyboardEvent, useEffect, useState } from "react";
 import type { Editor } from "tldraw";
-import { AgentHarnessSidebar, type AgentHarnessSidebarProps } from "./AgentHarnessSidebar.js";
+import { AgentConversationPanel, type AgentConversationPanelProps } from "./AgentConversationPanel.js";
 import { LeftPanelTabBody } from "./LeftPanelTabs.js";
 import { LEFT_PANEL_TABS, type LeftPanelTab, readLeftPanelTab, writeLeftPanelTab } from "./leftPanelTab.js";
 
@@ -42,7 +42,7 @@ const tabDetails = {
 
 const tabs = LEFT_PANEL_TABS.map((id) => ({ id, ...tabDetails[id] }));
 
-interface StudioLeftPanelProps extends Omit<AgentHarnessSidebarProps, "className" | "isOpen"> {
+interface StudioLeftPanelProps extends Omit<AgentConversationPanelProps, "className" | "isOpen"> {
   panelCollapsed: boolean;
   onPanelCollapsedChange: (collapsed: boolean) => void;
   editor: Editor | null;
@@ -103,7 +103,12 @@ export function StudioLeftPanel({
       style={dimensions}
     >
       <nav className="studio-left-panel__rail" aria-label="Canvas panels">
-        <div className="studio-left-panel__tabs" role="tablist" aria-label="Canvas panels" aria-orientation="vertical">
+        <div
+          className="studio-left-panel__tabs"
+          role="tablist"
+          aria-label="Canvas panels"
+          aria-orientation={panelCollapsed ? "vertical" : "horizontal"}
+        >
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -147,7 +152,7 @@ export function StudioLeftPanel({
           aria-labelledby="studio-left-tab-agent"
           hidden={activeTab !== "agent"}
         >
-          <AgentHarnessSidebar {...agentProps} editor={editor} className="studio-left-panel__agent" isOpen={true} />
+          <AgentConversationPanel {...agentProps} editor={editor} className="studio-left-panel__agent" isOpen={true} />
         </div>
         {activeTab !== "agent" && (
           <div id={`studio-left-panel-${activeTab}`} role="tabpanel" aria-labelledby={`studio-left-tab-${activeTab}`}>

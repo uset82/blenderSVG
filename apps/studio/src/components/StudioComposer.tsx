@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Plus } from "lucide-react";
 
 export const HOME_CATEGORY_PRESETS = [
   { id: "landing-page", label: "Landing page", width: 1440, height: 1024, starterPrompt: "Design a landing page for " },
@@ -71,8 +71,16 @@ export function StudioComposer({
           ))}
         </div>
       )}
-      <form className="studio-composer__form" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-        <label className="sr-only" htmlFor="studio-design-prompt">Describe what to design</label>
+      <form
+        className="studio-composer__form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <label className="sr-only" htmlFor="studio-design-prompt">
+          Describe what to design
+        </label>
         <textarea
           id="studio-design-prompt"
           rows={3}
@@ -88,10 +96,38 @@ export function StudioComposer({
           }}
         />
         <div className="studio-composer__controls">
-          {contextControl}
-          {modeControl}
-          {variantControl}
-          {modelControl}
+          {contextControl ?? (
+            <button
+              className="studio-composer__control studio-composer__add"
+              type="button"
+              disabled
+              title="Add context after the file opens in the editor."
+            >
+              <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
+              <span className="sr-only">Add context</span>
+            </button>
+          )}
+          {modeControl ?? (
+            <button
+              className="studio-composer__control"
+              type="button"
+              disabled
+              title="The editor opens in Ask. Change the mode there."
+            >
+              Ask
+            </button>
+          )}
+          {variantControl ?? (
+            <button
+              className="studio-composer__control studio-composer__variants"
+              type="button"
+              disabled
+              title="Variants stay off until the agent harness can run them."
+            >
+              1×
+            </button>
+          )}
+          {modelControl ?? <span className="studio-composer__model">Choose a model in the editor</span>}
           <button
             className="studio-composer__submit"
             type="submit"

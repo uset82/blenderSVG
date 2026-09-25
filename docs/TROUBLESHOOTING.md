@@ -38,6 +38,12 @@ If only SVG fails, the scene probably has no Grease Pencil line art or the Blend
 
 The workspace must be trusted and the source must be a regular `.blend` file inside it. Export is staged locally, uses a single process, and never replaces the source scene or an existing output. If a process stalls, select Cancel or increase `codexAvatar.blenderTimeoutSeconds` up to 600 seconds. See [BLENDER_PIPELINE.md](BLENDER_PIPELINE.md).
 
+## Standalone Studio will not open
+
+Use the `http://127.0.0.1:<port>/?studioToken=…` URL from the host log. A wrong host returns 421, a foreign Origin returns 403, and a missing token returns 401. Restarting the host invalidates the previous token. Provider keys are not in the page; a chat that says the key is missing needs Settings → Save key on this computer.
+
+**Send to Blender** stays disabled until one vector is selected. If Blender is not installed, the host says so and does not write a scene.
+
 ## Tests fail locally
 
 Use Node 22.22.0 and pnpm 11.7.0, run `pnpm install --frozen-lockfile`, and retry `pnpm run ci`. `pnpm smoke:webview` needs Microsoft Edge; `pnpm smoke:vsix` is a clean extraction/runtime smoke and does not install an extension into the active editor.

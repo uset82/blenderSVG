@@ -1,84 +1,72 @@
-# IDE Connectors via MCP (Model Context Protocol)
+# IDE connectors
 
-`blenderSVG` provides an MCP server (`@codex-avatar-studio/mcp-server`) that gives AI coding assistants (Cursor, Claude Code, Codex, Workbuddy AI, Qoder) direct control over:
-- **High-fidelity vectorization** (local zero-cost Bézier splines via `@visioncortex/vtracer` WebAssembly).
-- **Free generative AI vector models** via OpenRouter free tier (`google/gemini-2.0-flash-exp:free`, `deepseek/deepseek-r1:free`, `meta-llama/llama-3.3-70b-instruct:free`).
-- **3D & 2D exports from Blender 4.5.3 LTS** (Grease Pencil/Freestyle Line-Art SVG and optimized WebGL GLB).
-- **Infinite Canvas & Avatar control** (setting avatar emotion states and speech).
+Standalone Studio exposes a loopback MCP endpoint at `http://127.0.0.1:<port>/mcp`. It uses the same Host, Origin, and launch-token checks as the rest of the host, plus a per-client bearer token.
 
----
+Create the token on the Connectors page (`#/connectors`). The page shows the token once. The client list never includes it. Revoke a client from that page when you are done. Do not commit a token or paste one into a repository file. The snippets below use the `BLENDERSVG_MCP_TOKEN` environment variable.
 
-## Zero-Cost Architecture (No QuiverAI Key Needed)
+IDEs that prefer stdio can run `blendersvg-mcp`. It refuses any URL that is not HTTP on loopback and forwards each stdin line with the bearer token.
 
-| Task | Engine | Cost / API Key |
-|---|---|---|
-| **Image-to-SVG Vectorization** | `@visioncortex/vtracer` (WASM) | **$0.00 / Zero API key** (runs 100% offline) |
-| **Multimodal Vision Vectorization** | OpenRouter `google/gemini-2.0-flash-exp:free` | **$0.00** (Free tier) |
-| **Text-to-SVG Generation** | OpenRouter (`gemini-2.0-flash-exp:free`, `deepseek-r1:free`, `llama-3.3-70b:free`) | **$0.00** (Free tier) |
-| **3D Line Art & GLB Export** | Headless Blender 4.5.3 LTS | **$0.00 / Zero API key** (local Blender engine) |
+## What an IDE can do
 
-> **Note on QuiverAI:** QuiverAI requires paid cloud subscription credits. Our project defaults to **OpenRouter free models** and **local VTracer WASM**, providing superior curve smoothness at zero cost.
+- List and open Studio projects.
+- Read the canvas, selection, styles, and frame HTML.
+- Ask the open editor for a PNG of a frame.
+- Propose or apply shapes, design frames, and SVG inserts, according to the client permission: read, propose, or apply.
+- Trace a PNG or JPEG that stays inside the Studio library. Tracing stays local.
 
----
+Image tracing does not create a rigged character. Send to Blender writes a new `.working.blend` and does not modify a source scene. Blender is optional.
 
-## 1. Cursor IDE Setup
+OpenRouter chat is separate from MCP. The user picks a model from their own catalog. There is no built-in free-model list and no provider key in these snippets.
 
-Cursor automatically reads `.cursor/mcp.json`. The configuration is already present in your project:
+## Codex
 
-```json
-{
-  "mcpServers": {
-    "blender-svg": {
-      "command": "node",
-      "args": ["d:/Proyectos/Blender/packages/mcp-server/dist/src/index.js"],
-      "env": {
-        "OPENROUTER_API_KEY": "your-free-openrouter-key-if-using-ai"
-      }
-    }
-  }
-}
+`~/.codex/config.toml`
+
+```toml
+[mcp_servers.blendersvg]
+url = "http://127.0.0.1:<port>/mcp"
+bearer_token_env_var = "BLENDERSVG_MCP_TOKEN"
 ```
 
----
+## Claude Code
 
-## 2. Claude Code / Claude Desktop Setup
-
-### Using the Claude CLI
 ```bash
-claude mcp add blender-svg node d:/Proyectos/Blender/packages/mcp-server/dist/src/index.js
+claude mcp add --transport http blendersvg http://127.0.0.1:<port>/mcp --header "Authorization: Bearer $BLENDERSVG_MCP_TOKEN"
 ```
 
-### Or add to `claude_desktop_config.json`:
+## Cursor
+
+`.cursor/mcp.json`
+
 ```json
 {
   "mcpServers": {
-    "blender-svg": {
-      "command": "node",
-      "args": ["d:/Proyectos/Blender/packages/mcp-server/dist/src/index.js"],
-      "env": {
-        "OPENROUTER_API_KEY": ""
-      }
+    "blendersvg": {
+      "url": "http://127.0.0.1:<port>/mcp",
+      "headers": { "Authorization": "Bearer $BLENDERSVG_MCP_TOKEN" }
     }
   }
 }
 ```
 
----
+## Qoder and WorkBuddy
 
-## 3. Workbuddy AI & Qoder Setup
+Use the same HTTP server entry as Cursor, with the header `Authorization: Bearer $BLENDERSVG_MCP_TOKEN`.
 
-Add a Custom MCP Server:
-- **Server Name:** `blender-svg`
-- **Transport:** `stdio`
-- **Command:** `node`
-- **Arguments:** `["d:/Proyectos/Blender/packages/mcp-server/dist/src/index.js"]`
+## VS Code
 
----
+`.vscode/mcp.json`
 
-## Available MCP Tools
+```json
+{
+  "servers": {
+    "blendersvg": {
+      "type": "http",
+      "url": "http://127.0.0.1:<port>/mcp",
+      "headers": { "Authorization": "Bearer $BLENDERSVG_MCP_TOKEN" }
+    }
+  }
+}
+```
 
-1. `studio_status` — Verifies health of local VTracer, OpenRouter free models, and Blender 4.5.3 LTS.
-2. `vectorize_image` — Turns any PNG/JPG/WebP into clean Bézier spline SVG (`engine: 'vtracer'` or `'openrouter'`).
-3. `generate_svg` — Generates raw SVG from a natural prompt using free models.
-4. `avatar_set_state` — Sets avatar emotion (`idle`, `thinking`, `speaking`, `coding`, `celebrate`, `error`) and speech bubble.
-5. `blender_export_lineart` — Exports 3D scene contours into 2D SVG vector curves.
+Replace `<port>` with the port printed when the Studio host starts.

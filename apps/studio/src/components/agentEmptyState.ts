@@ -10,6 +10,12 @@ export const AGENT_SUGGESTIONS = [
 ] as const;
 
 export const AGENT_EMPTY_TIPS = [
-  "Export a selection as PNG or SVG from the canvas menu. The file name stays on this computer.",
-  "Attach a screenshot only when you want it sent. Review & send shows the image before anything leaves this page."
+  {
+    title: "Export",
+    body: "Export a selection as PNG or SVG from the canvas menu. The file name stays on this computer."
+  },
+  {
+    title: "Attach context",
+    body: "Attach a screenshot only when you want it sent. Review & send shows the image before anything leaves this page."
+  }
 ] as const;

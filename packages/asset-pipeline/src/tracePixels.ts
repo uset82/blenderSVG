@@ -47,6 +47,9 @@ export function traceImageBuffer(image: Uint8Array): string {
     maxColors: 16
   });
   if (!svg) throw new Error("Local tracing did not produce SVG.");
-  const withoutPrelude = svg.replace(/<\?xml[\s\S]*?\?>/gi, "").replace(/<!--[\s\S]*?-->/g, "").trim();
+  const withoutPrelude = svg
+    .replace(/<\?xml[\s\S]*?\?>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .trim();
   return prepareSvgPreview(withoutPrelude).svg;
 }

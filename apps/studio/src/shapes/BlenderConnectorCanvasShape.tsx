@@ -41,9 +41,16 @@ export class BlenderConnectorShapeUtil extends ShapeUtil<BlenderConnectorShape> 
       >
         <div className="studio-shape__title">Blender integration</div>
         <div className="studio-shape__status" role="status">
-          Studio does not read Blender status or export from this canvas yet. No scene, version, or connection state is
-          available here.
+          {shape.props.activeScene
+            ? `Working copy ${shape.props.activeScene}. The source scene was not modified.`
+            : "Send an SVG selection to create a new working copy. No source scene is modified."}
         </div>
+        {shape.props.lastExport.startsWith("/assets/") ? (
+          <img src={shape.props.lastExport.split("\n")[0]} alt="Blender PNG preview" draggable={false} />
+        ) : null}
+        {shape.props.lastExport.includes("/api/blender-asset/") ? (
+          <a href={shape.props.lastExport.split("\n")[1]}>GLB asset</a>
+        ) : null}
       </HTMLContainer>
     );
   }

@@ -6,8 +6,8 @@ describe("Studio panel sizing", () => {
     expect(clampPanelSize("chat", "width", 100)).toBe(260);
     expect(clampPanelSize("chat", "width", 900)).toBe(480);
     expect(clampPanelSize("inspector", "width", 900)).toBe(420);
-    expect(clampPanelSize("chat", "height", Number.NaN)).toBe(380);
-    expect(clampPanelSize("chat", "height", 520, 596)).toBe(286);
+    expect(clampPanelSize("chat", "height", Number.NaN)).toBe(460);
+    expect(clampPanelSize("chat", "height", 520, 596)).toBe(345);
     expect(clampPanelSize("inspector", "height", 420, 596)).toBe(286);
   });
 

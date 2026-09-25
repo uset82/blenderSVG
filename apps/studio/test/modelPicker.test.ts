@@ -1,6 +1,7 @@
 import type { StudioModel } from "@codex-avatar-studio/avatar-core";
 import { describe, expect, it } from "vitest";
 import { filterModelsByBadges, groupCatalogModels, modelBadges } from "../src/components/modelPicker.js";
+import { nextModelOptionIndex } from "../src/components/modelPickerNavigation.js";
 
 function model(id: string, author: string, extra: Partial<StudioModel> = {}): StudioModel {
   return {
@@ -56,5 +57,17 @@ describe("model picker", () => {
     expect(filterModelsByBadges(models, ["free", "vision"])).toEqual([models[0]]);
     expect(filterModelsByBadges(models, ["tools"])).toEqual([models[0], models[1]]);
     expect(filterModelsByBadges(models, ["reasoning"])).toEqual([]);
+  });
+
+  it("moves model focus with arrows and Home/End without skipping the first option", () => {
+    expect(nextModelOptionIndex("ArrowDown", -1, 4)).toBe(0);
+    expect(nextModelOptionIndex("ArrowUp", -1, 4)).toBe(3);
+    expect(nextModelOptionIndex("ArrowDown", 1, 4)).toBe(2);
+    expect(nextModelOptionIndex("ArrowUp", 2, 4)).toBe(1);
+    expect(nextModelOptionIndex("ArrowUp", 0, 4)).toBe(0);
+    expect(nextModelOptionIndex("ArrowDown", 3, 4)).toBe(3);
+    expect(nextModelOptionIndex("Home", 2, 4)).toBe(0);
+    expect(nextModelOptionIndex("End", 1, 4)).toBe(3);
+    expect(nextModelOptionIndex("ArrowDown", -1, 0)).toBeNull();
   });
 });

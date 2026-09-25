@@ -12,10 +12,14 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.14",
+    "@types/ws": "^8.18.1",
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@codex-avatar-studio/asset-pipeline": "workspace:*",
+    "@codex-avatar-studio/avatar-core": "workspace:*",
     "@codex-avatar-studio/studio-host-core": "workspace:*",
-    "hono": "^4.13.8"
+    "hono": "^4.13.8",
+    "ws": "^8.21.3"
   }
 }

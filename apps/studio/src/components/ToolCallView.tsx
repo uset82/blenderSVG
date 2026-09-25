@@ -4,7 +4,8 @@ export function ToolCallCard({
   call,
   modelName,
   onApprove,
-  onReject
+  onReject,
+  onUndo
 }: {
   call: ToolCallRecord & {
     summary?: string;
@@ -15,12 +16,28 @@ export function ToolCallCard({
   modelName?: string | undefined;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onUndo?: (id: string) => void;
 }) {
   return (
-    <article className="studio-tool-card" aria-label={`${call.name} tool call`} aria-live="polite">
+    <article
+      className={`studio-tool-card${call.status === "proposed" ? " studio-tool-card--proposed" : ""}`}
+      aria-label={`${call.name} tool call`}
+      aria-live="polite"
+    >
       <header className="studio-tool-card__header">
-        <strong>{call.name.replaceAll("_", " ")}</strong>
-        <span>{call.status}</span>
+        <strong className="studio-tool-card__name">{call.name}</strong>
+        <span className="studio-tool-card__meta">
+          {call.durationMs !== null ? <span>{durationLabel(call.durationMs)}</span> : null}
+          <span
+            className={
+              call.status === "proposed"
+                ? "studio-tool-card__status studio-tool-card__status--approval"
+                : "studio-tool-card__status"
+            }
+          >
+            {call.status === "proposed" ? "Needs approval" : call.status}
+          </span>
+        </span>
       </header>
       {call.summary ? <p>{call.summary}</p> : null}
       <details>
@@ -38,7 +55,6 @@ export function ToolCallCard({
                 : "This changes the local canvas after approval. The bounded result will then be sent to the selected model."}
         </p>
       )}
-      {call.durationMs !== null ? <p>{durationLabel(call.durationMs)}</p> : null}
       {call.imageDataUrl ? <img src={call.imageDataUrl} alt={`PNG from ${call.name.replaceAll("_", " ")}`} /> : null}
       {call.result ? <p className="studio-tool-card__result">{call.result}</p> : null}
       {call.status === "proposed" && call.requiresApproval !== false && (
@@ -51,6 +67,13 @@ export function ToolCallCard({
           </button>
         </div>
       )}
+      {call.status === "applied" && call.readOnly !== true && onUndo ? (
+        <div className="studio-tool-card__actions">
+          <button type="button" onClick={() => onUndo(call.id)}>
+            Undo
+          </button>
+        </div>
+      ) : null}
     </article>
   );
 }

@@ -2,6 +2,8 @@ import {
   type HostToStudioMessage,
   STUDIO_PROTOCOL_VERSION,
   type StudioChatUsage,
+  type StudioConversationMeta,
+  type StudioConversationRecord,
   type StudioModel,
   type StudioProjectDocument,
   type StudioProjectMeta,
@@ -9,8 +11,13 @@ import {
   type StudioToHostMessageInput
 } from "@codex-avatar-studio/avatar-core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ToolCallRecord } from "../components/toolCallCard.js";
-import { OFFLINE_HOST_MESSAGE, type StudioTransport, selectStudioTransport } from "./studioTransports.js";
+import { type ToolCallRecord, withToolTiming } from "../components/toolCallCard.js";
+import {
+  createReconnectingWebSocketTransport,
+  OFFLINE_HOST_MESSAGE,
+  type StudioTransport,
+  selectStudioTransport
+} from "./studioTransports.js";
 
 export type { StudioProjectMeta };
 export type StudioImageAttachment = Extract<StudioToHostMessageInput, { type: "studio:chatRequest" }>["attachment"];
@@ -59,6 +66,35 @@ export interface StudioProjectsState {
   projects: StudioProjectMeta[];
   corruptCount: number;
 }
+
+type StudioConversationResponse = Extract<
+  HostToStudioMessage,
+  {
+    type:
+      | "studio:conversationList"
+      | "studio:conversationRead"
+      | "studio:conversationSaved"
+      | "studio:conversationRenamed"
+      | "studio:conversationDeleted"
+      | "studio:conversationError";
+  }
+>;
+type StudioConversationRequest =
+  Extract<
+    StudioToHostMessageInput,
+    {
+      type:
+        | "studio:conversationListRequest"
+        | "studio:conversationReadRequest"
+        | "studio:conversationSaveRequest"
+        | "studio:conversationRenameRequest"
+        | "studio:conversationDeleteRequest";
+    }
+  > extends infer Request
+    ? Request extends { requestId: string }
+      ? Omit<Request, "requestId">
+      : never
+    : never;
 
 export interface StudioProjectAction {
   requestId: string;
@@ -109,15 +145,36 @@ function getVsCodeApi(): VsCodeApi | null {
   return vscodeApi;
 }
 
+function hasStandaloneSession(): boolean {
+  if (typeof window === "undefined") return false;
+  if (new URLSearchParams(window.location.search).get("studioToken")?.trim()) return true;
+  try {
+    return window.sessionStorage.getItem("kurva-studio-standalone") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function standaloneLaunchToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("studioToken")?.trim() || null;
+}
+
 function initialHostState(): HostStateMessage {
+  const vscode = getVsCodeApi();
+  const standalone = !vscode && hasStandaloneSession();
   return {
     protocolVersion: STUDIO_PROTOCOL_VERSION,
     type: "studio:hostState",
-    host: getVsCodeApi() ? "vscode" : "browser",
-    workspaceTrusted: false,
+    host: vscode ? "vscode" : standalone ? "standalone" : "browser",
+    workspaceTrusted: standalone,
     connection: {
-      status: "disconnected",
-      message: getVsCodeApi() ? "Checking the Studio connection…" : OFFLINE_HOST_MESSAGE
+      status: standalone ? "checking" : "disconnected",
+      message: vscode
+        ? "Checking the Studio connection…"
+        : standalone
+          ? "Connecting to the local Studio host…"
+          : OFFLINE_HOST_MESSAGE
     }
   };
 }
@@ -125,7 +182,19 @@ function initialHostState(): HostStateMessage {
 let activeTransport: StudioTransport | null = null;
 
 function currentTransport(): StudioTransport {
-  if (!activeTransport) activeTransport = selectStudioTransport({ vscodeApi: getVsCodeApi() });
+  if (!activeTransport) {
+    const vscodeApi = getVsCodeApi();
+    if (vscodeApi) activeTransport = selectStudioTransport({ vscodeApi });
+    else if (hasStandaloneSession()) {
+      const socketUrl = new URL("/api/studio", window.location.href);
+      socketUrl.protocol = socketUrl.protocol === "https:" ? "wss:" : "ws:";
+      socketUrl.search = "";
+      const launchToken = standaloneLaunchToken();
+      if (launchToken) socketUrl.searchParams.set("studioToken", launchToken);
+      socketUrl.hash = "";
+      activeTransport = createReconnectingWebSocketTransport(() => new WebSocket(socketUrl));
+    } else activeTransport = selectStudioTransport();
+  }
   return activeTransport;
 }
 
@@ -154,9 +223,19 @@ export function useStudioHost() {
   const requestedCatalog = useRef(false);
   const requestedProjectList = useRef(false);
   const pendingTraces = useRef(new Map<string, { resolve: (svg: string) => void; reject: (error: Error) => void }>());
+  const pendingConversations = useRef(
+    new Map<
+      string,
+      {
+        resolve: (message: StudioConversationResponse) => void;
+        reject: (error: Error) => void;
+        timeout: number;
+      }
+    >()
+  );
 
   const requestModelCatalog = useCallback(() => {
-    if (!getVsCodeApi()) return;
+    if (currentTransport().kind === "fixture") return;
     setModelCatalog({ status: "loading", message: "Loading the OpenRouter model catalog.", models: [] });
     sendToHost({ type: "studio:modelCatalogRequest" });
   }, []);
@@ -174,6 +253,22 @@ export function useStudioHost() {
         }
       }
       if (message.type === "studio:hostState") setHostState(message);
+      if (
+        message.type === "studio:conversationList" ||
+        message.type === "studio:conversationRead" ||
+        message.type === "studio:conversationSaved" ||
+        message.type === "studio:conversationRenamed" ||
+        message.type === "studio:conversationDeleted" ||
+        message.type === "studio:conversationError"
+      ) {
+        const pending = pendingConversations.current.get(message.requestId);
+        if (pending) {
+          pendingConversations.current.delete(message.requestId);
+          window.clearTimeout(pending.timeout);
+          if (message.type === "studio:conversationError") pending.reject(new Error(message.message));
+          else pending.resolve(message);
+        }
+      }
       if (message.type === "studio:modelCatalog") {
         const result: CatalogMessage = message;
         setModelCatalog({
@@ -340,7 +435,7 @@ export function useStudioHost() {
         setToolCalls((current) =>
           current.map((call) =>
             call.requestId === message.requestId && call.callId === message.callId
-              ? { ...call, status: "running" }
+              ? withToolTiming(call, "running")
               : call
           )
         );
@@ -350,7 +445,7 @@ export function useStudioHost() {
           current.map((call) => {
             if (call.requestId !== message.requestId || call.callId !== message.callId || call.status === "rejected")
               return call;
-            return { ...call, status: message.ok ? "applied" : "error", result: message.summary };
+            return withToolTiming({ ...call, result: message.summary }, message.ok ? "applied" : "error");
           })
         );
       }
@@ -384,11 +479,16 @@ export function useStudioHost() {
         );
       }
     });
-    sendToHost({ type: "studio:ready" });
+    if (currentTransport().kind !== "websocket") sendToHost({ type: "studio:ready" });
     return () => {
       stop();
       for (const pending of pendingTraces.current.values()) pending.reject(new Error("The Studio panel closed."));
       pendingTraces.current.clear();
+      for (const pending of pendingConversations.current.values()) {
+        window.clearTimeout(pending.timeout);
+        pending.reject(new Error("The Studio panel closed."));
+      }
+      pendingConversations.current.clear();
     };
   }, []);
 
@@ -416,7 +516,9 @@ export function useStudioHost() {
 
   useEffect(() => {
     const connectedAndTrusted =
-      hostState.host === "vscode" && hostState.workspaceTrusted && hostState.connection.status === "connected";
+      (hostState.host === "vscode" || hostState.host === "standalone") &&
+      hostState.workspaceTrusted &&
+      hostState.connection.status === "connected";
     if (!connectedAndTrusted) {
       requestedCatalog.current = false;
       if (modelCatalog.status !== "idle")
@@ -436,7 +538,7 @@ export function useStudioHost() {
   ]);
 
   const onConnectionAction = useCallback((action: StudioConnectionAction) => {
-    if (!getVsCodeApi()) return;
+    if (currentTransport().kind === "fixture") return;
     sendToHost({ type: "studio:openRouterConnection", action });
   }, []);
 
@@ -448,7 +550,7 @@ export function useStudioHost() {
       attachment?: StudioImageAttachment,
       mode?: "ask" | "plan" | "build" | "auto"
     ) => {
-      if (!getVsCodeApi()) return null;
+      if (currentTransport().kind === "fixture") return null;
       const requestId = `chat-${crypto.randomUUID()}`;
       setChatRun({ requestId, modelId, status: "streaming", text: "" });
       sendToHost({
@@ -475,7 +577,7 @@ export function useStudioHost() {
   }, []);
 
   const cancelChat = useCallback((requestId: string) => {
-    if (!getVsCodeApi()) return;
+    if (currentTransport().kind === "fixture") return;
     setChatRun((current) => (current?.requestId === requestId ? { ...current, status: "stopping" } : current));
     sendToHost({ type: "studio:chatCancel", requestId });
   }, []);
@@ -488,11 +590,11 @@ export function useStudioHost() {
       if (
         !call?.requiresApproval ||
         call.status !== "proposed" ||
-        hostState.host !== "vscode" ||
+        (hostState.host !== "vscode" && hostState.host !== "standalone") ||
         !hostState.workspaceTrusted
       )
         return;
-      setToolCalls((current) => current.map((item) => (item.id === id ? { ...item, status: "running" } : item)));
+      setToolCalls((current) => current.map((item) => (item.id === id ? withToolTiming(item, "running") : item)));
       sendToHost({ type: "studio:toolPermission", requestId: call.requestId, callId: call.callId, granted: true });
     },
     [hostState.host, hostState.workspaceTrusted, toolCalls]
@@ -504,13 +606,15 @@ export function useStudioHost() {
       if (
         !call?.requiresApproval ||
         call.status !== "proposed" ||
-        hostState.host !== "vscode" ||
+        (hostState.host !== "vscode" && hostState.host !== "standalone") ||
         !hostState.workspaceTrusted
       )
         return;
       setToolCalls((current) =>
         current.map((item) =>
-          item.id === id ? { ...item, status: "rejected", result: "Declined. No canvas changes were made." } : item
+          item.id === id
+            ? withToolTiming({ ...item, result: "Declined. No canvas changes were made." }, "rejected")
+            : item
         )
       );
       sendToHost({ type: "studio:toolPermission", requestId: call.requestId, callId: call.callId, granted: false });
@@ -527,12 +631,14 @@ export function useStudioHost() {
       setToolCalls((current) =>
         current.map((call) =>
           call.requestId === requestId && call.callId === callId
-            ? {
-                ...call,
-                status: result.ok ? "applied" : "error",
-                result: boundedContent,
-                ...(result.imageDataUrl ? { imageDataUrl: result.imageDataUrl } : {})
-              }
+            ? withToolTiming(
+                {
+                  ...call,
+                  result: boundedContent,
+                  ...(result.imageDataUrl ? { imageDataUrl: result.imageDataUrl } : {})
+                },
+                result.ok ? "applied" : "error"
+              )
             : call
         )
       );
@@ -621,6 +727,79 @@ export function useStudioHost() {
 
   const clearProjectAction = useCallback(() => setProjectAction(null), []);
 
+  const requestConversation = useCallback((request: StudioConversationRequest): Promise<StudioConversationResponse> => {
+    if (!getVsCodeApi()) return Promise.reject(new Error("Saved conversations require a trusted VS Code workspace."));
+    const requestId = `conversation-${crypto.randomUUID()}`;
+    return new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        pendingConversations.current.delete(requestId);
+        reject(new Error("The conversation request timed out. Try again."));
+      }, 15_000);
+      pendingConversations.current.set(requestId, { resolve, reject, timeout });
+      try {
+        sendToHost({ ...request, requestId } as StudioToHostMessageInput);
+      } catch {
+        window.clearTimeout(timeout);
+        pendingConversations.current.delete(requestId);
+        reject(new Error("The conversation request could not be sent."));
+      }
+    });
+  }, []);
+
+  const listConversations = useCallback(
+    async (projectId: string): Promise<StudioConversationMeta[]> => {
+      const response = await requestConversation({ type: "studio:conversationListRequest", projectId });
+      if (response.type !== "studio:conversationList") throw new Error("Saved conversations could not be loaded.");
+      return response.conversations;
+    },
+    [requestConversation]
+  );
+
+  const readConversation = useCallback(
+    async (projectId: string, conversationId: string): Promise<StudioConversationRecord | null> => {
+      const response = await requestConversation({ type: "studio:conversationReadRequest", projectId, conversationId });
+      if (response.type !== "studio:conversationRead") throw new Error("The saved conversation could not be opened.");
+      return response.conversation;
+    },
+    [requestConversation]
+  );
+
+  const saveConversation = useCallback(
+    async (
+      projectId: string,
+      conversation: Pick<StudioConversationRecord, "id" | "title" | "modelId" | "messages">
+    ): Promise<void> => {
+      const response = await requestConversation({ type: "studio:conversationSaveRequest", projectId, conversation });
+      if (response.type !== "studio:conversationSaved") throw new Error("The conversation could not be saved.");
+    },
+    [requestConversation]
+  );
+
+  const renameConversation = useCallback(
+    async (projectId: string, conversationId: string, title: string): Promise<void> => {
+      const response = await requestConversation({
+        type: "studio:conversationRenameRequest",
+        projectId,
+        conversationId,
+        title
+      });
+      if (response.type !== "studio:conversationRenamed") throw new Error("The conversation title could not be saved.");
+    },
+    [requestConversation]
+  );
+
+  const deleteConversation = useCallback(
+    async (projectId: string, conversationId: string): Promise<void> => {
+      const response = await requestConversation({
+        type: "studio:conversationDeleteRequest",
+        projectId,
+        conversationId
+      });
+      if (response.type !== "studio:conversationDeleted") throw new Error("The conversation could not be deleted.");
+    },
+    [requestConversation]
+  );
+
   return {
     hostState,
     modelCatalog,
@@ -647,7 +826,12 @@ export function useStudioHost() {
     renameProject,
     revealProject,
     deleteProject,
-    clearProjectAction
+    clearProjectAction,
+    listConversations,
+    readConversation,
+    saveConversation,
+    renameConversation,
+    deleteConversation
   };
 }
 

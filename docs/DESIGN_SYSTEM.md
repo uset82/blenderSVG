@@ -1,6 +1,6 @@
 # Codex Avatar Studio design system
 
-The Studio v2 tokens in [`apps/studio/src/styles/tokens.css`](../apps/studio/src/styles/tokens.css) follow the local [Target UI artboards](design/target-ui/README.md). The artboards specify the dark and light palettes; the high-contrast palette extends the same token names. The existing editor shell is still being rebuilt against them in Phases 15 and 16 of [`PLAN_CHECKLIST.md`](PLAN_CHECKLIST.md).
+The Studio v2 tokens in [`apps/studio/src/styles/tokens.css`](../apps/studio/src/styles/tokens.css) follow the local [Target UI artboards](design/target-ui/README.md). The artboards specify the dark and light palettes; the high-contrast palette extends the same token names. Home, the editor, the agent panel, Settings, and Connectors use these tokens. Brand, icons, and copy are this product's own. Paper and pen.dev contribute layout patterns only.
 
 ## Direction
 

@@ -100,7 +100,7 @@ These assets are clean-room original project work authored for Codex Avatar Stud
 | `apps/extension/media/avatars/svg/placeholder-avatar.svg` | `2F7389390C64D310F9849CE7ECA519CE514CB2E942B6E63764EEBAD10F21D980` | Attested clean-room SVG fallback; original project work |
 | `apps/extension/media/avatars/pixi/placeholder-spritesheet.svg` | `CCE1D12D930A246B25F55661AF36A9B960A228E834201A1821341BEA94B28DB4` | Attested clean-room Pixi atlas; original project work |
 | `apps/extension/media/avatars/pixi/placeholder-spritesheet.json` | `B9F4A917542D2FB7715A0D51EC8E9F49328AF9C0441BF027E71E9F7277732241` | Attested clip map for the clean-room atlas |
-| `apps/extension/media/icon.png` | `5CAB19385AA3C98570C3D75B5CC1F2C60873D635EAA75713B10099B0CFDA1843` | Attested extension icon derived from the same original orb concept |
+| `apps/extension/media/icon.png` | `48C6C7EDDF180CC1DA83CDBBDD1DB0A3AE58F696D69570848DA49A1C2E4365AE` | Attested extension icon derived from the same original orb concept |
 
 No `.riv`, `.glb`, `.vrm`, Live2D model, third-party spritesheet, voice, or third-party character asset is present in the active source asset inventory. Generated Webview JavaScript is code output, not avatar artwork.
 

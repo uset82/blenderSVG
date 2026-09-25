@@ -33,6 +33,11 @@ export function buildStudioProjectExport(input: StudioProjectExportInput): strin
   });
 }
 
+/** tldraw numbers clip-path ids on each export. Keep the shape id and drop that counter. */
+export function stableExportSvgIds(svg: string): string {
+  return svg.replace(/_export_\d+_r_\d+__/g, "_export__");
+}
+
 export function safeExportFileName(title: string, extension: "svg" | "png" | "json"): string {
   const safe = title
     .trim()

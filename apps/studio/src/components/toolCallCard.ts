@@ -6,7 +6,16 @@ export interface ToolCallRecord {
   arguments: string;
   status: ToolCallStatus;
   durationMs: number | null;
+  startedAt?: number;
   result: string | null;
+}
+
+export function withToolTiming<T extends ToolCallRecord>(call: T, status: ToolCallStatus, now = Date.now()): T {
+  if (status === "running") return { ...call, status, startedAt: call.startedAt ?? now };
+  if (call.startedAt !== undefined && (status === "applied" || status === "error" || status === "rejected")) {
+    return { ...call, status, durationMs: Math.max(0, now - call.startedAt) };
+  }
+  return { ...call, status };
 }
 
 export function argumentSummary(args: string): string {

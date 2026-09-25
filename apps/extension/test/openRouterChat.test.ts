@@ -98,16 +98,19 @@ describe("OpenRouter model catalog", () => {
   });
 
   it("sends a reviewed local screenshot as a base64 image part to the chosen vision model", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValueOnce(
-      new Response(JSON.stringify({ data: [model("openai/vision-model", ["text", "image"], ["text"])] }), {
-        status: 200
-      })
-    ).mockResolvedValueOnce(
-      new Response('data: {"choices":[{"delta":{"content":"I can see the screenshot."}}]}\n\ndata: [DONE]\n', {
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" }
-      })
-    );
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [model("openai/vision-model", ["text", "image"], ["text"])] }), {
+          status: 200
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('data: {"choices":[{"delta":{"content":"I can see the screenshot."}}]}\n\ndata: [DONE]\n', {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" }
+        })
+      );
     const emitted: unknown[] = [];
     const controller = new OpenRouterChatController(createSecrets(), (message) => emitted.push(message), request);
     await controller.refreshModels();
@@ -137,9 +140,11 @@ describe("OpenRouter model catalog", () => {
   });
 
   it("rejects screenshot sends to models without image input", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValueOnce(
-      new Response(JSON.stringify({ data: [model("openai/text-model", ["text"], ["text"])] }), { status: 200 })
-    );
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [model("openai/text-model", ["text"], ["text"])] }), { status: 200 })
+      );
     const emitted: unknown[] = [];
     const controller = new OpenRouterChatController(createSecrets(), (message) => emitted.push(message), request);
     await controller.refreshModels();

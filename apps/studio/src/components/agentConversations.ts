@@ -5,6 +5,26 @@ export interface AgentConversation {
   updatedAt: string;
 }
 
+export interface StoredAgentConversation extends AgentConversation {
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
+export interface RestoredConversationMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  status: "complete";
+}
+
+export function restoreConversationMessages(conversation: StoredAgentConversation): RestoredConversationMessage[] {
+  return conversation.messages.map((message, index) => ({
+    id: `${conversation.id}-${index}`,
+    role: message.role,
+    content: message.content,
+    status: "complete"
+  }));
+}
+
 export function createAgentConversation(modelId: string, now = new Date().toISOString()): AgentConversation {
   return { id: crypto.randomUUID(), title: "New agent", modelId, updatedAt: now };
 }

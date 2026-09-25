@@ -29,10 +29,15 @@ Exact versions were checked against the installed workspace manifests and lockfi
 | `jimp` | 0.14.0 | MIT | <https://github.com/oliver-moran/jimp> |
 | `lucide-react` | 1.47.0 | ISC, with MIT for Feather-derived icons | <https://github.com/lucide-icons/lucide> · bundled license below |
 | `pixi.js` | 8.14.0 | MIT | <https://github.com/pixijs/pixi.js> |
+| `playwright` | 1.63.0 | Apache-2.0 | <https://github.com/microsoft/playwright> |
 | `radix-ui` | 1.6.7 | MIT | <https://www.radix-ui.com/> · bundled license below |
 | `react` / `react-dom` | 19.2.7 | MIT | <https://github.com/facebook/react> |
 | `react-markdown` | 10.1.0 | MIT | <https://github.com/remarkjs/react-markdown> |
 | `rehype-sanitize` | 6.0.0 | MIT | <https://github.com/rehypejs/rehype-sanitize> |
+| `@testing-library/dom` | 10.4.2 | MIT | <https://github.com/testing-library/dom-testing-library> |
+| `@testing-library/react` | 16.3.3 | MIT | <https://github.com/testing-library/react-testing-library> |
+| `jsdom` | 30.1.1 | MIT | <https://github.com/jsdom/jsdom> |
+| `ws` | 8.21.3 | MIT | <https://github.com/websockets/ws> |
 | `svgo` | 4.0.1 | MIT | <https://github.com/svg/svgo> |
 | `three` | 0.185.1 | MIT | <https://github.com/mrdoob/three.js> |
 | `tldraw` / `@tldraw/tldraw` / `@tldraw/assets` | 5.4.2 | tldraw license | <https://tldraw.dev/community/license> · production use requires a valid license key |

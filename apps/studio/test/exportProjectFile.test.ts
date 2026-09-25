@@ -5,6 +5,7 @@ import {
   buildStudioProjectExport,
   formatEditorSaveStatus,
   safeExportFileName,
+  stableExportSvgIds,
   studioExportFileName
 } from "../src/projects/exportProjectFile.js";
 import { readSanitizedSvgFile } from "../src/projects/localAssets.js";
@@ -64,5 +65,12 @@ describe("editor save status and export", () => {
     expect(exported.toLowerCase()).not.toContain("script");
     expect(svgViewBoxSize(exported)).toEqual({ width: 20, height: 10 });
     expect(safeExportFileName("mark", "svg")).toBe("mark.svg");
+  });
+
+  it("drops tldraw's export counter so two exports of the same shape match", () => {
+    const shape = "shape_8vK8bEAgHu46oGJgCjp9Z";
+    const first = `<clipPath id="_export_1_r_8__${shape}"></clipPath><g clip-path="url(#_export_1_r_8__${shape})"/>`;
+    const second = `<clipPath id="_export_1_r_3__${shape}"></clipPath><g clip-path="url(#_export_1_r_3__${shape})"/>`;
+    expect(stableExportSvgIds(first)).toBe(stableExportSvgIds(second));
   });
 });

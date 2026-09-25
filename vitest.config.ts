@@ -12,7 +12,8 @@ export default defineConfig({
       "apps/studio/test/**/*.test.ts",
       "apps/studio/test/**/*.test.tsx",
       "apps/studio-server/test/**/*.test.ts",
-      "apps/webview/test/**/*.test.tsx"
+      "apps/webview/test/**/*.test.tsx",
+      "apps/desktop/test/**/*.test.ts"
     ],
     restoreMocks: true
   }

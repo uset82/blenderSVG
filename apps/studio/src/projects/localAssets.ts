@@ -1,7 +1,16 @@
+import { optimizeSvgForBrowser } from "@codex-avatar-studio/asset-pipeline/optimize-svg/browser";
+import { fittedTraceSize, MAX_TRACE_PIXELS } from "@codex-avatar-studio/asset-pipeline/raster-prep";
 import { prepareSvgPreview } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import type { Editor, TLAssetId } from "tldraw";
-import { assertSvgPathCount, imageTracerOptions, type VectorPresetId } from "../components/vtracerPresets.js";
+import {
+  assertSvgPathCount,
+  type VectorPresetId,
+  type VectorTraceSettings,
+  workerRasterPrepOptions,
+  workerVtracerOptions
+} from "../components/vtracerPresets.js";
 import { fittedMediaSize, svgViewBoxSize } from "./fittedMediaSize.js";
+import { TRACE_CANCELLED, tracePixelsInWorker } from "./traceWorkerClient.js";
 
 const MAX_FILE_BYTES = 8_000_000;
 const MAX_CHAT_IMAGE_BYTES = 1_500_000;
@@ -22,23 +31,34 @@ export function assertLocalAssetFile(file: File, kind: "image" | "svg-or-image")
 export async function traceImageFileLocally(
   file: File,
   preset: VectorPresetId = "color-illustration",
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  tuning?: VectorTraceSettings
 ): Promise<string> {
-  if (signal?.aborted) throw new Error("Image tracing was cancelled.");
+  if (signal?.aborted) throw new Error(TRACE_CANCELLED);
   assertLocalAssetFile(file, "image");
   const bitmap = await createImageBitmap(file);
   try {
     const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) throw new Error("This browser cannot read the image.");
-    context.drawImage(bitmap, 0, 0);
-    const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
-    if (bitmap.width * bitmap.height > 4_000_000) {
+    if (bitmap.width * bitmap.height > MAX_TRACE_PIXELS) {
       throw new Error("This image is too large to trace locally. Use an image up to 4 megapixels.");
     }
-    const traced = await traceWithImageTracer(pixels, bitmap.width, bitmap.height, imageTracerOptions(preset));
+    const size = fittedTraceSize(bitmap.width, bitmap.height);
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("This browser cannot read the image.");
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(bitmap, 0, 0, size.width, size.height);
+    const pixels = context.getImageData(0, 0, size.width, size.height).data;
+    const traced = await tracePixelsInWorker(
+      pixels,
+      size.width,
+      size.height,
+      workerVtracerOptions(preset, tuning),
+      workerRasterPrepOptions(preset),
+      signal
+    );
     const withoutPrelude = traced
       .replace(/<\?xml[\s\S]*?\?>/gi, "")
       .replace(/<!--[\s\S]*?-->/g, "")
@@ -46,8 +66,8 @@ export async function traceImageFileLocally(
     const withNamespace = withoutPrelude.includes("xmlns=")
       ? withoutPrelude
       : withoutPrelude.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
-    if (signal?.aborted) throw new Error("Image tracing was cancelled.");
-    const svg = prepareSvgPreview(withNamespace).svg;
+    if (signal?.aborted) throw new Error(TRACE_CANCELLED);
+    const svg = prepareSvgPreview(optimizeSvgForBrowser(withNamespace)).svg;
     assertSvgPathCount(svg);
     return svg;
   } finally {
@@ -94,8 +114,38 @@ export async function readSanitizedSvgFile(file: File): Promise<string> {
   return prepareSvgPreview(await file.text()).svg;
 }
 
+function viewportCenter(editor: Editor): { x: number; y: number } {
+  try {
+    const center = editor.getViewportPageBounds().center;
+    if (Number.isFinite(center.x) && Number.isFinite(center.y)) return center;
+  } catch {
+    // A hidden or freshly mounted canvas has no camera yet.
+  }
+  return { x: 0, y: 0 };
+}
+
+async function hostAssetSrc(file: File): Promise<string | null> {
+  try {
+    if (window.sessionStorage.getItem("kurva-studio-standalone") !== "1") return null;
+  } catch {
+    return null;
+  }
+  const type = file.type.split(";")[0]?.trim().toLowerCase();
+  if (type !== "image/png" && type !== "image/jpeg") return null;
+  if (file.size <= 0 || file.size > 1_000_000) return null;
+  const id = crypto.randomUUID();
+  const response = await fetch(`/assets/${id}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": type },
+    body: file
+  });
+  if (!response.ok) throw new Error("The asset was not stored.");
+  return `/assets/${id}`;
+}
+
 export async function placeFileOnCanvas(editor: Editor, file: File): Promise<void> {
-  const center = editor.getViewportPageBounds().center;
+  const center = viewportCenter(editor);
   if (isSvgFile(file)) {
     const svg = await readSanitizedSvgFile(file);
     const viewBox = svgViewBoxSize(svg);
@@ -104,20 +154,29 @@ export async function placeFileOnCanvas(editor: Editor, file: File): Promise<voi
       type: "vector-studio",
       x: center.x - size.w / 2,
       y: center.y - size.h / 2,
-      props: { w: size.w, h: size.h, svg }
+      props: {
+        w: size.w,
+        h: size.h,
+        engine: "local-svg",
+        openRouterModel: "",
+        detail: "balanced",
+        lastSvg: svg,
+        isProcessing: false
+      }
     } as Parameters<Editor["createShape"]>[0]);
     return;
   }
   const bitmap = await createImageBitmap(file);
   const size = fittedMediaSize({ width: bitmap.width, height: bitmap.height });
   const assetId = `asset:${crypto.randomUUID()}` as TLAssetId;
+  const hostedSrc = await hostAssetSrc(file);
   editor.createAssets([
     {
       id: assetId,
       type: "image",
       typeName: "asset",
       props: {
-        src: URL.createObjectURL(file),
+        src: hostedSrc ?? URL.createObjectURL(file),
         w: bitmap.width,
         h: bitmap.height,
         mimeType: file.type || "image/png",
@@ -139,37 +198,6 @@ export async function placeFileOnCanvas(editor: Editor, file: File): Promise<voi
 export function svgTextToFile(svg: string, name: string): File {
   const base = name.replace(/\.[^.]+$/, "") || "import";
   return new File([svg], `${base}.svg`, { type: "image/svg+xml" });
-}
-
-async function traceWithImageTracer(
-  pixels: Uint8ClampedArray,
-  width: number,
-  height: number,
-  options: ReturnType<typeof imageTracerOptions>
-): Promise<string> {
-  const imageTracer = (await import("imagetracerjs")).default as {
-    imagedataToSVG: (
-      image: { width: number; height: number; data: Uint8ClampedArray },
-      options: Record<string, unknown>
-    ) => string;
-  };
-  const svg = imageTracer.imagedataToSVG(
-    { width, height, data: pixels },
-    {
-      colorsampling: 0,
-      numberofcolors: options.numberofcolors,
-      pathomit: options.pathomit,
-      ltres: options.ltres,
-      qtres: options.qtres,
-      layering: options.layering,
-      linefilter: false,
-      roundcoords: 2,
-      viewbox: true,
-      strokewidth: 0
-    }
-  );
-  if (!svg) throw new Error("Local image tracing did not produce SVG.");
-  return svg;
 }
 
 function isSvgFile(file: File): boolean {

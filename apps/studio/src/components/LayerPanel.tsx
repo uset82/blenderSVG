@@ -9,7 +9,7 @@ import {
   reorderSiblingIndexes
 } from "./layerTree.js";
 
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 30;
 
 export function LayerPanel({ editor }: { editor: Editor }) {
   const pageId = useValue("studio layer page", () => String(editor.getCurrentPageId()), [editor]);
@@ -164,6 +164,7 @@ export function LayerPanel({ editor }: { editor: Editor }) {
           })}
         </ul>
       </div>
+      <p className="studio-layer-hint">Double-click to rename · drag to reorder</p>
     </div>
   );
 }

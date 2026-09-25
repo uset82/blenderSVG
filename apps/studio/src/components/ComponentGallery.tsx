@@ -140,7 +140,9 @@ export default function ComponentGallery() {
                   <Button>Open popover</Button>
                 </Popover.Trigger>
                 <Popover.Content align="start">
-                  <p className="component-gallery__popover-copy">This panel follows its trigger and closes with Escape.</p>
+                  <p className="component-gallery__popover-copy">
+                    This panel follows its trigger and closes with Escape.
+                  </p>
                   <Popover.Close asChild>
                     <Button size="compact">Done</Button>
                   </Popover.Close>

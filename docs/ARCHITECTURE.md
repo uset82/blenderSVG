@@ -25,10 +25,14 @@ flowchart LR
 
 ```text
 apps/
+  studio/             React/Vite infinite canvas, served standalone or from the extension
+  studio-server/      loopback Node host for projects, chat, assets, and MCP
   extension/          VS Code extension host, commands, settings, IDE events, Webview provider
-  webview/            React/Vite UI, bridge, renderer selection, SVG fallback
+  webview/            React/Vite avatar sidebar, bridge, renderer selection, SVG fallback
 packages/
   avatar-core/        states, triggers, capabilities, protocol, manifest validation, adapter contract
+  studio-host-core/   OpenRouter chat, project store, Blender probe and handoff
+  studio-agent/       local turn machine and canvas tool registry
   asset-pipeline/     local image-to-SVG processing and manifest generation
   runtime-pixi/       isolated PixiJS v8 adapter, spritesheet validation, animation controller, cache
 scripts/
@@ -51,6 +55,8 @@ scripts/
 - The bridge accepts only known message schemas and bounded values.
 - Blender is an optional trusted-workspace process launched with argument arrays and `shell: false`.
 - Blender export modes validate and publish independently. A validated GLB is selectable only beside a package-local sanitized SVG fallback; otherwise the package stays SVG-only. The reverse handoff accepts only the current sanitized workspace SVG and creates a new staged `.blend` curve scene before returning to the export flow.
+- The Studio host binds to loopback, checks Host and Origin, and requires the launch token. Provider keys stay in the host keychain. The browser CSP does not allow a direct call to OpenRouter or QuiverAI.
+- The design agent is this repository's `packages/studio-agent`. [ADR 0002](adr/0002-agent-harness.md) pins ZCode `328c1a0` (Apache-2.0) as the only source that may be ported after an audit. No ZCode file is vendored. doop is AGPL-3.0 and is an idea reference only; its code is not copied.
 - No remote runtime downloads, telemetry, cloud asset service, or microphone permission is required.
 
 See [SECURITY_PRIVACY.md](SECURITY_PRIVACY.md) and [AVATAR_PACKAGE_SPEC.md](AVATAR_PACKAGE_SPEC.md) for the enforceable details.

@@ -102,7 +102,8 @@ export function analyzeBlenderSvgCompatibility(input: string | VectorDocument): 
       preservesGeometry: true,
       dropsFills: solidFills > 0 || gradientFills > 0,
       dropsStrokes: strokes > 0,
-      summary: curveScore >= 80 ? "Excellent for 3D extrusion/modeling" : "Lossy for colored illustration (geometry only)"
+      summary:
+        curveScore >= 80 ? "Excellent for 3D extrusion/modeling" : "Lossy for colored illustration (geometry only)"
     },
     greasePencilCompatibility: {
       score: Math.max(0, gpScore),

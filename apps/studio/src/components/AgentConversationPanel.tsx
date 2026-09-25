@@ -5,7 +5,7 @@ import {
 } from "@codex-avatar-studio/avatar-core";
 import { ArrowUp, Check, ChevronDown, Plus, RefreshCw, Search, Star, X } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "tldraw";
 import type { StudioChatRun, StudioImageAttachment, StudioModelCatalog, StudioToolCall } from "../bridge/studioHost.js";
 import { assertChatImageAttachment } from "../projects/localAssets.js";
@@ -13,7 +13,9 @@ import {
   type AgentConversation,
   conversationTitleFromMessage,
   createAgentConversation,
-  formatConversationStamp
+  formatConversationStamp,
+  restoreConversationMessages,
+  type StoredAgentConversation
 } from "./agentConversations.js";
 import { AGENT_EMPTY_HEADLINE, AGENT_EMPTY_TIPS, AGENT_SUGGESTIONS } from "./agentEmptyState.js";
 import { sessionPillStatus } from "./agentSessions.js";
@@ -21,25 +23,35 @@ import { ChatMessageBody } from "./ChatMessageBody.js";
 import { describeSelection } from "./canvasContextMenu.js";
 import { canStartSend, lastExchange } from "./chatActions.js";
 import { type ComposerMenuAction, composerMenuItems } from "./composerMenu.js";
-import { type ComposerMode, modeDescription, nextComposerMode } from "./composerModes.js";
-import { capCanvasSummary, compactHistory } from "./contextBudget.js";
+import { type ComposerMode, COMPOSER_MODES, modeDescription, nextComposerMode } from "./composerModes.js";
+import { DESIGN_SKILLS } from "./designSkills.js";
+import { compactHistory } from "./contextBudget.js";
 import { filterStudioModels, type ModalityFilter, type PriceFilter, readCatalogPrice } from "./modelFilters.js";
 import { filterModelsByBadges, groupCatalogModels, modelBadges, type QuickModelFilter } from "./modelPicker.js";
+import { nextModelOptionIndex } from "./modelPickerNavigation.js";
 import { paidModelCue, sendContextLines } from "./privacyContext.js";
-import { readProjectStyle } from "./projectStyle.js";
+import { hasProjectChatConsent, recordProjectChatConsent } from "./projectChatConsent.js";
+import { readProjectStyle, STYLE_PRESETS, withProjectStyle } from "./projectStyle.js";
 import { chatRunStatusLabel } from "./shellStatus.js";
 import { ToolCallCard } from "./ToolCallView.js";
 import { effectiveComposerMode } from "./toolModeFallback.js";
+import {
+  keepVariantFrame,
+  placeVariantFrames,
+  type VariantFrameEditor,
+  type VariantSession,
+  variantPrompt
+} from "./variantSessions.js";
 
 export type OpenRouterConnectionAction = "connect" | "replace" | "test" | "disconnect";
 
-export interface AgentHarnessSidebarProps {
+export interface AgentConversationPanelProps {
   className?: string;
   isOpen: boolean;
   draftPrefill?: { id: string; text: string } | null;
   draftImagePrefill?: { id: string; file: File } | null;
   onClose: () => void;
-  connectionHost: "vscode" | "browser";
+  connectionHost: "vscode" | "standalone" | "browser";
   workspaceTrusted: boolean;
   connection: {
     status: "disconnected" | "connected" | "checking" | "error";
@@ -51,7 +63,6 @@ export interface AgentHarnessSidebarProps {
   panelWidth: number;
   panelHeight: number;
   editor?: Editor | null;
-  onConnectionAction: (action: OpenRouterConnectionAction) => void;
   onRefreshModels: () => void;
   onSendChat: (
     modelId: string,
@@ -64,15 +75,18 @@ export interface AgentHarnessSidebarProps {
   onClearChatRun: () => void;
   onApproveToolCall: (id: string) => void;
   onRejectToolCall: (id: string) => void;
+  onUndoToolCall?: () => void;
   onPersistConversation?: (conversation: {
     id: string;
     title: string;
     modelId: string;
     updatedAt: string;
     messages: Array<{ role: "user" | "assistant"; content: string }>;
-  }) => void;
-  onRenameConversation?: (id: string, title: string) => void;
-  onDeleteConversation?: (id: string) => void;
+  }) => void | Promise<void>;
+  onLoadConversations?: (projectId: string) => Promise<AgentConversation[]>;
+  onLoadConversation?: (projectId: string, conversationId: string) => Promise<StoredAgentConversation | null>;
+  onRenameConversation?: (id: string, title: string) => void | Promise<void>;
+  onDeleteConversation?: (id: string) => void | Promise<void>;
   projectId?: string | null;
   onSessionsChange?: (sessions: Array<{ id: string; title: string; status: "running" | "finished" | "idle" }>) => void;
   onOpenVectorDialog?: () => void;
@@ -88,6 +102,74 @@ interface ChatMessage {
   attachment?: { file: File; dataUrl: string };
 }
 
+const ConversationMessage = memo(
+  function ConversationMessage({
+    message,
+    onRetry,
+    onOpenModels
+  }: {
+    message: ChatMessage;
+    onRetry: () => void;
+    onOpenModels: () => void;
+  }) {
+    return (
+      <article
+        className={`studio-agent__message${message.role === "user" ? " studio-agent__message--user" : ""}`}
+        aria-label={`${message.role === "user" ? "You" : "Assistant"}${message.status === "streaming" ? ", generating" : ""}`}
+      >
+        <div className="studio-agent__message-heading">
+          <strong>{message.role === "user" ? "You" : "Assistant"}</strong>
+          {message.status === "streaming" ? <span role="status">Generating…</span> : null}
+        </div>
+        {message.role === "assistant" ? (
+          <ChatMessageBody
+            content={message.content}
+            streaming={message.status === "streaming"}
+            {...(message.reasoning ? { reasoning: message.reasoning } : {})}
+          />
+        ) : (
+          <div className="studio-agent__message-content">{message.content}</div>
+        )}
+        {message.status === "error" && (
+          <div className="studio-agent__error-card" role="alert">
+            <p>{message.errorMessage || "The reply failed."}</p>
+            <button type="button" onClick={onRetry}>
+              Retry
+            </button>
+            <button type="button" onClick={onOpenModels}>
+              Switch model
+            </button>
+            <button
+              type="button"
+              onClick={() => document.querySelector<HTMLElement>('[aria-label="Settings"]')?.click()}
+            >
+              Open settings
+            </button>
+            {message.errorMessage?.toLowerCase().includes("credit") && (
+              <a href="https://openrouter.ai/settings/credits" target="_blank" rel="noreferrer">
+                Add credits
+              </a>
+            )}
+          </div>
+        )}
+        {message.attachment && (
+          <img
+            className="studio-agent__message-image"
+            src={message.attachment.dataUrl}
+            alt="Screenshot sent with this message"
+          />
+        )}
+        {message.errorMessage && (
+          <p role="alert" className="studio-agent__message-error">
+            {message.errorMessage}
+          </p>
+        )}
+      </article>
+    );
+  },
+  (previous, next) => previous.message === next.message
+);
+
 interface OutboundPreview {
   model: StudioModel;
   mode: "ask" | "plan" | "build" | "auto";
@@ -97,7 +179,7 @@ interface OutboundPreview {
   attachment?: { file: File; dataUrl: string };
 }
 
-export function AgentHarnessSidebar({
+export function AgentConversationPanel({
   className,
   isOpen,
   draftPrefill,
@@ -112,20 +194,22 @@ export function AgentHarnessSidebar({
   panelWidth,
   panelHeight,
   editor = null,
-  onConnectionAction,
   onRefreshModels,
   onSendChat,
   onCancelChat,
   onClearChatRun,
   onApproveToolCall,
   onRejectToolCall,
+  onUndoToolCall,
   onPersistConversation,
+  onLoadConversations,
+  onLoadConversation,
   onRenameConversation,
   onDeleteConversation,
   projectId = null,
   onSessionsChange,
   onOpenVectorDialog
-}: AgentHarnessSidebarProps) {
+}: AgentConversationPanelProps) {
   const [selectedModelId, setSelectedModelId] = useState(readSelectedModelId);
   const [modelQuery, setModelQuery] = useState("");
   const [quickModelFilters, setQuickModelFilters] = useState<QuickModelFilter[]>([]);
@@ -137,24 +221,78 @@ export function AgentHarnessSidebar({
   const [maximumInputPrice, setMaximumInputPrice] = useState("");
   const [maximumOutputPrice, setMaximumOutputPrice] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("perf") !== "1") return;
+    const onSeed = (event: Event) => {
+      const count = Number((event as CustomEvent<{ count?: number }>).detail?.count ?? 500);
+      setMessages(
+        Array.from({ length: count }, (_, index) => ({
+          id: `perf-${index}`,
+          role: index % 2 === 0 ? "user" : "assistant",
+          content: `Message ${index} stays on this computer.`,
+          status: "complete" as const
+        }))
+      );
+    };
+    const onStream = () => {
+      const started = performance.now();
+      let frames = 0;
+      let slowFrames = 0;
+      let last = started;
+      const step = (now: number) => {
+        const gap = now - last;
+        if (gap > 32) slowFrames += 1;
+        last = now;
+        frames += 1;
+        setMessages((current) => {
+          const next = current.slice();
+          const lastMessage = next.at(-1);
+          if (!lastMessage) return current;
+          next[next.length - 1] = { ...lastMessage, status: "streaming", content: `${lastMessage.content} word` };
+          return next;
+        });
+        if (now - started < 1000) requestAnimationFrame(step);
+        else {
+          (
+            window as Window & { __studioStream?: { frames: number; slowFrames: number; elapsedMs: number } }
+          ).__studioStream = { frames, slowFrames, elapsedMs: Math.round(now - started) };
+        }
+      };
+      requestAnimationFrame(step);
+    };
+    window.addEventListener("kurva-seed-messages", onSeed);
+    window.addEventListener("kurva-stream-messages", onStream);
+    return () => {
+      window.removeEventListener("kurva-seed-messages", onSeed);
+      window.removeEventListener("kurva-stream-messages", onStream);
+    };
+  }, []);
   const [conversationList, setConversationList] = useState<AgentConversation[]>(() => [
     createAgentConversation(readSelectedModelId())
   ]);
   const [activeConversationId, setActiveConversationId] = useState(() => conversationList[0]?.id ?? "");
   const [conversationMenuOpen, setConversationMenuOpen] = useState(false);
+  const [conversationLoadMessage, setConversationLoadMessage] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [composerMode, setComposerMode] = useState<ComposerMode>("ask");
   const [variantScale, setVariantScale] = useState(1);
-  const consentKey = `studio-chat-consent-v2:${projectId || "browser-session"}`;
-  const [consented, setConsented] = useState(() => {
-    try {
-      return window.sessionStorage.getItem(consentKey) === "yes";
-    } catch {
-      return false;
-    }
-  });
+  const [variantSessions, setVariantSessions] = useState<VariantSession[]>([]);
+  useEffect(() => {
+    const onVariants = (event: Event) => {
+      if (!editor) return;
+      const count = Number((event as CustomEvent<{ count?: number }>).detail?.count ?? 3);
+      setVariantSessions(placeVariantFrames(adaptEditorForVariants(editor), count));
+    };
+    window.addEventListener("kurva-start-variants", onVariants);
+    return () => window.removeEventListener("kurva-start-variants", onVariants);
+  }, [editor]);
+  const [consented, setConsented] = useState(() => hasProjectChatConsent(projectId, window.sessionStorage));
   const [consentOpen, setConsentOpen] = useState(false);
+  useEffect(() => {
+    setConsented(hasProjectChatConsent(projectId, window.sessionStorage));
+    setConsentOpen(false);
+  }, [projectId]);
   const [alwaysPreview, setAlwaysPreview] = useState(() => {
     try {
       return window.localStorage.getItem("studio-always-preview") !== "no";
@@ -162,11 +300,29 @@ export function AgentHarnessSidebar({
       return true;
     }
   });
+  useEffect(() => {
+    const syncPreview = () => {
+      try {
+        setAlwaysPreview(window.localStorage.getItem("studio-always-preview") !== "no");
+      } catch {
+        setAlwaysPreview(true);
+      }
+    };
+    window.addEventListener("studio-always-preview", syncPreview);
+    return () => window.removeEventListener("studio-always-preview", syncPreview);
+  }, []);
   const transcriptsRef = useRef(new Map<string, ChatMessage[]>());
+  const persistedTranscriptRef = useRef(new Map<string, string>());
+  const conversationLoadGenerationRef = useRef(0);
+  const conversationProjectRef = useRef<string | null>(null);
   const [draft, setDraft] = useState("");
   const [attachedImage, setAttachedImage] = useState<File | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
-  const [favoriteTick, setFavoriteTick] = useState(0);
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  const [skillMenuOpen, setSkillMenuOpen] = useState(false);
+  const [variantMenuOpen, setVariantMenuOpen] = useState(false);
+  const [styleMenuOpen, setStyleMenuOpen] = useState(false);
+  const [, setFavoriteTick] = useState(0);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const modelPickerAnchorRef = useRef<HTMLDivElement>(null);
   const modelPickerTriggerRef = useRef<HTMLButtonElement>(null);
@@ -180,6 +336,27 @@ export function AgentHarnessSidebar({
   const lastDraftPrefillIdRef = useRef<string | null>(null);
   const lastImagePrefillIdRef = useRef<string | null>(null);
 
+  const persistTranscript = useCallback(
+    (conversation: AgentConversation, transcript: Array<{ role: "user" | "assistant"; content: string }>) => {
+      if (!onPersistConversation) return;
+      const signature = JSON.stringify({
+        title: conversation.title,
+        modelId: conversation.modelId,
+        messages: transcript
+      });
+      if (persistedTranscriptRef.current.get(conversation.id) === signature) return;
+      persistedTranscriptRef.current.set(conversation.id, signature);
+      setConversationLoadMessage("Saving conversation…");
+      void Promise.resolve(onPersistConversation({ ...conversation, messages: transcript }))
+        .then(() => setConversationLoadMessage((message) => (message === "Saving conversation…" ? null : message)))
+        .catch(() => {
+          persistedTranscriptRef.current.delete(conversation.id);
+          setConversationLoadMessage("Conversation could not be saved. Try again after making another change.");
+        });
+    },
+    [onPersistConversation]
+  );
+
   useEffect(() => {
     onSessionsChange?.(
       conversationList.map((item) => ({
@@ -189,6 +366,61 @@ export function AgentHarnessSidebar({
       }))
     );
   }, [activeConversationId, chatRun, conversationList, onSessionsChange]);
+
+  useEffect(() => {
+    if (!projectId || !onLoadConversations || !onLoadConversation) return;
+    let cancelled = false;
+    const generation = ++conversationLoadGenerationRef.current;
+    conversationProjectRef.current = null;
+    setConversationLoadMessage("Loading saved conversations…");
+    const blank = createAgentConversation(readSelectedModelId());
+    setConversationList([blank]);
+    setActiveConversationId(blank.id);
+    setMessages([]);
+    transcriptsRef.current.clear();
+    persistedTranscriptRef.current.clear();
+    void (async () => {
+      try {
+        const saved = await onLoadConversations(projectId);
+        if (cancelled || generation !== conversationLoadGenerationRef.current) return;
+        if (saved.length === 0) {
+          conversationProjectRef.current = projectId;
+          setConversationLoadMessage(null);
+          return;
+        }
+        setConversationList(saved);
+        const latest = saved[0];
+        if (!latest) return;
+        setActiveConversationId(latest.id);
+        if (latest.modelId) setSelectedModelId(latest.modelId);
+        conversationProjectRef.current = projectId;
+        setConversationLoadMessage(null);
+        const transcript = await onLoadConversation(projectId, latest.id);
+        if (cancelled || generation !== conversationLoadGenerationRef.current) return;
+        if (transcript) {
+          const restored = restoreConversationMessages(transcript) as ChatMessage[];
+          transcriptsRef.current.set(latest.id, restored);
+          persistedTranscriptRef.current.set(
+            latest.id,
+            JSON.stringify({ title: transcript.title, modelId: transcript.modelId, messages: transcript.messages })
+          );
+          setMessages(restored);
+        } else {
+          setConversationLoadMessage("This saved conversation could not be opened.");
+        }
+        conversationProjectRef.current = projectId;
+        if (transcript) setConversationLoadMessage(null);
+      } catch {
+        if (cancelled || generation !== conversationLoadGenerationRef.current) return;
+        conversationProjectRef.current = projectId;
+        setConversationLoadMessage("Saved conversations could not be loaded. This session can still continue.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+      conversationLoadGenerationRef.current += 1;
+    };
+  }, [onLoadConversation, onLoadConversations, projectId]);
 
   useEffect(() => {
     if (!draftPrefill || draftPrefill.id === lastDraftPrefillIdRef.current) return;
@@ -213,7 +445,6 @@ export function AgentHarnessSidebar({
     return () => URL.revokeObjectURL(url);
   }, [attachedImage]);
 
-  const canManageConnection = connectionHost === "vscode" && workspaceTrusted && connection.status !== "checking";
   const connected = connection.status === "connected";
   const connectionLabel =
     connection.status === "checking"
@@ -263,6 +494,10 @@ export function AgentHarnessSidebar({
   const selectedModel = modelCatalog.models.find((model) => model.id === selectedModelId);
   const chooseModel = (modelId: string) => {
     setSelectedModelId(modelId);
+    const updatedAt = new Date().toISOString();
+    setConversationList((current) =>
+      current.map((item) => (item.id === activeConversationId ? { ...item, modelId, updatedAt } : item))
+    );
     const recent = [modelId, ...readStoredIds(RECENT_MODELS_KEY).filter((id) => id !== modelId)].slice(0, 5);
     writeStoredIds(RECENT_MODELS_KEY, recent);
     setModelPickerOpen(false);
@@ -273,7 +508,7 @@ export function AgentHarnessSidebar({
     setModelPickerOpen(false);
     if (restoreFocus) window.requestAnimationFrame(() => modelPickerTriggerRef.current?.focus());
   };
-  const canChat = connectionHost === "vscode" && workspaceTrusted && connected;
+  const canChat = (connectionHost === "vscode" || connectionHost === "standalone") && workspaceTrusted && connected;
   const canSend =
     canChat &&
     modelCatalog.status === "ready" &&
@@ -297,8 +532,10 @@ export function AgentHarnessSidebar({
       const index = current.findIndex((message) => message.id === chatRun.requestId);
       if (index < 0) return current;
       const updated = current.slice();
+      const currentMessage = updated[index];
+      if (!currentMessage) return current;
       updated[index] = {
-        ...updated[index]!,
+        ...currentMessage,
         content: chatRun.text,
         ...(chatRun.reasoning ? { reasoning: chatRun.reasoning } : {}),
         status: chatRun.status === "complete" ? "complete" : chatRun.status === "error" ? "error" : "streaming",
@@ -309,15 +546,30 @@ export function AgentHarnessSidebar({
   }, [chatRun]);
 
   useEffect(() => {
+    if (!projectId || !onPersistConversation || conversationProjectRef.current !== projectId) return;
+    if (messages.length === 0 || !messages.some((message) => message.role === "user")) return;
+    const assistantReply = [...messages].reverse().find((message) => message.role === "assistant");
+    if (assistantReply && assistantReply.status === "streaming") return;
+    const conversation = conversationList.find((item) => item.id === activeConversationId);
+    if (!conversation) return;
+    const transcript = messages
+      .filter((message) => message.role === "user" || message.status === "complete")
+      .map(({ role, content }) => ({ role, content }));
+    if (transcript.length === 0) return;
+    persistTranscript(conversation, transcript);
+  }, [activeConversationId, conversationList, messages, onPersistConversation, persistTranscript, projectId]);
+
+  useEffect(() => {
     if (outboundPreview) previewSendRef.current?.focus();
   }, [outboundPreview]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Measure the ref-backed textarea after each draft render so its scroll height tracks the DOM value.
   useEffect(() => {
     const node = composerRef.current;
     if (!node) return;
     node.style.height = "0px";
     node.style.height = `${Math.min(160, Math.max(44, node.scrollHeight))}px`;
-  }, [draft, isOpen]);
+  }, [draft]);
 
   useEffect(() => {
     if (modelPickerOpen) modelPickerSearchRef.current?.focus();
@@ -379,8 +631,11 @@ export function AgentHarnessSidebar({
     }
     if (!editor) return;
     if (action === "choose-style") {
-      const style = readProjectStyle(editor.getDocumentSettings()?.meta);
-      appendDraft(`Use the ${style.name} style.`);
+      setStyleMenuOpen(true);
+      return;
+    }
+    if (action === "pick-skill") {
+      setSkillMenuOpen(true);
       return;
     }
     if (action !== "add-canvas") return;
@@ -451,10 +706,25 @@ export function AgentHarnessSidebar({
 
   const sendAfterPreview = () => {
     if (!outboundPreview || isChatBusy(chatRun)) return;
+    const count = Math.min(4, Math.max(1, variantScale));
+    if (count > 1 && editor) {
+      const sessions = placeVariantFrames(adaptEditorForVariants(editor), count);
+      setVariantSessions(sessions);
+      sessions.forEach((session, index) => {
+        if (index === 0) return;
+        onSendChat(
+          outboundPreview.model.id,
+          outboundPreview.history,
+          variantPrompt(outboundPreview.message, session.index, count),
+          outboundPreview.attachment ? { dataUrl: outboundPreview.attachment.dataUrl } : undefined,
+          outboundPreview.mode
+        );
+      });
+    }
     const requestId = onSendChat(
       outboundPreview.model.id,
       outboundPreview.history,
-      outboundPreview.message,
+      count > 1 ? variantPrompt(outboundPreview.message, 0, count) : outboundPreview.message,
       outboundPreview.attachment ? { dataUrl: outboundPreview.attachment.dataUrl } : undefined,
       outboundPreview.mode
     );
@@ -483,18 +753,20 @@ export function AgentHarnessSidebar({
         item.id === activeConversationId ? { ...item, modelId: outboundPreview.model.id, updatedAt, title } : item
       )
     );
-    onPersistConversation?.({
-      id: activeConversationId,
-      title,
-      modelId: outboundPreview.model.id,
-      updatedAt,
-      messages: [
+    persistTranscript(
+      {
+        id: activeConversationId,
+        title,
+        modelId: outboundPreview.model.id,
+        updatedAt
+      },
+      [
         ...messages
           .filter((message) => message.status === "complete")
           .map((message) => ({ role: message.role, content: message.content })),
         { role: "user", content: outboundPreview.message }
       ]
-    });
+    );
   };
 
   const rememberActiveTranscript = () => {
@@ -509,7 +781,34 @@ export function AgentHarnessSidebar({
     rememberActiveTranscript();
     const next = conversationList.find((item) => item.id === id);
     setActiveConversationId(id);
-    setMessages(transcriptsRef.current.get(id) ?? []);
+    setConversationLoadMessage(null);
+    const transcript = transcriptsRef.current.get(id);
+    setMessages(transcript ?? []);
+    if (!transcript && projectId && onLoadConversation) {
+      const generation = ++conversationLoadGenerationRef.current;
+      setConversationLoadMessage("Loading conversation…");
+      void onLoadConversation(projectId, id)
+        .then((stored) => {
+          if (generation !== conversationLoadGenerationRef.current) return;
+          if (!stored) {
+            setConversationLoadMessage("This saved conversation could not be found.");
+            return;
+          }
+          const restored = restoreConversationMessages(stored) as ChatMessage[];
+          transcriptsRef.current.set(id, restored);
+          persistedTranscriptRef.current.set(
+            id,
+            JSON.stringify({ title: stored.title, modelId: stored.modelId, messages: stored.messages })
+          );
+          setMessages(restored);
+          setConversationLoadMessage(null);
+        })
+        .catch(() => {
+          if (generation === conversationLoadGenerationRef.current) {
+            setConversationLoadMessage("This saved conversation could not be opened.");
+          }
+        });
+    }
     if (next?.modelId) setSelectedModelId(next.modelId);
     setDraft("");
     setAttachedImage(null);
@@ -529,24 +828,51 @@ export function AgentHarnessSidebar({
     onClearChatRun();
   };
 
-  const renameActiveConversation = () => {
+  const renameActiveConversation = async () => {
     const title = renameTitle.trim();
     if (!title || !activeConversationId) return;
+    const current = conversationList.find((item) => item.id === activeConversationId);
+    if (!current) return;
+    setConversationLoadMessage("Saving title…");
+    try {
+      if (persistedTranscriptRef.current.has(activeConversationId)) {
+        await onRenameConversation?.(activeConversationId, title);
+      }
+    } catch {
+      setConversationLoadMessage("The conversation title could not be saved.");
+      return;
+    }
     setConversationList((current) =>
       current.map((item) => (item.id === activeConversationId ? { ...item, title } : item))
     );
-    onRenameConversation?.(activeConversationId, title);
+    const transcript = transcriptsRef.current.get(activeConversationId) ?? messages;
+    if (transcript.length > 0 && current)
+      persistTranscript(
+        { ...current, title },
+        transcript
+          .filter((message) => message.role === "user" || message.status === "complete")
+          .map(({ role, content }) => ({ role, content }))
+      );
     setRenameTitle("");
+    setConversationLoadMessage(null);
     setConversationMenuOpen(false);
   };
 
-  const deleteActiveConversation = () => {
+  const deleteActiveConversation = async () => {
     if (!confirmDelete) {
       setConfirmDelete(true);
       return;
     }
     const id = activeConversationId;
-    onDeleteConversation?.(id);
+    setConversationLoadMessage("Deleting conversation…");
+    try {
+      if (persistedTranscriptRef.current.has(id)) await onDeleteConversation?.(id);
+    } catch {
+      setConversationLoadMessage("The conversation could not be deleted.");
+      return;
+    }
+    persistedTranscriptRef.current.delete(id);
+    transcriptsRef.current.delete(id);
     setConversationList((current) => {
       const remaining = current.filter((item) => item.id !== id);
       const next = remaining[0] ?? createAgentConversation(selectedModelId || readSelectedModelId());
@@ -556,6 +882,7 @@ export function AgentHarnessSidebar({
       return remaining;
     });
     setConfirmDelete(false);
+    setConversationLoadMessage(null);
     setConversationMenuOpen(false);
   };
 
@@ -640,6 +967,11 @@ export function AgentHarnessSidebar({
           </button>
           {conversationMenuOpen && (
             <div id="studio-agent-conversations" className="studio-agent__conversations" role="menu">
+              {conversationLoadMessage && (
+                <p className="studio-agent__conversation-status" role="status">
+                  {conversationLoadMessage}
+                </p>
+              )}
               {conversationList.map((item) => (
                 <button
                   key={item.id}
@@ -674,7 +1006,7 @@ export function AgentHarnessSidebar({
             </div>
           )}
           <div className="studio-agent__subtitle">
-            OpenRouter · {connectionLabel} · <span aria-label="Tool execution off">Tools off</span>
+            OpenRouter · {connectionLabel} · <span>Tools off</span>
           </div>
         </div>
         <div className="studio-agent__header-actions">
@@ -693,29 +1025,9 @@ export function AgentHarnessSidebar({
       </header>
 
       <div className="studio-agent__scroll">
-        <section className="studio-agent__section" aria-label="OpenRouter connection">
-          <div className="studio-agent__section-heading">
-            <span className="studio-agent__provider-name">OpenRouter</span>
-            <span
-              role="status"
-              className={`studio-agent__connection-status${connected ? " studio-agent__connection-status--connected" : ""}`}
-            >
-              {connectionLabel}
-            </span>
-          </div>
-          <p className="studio-agent__connection-message">{connectionMessage}</p>
-          <p className="studio-agent__connection-message">Connect, test, replace, and disconnect are in Settings.</p>
-        </section>
-        <section className="studio-agent__section studio-agent-sidebar__privacy" aria-label="Privacy and context">
-          <div className="studio-agent__privacy-title">Review before sending</div>
-          <p className="studio-agent__privacy-copy">
-            Studio sends the conversation only after review. A screenshot is included only when you attach it; the
-            review shows the image before sending. Other canvas content, SVG, Blender scenes, and local paths stay
-            local. Attach the screenshot again if a later message needs it.
-          </p>
-        </section>
         <div
           className="studio-agent__messages"
+          role="log"
           aria-label="Conversation messages"
           aria-live="polite"
           aria-relevant="additions text"
@@ -735,67 +1047,23 @@ export function AgentHarnessSidebar({
                   </button>
                 ))}
               </div>
-              <ul className="studio-agent__tips">
+              <div className="studio-agent__tips">
                 {AGENT_EMPTY_TIPS.map((tip) => (
-                  <li key={tip}>{tip}</li>
+                  <div key={tip.title} className="studio-agent__tip">
+                    <span className="studio-agent__tip-title">{tip.title}</span>
+                    <span className="studio-agent__tip-copy">{tip.body}</span>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           ) : (
             messages.map((message) => (
-              <article
-                className={`studio-agent__message${message.role === "user" ? " studio-agent__message--user" : ""}`}
+              <ConversationMessage
                 key={message.id}
-                aria-label={`${message.role === "user" ? "You" : "Assistant"}${message.status === "streaming" ? ", generating" : ""}`}
-              >
-                <div className="studio-agent__message-heading">
-                  <strong>{message.role === "user" ? "You" : "Assistant"}</strong>
-                  {message.status === "streaming" ? <span role="status">Generating…</span> : null}
-                </div>
-                {message.role === "assistant" ? (
-                  <ChatMessageBody
-                    content={message.content}
-                    streaming={message.status === "streaming"}
-                    {...(message.reasoning ? { reasoning: message.reasoning } : {})}
-                  />
-                ) : (
-                  <div className="studio-agent__message-content">{message.content}</div>
-                )}
-                {message.status === "error" && (
-                  <div className="studio-agent__error-card" role="alert">
-                    <p>{message.errorMessage || "The reply failed."}</p>
-                    <button type="button" onClick={retryLastUserMessage}>
-                      Retry
-                    </button>
-                    <button type="button" onClick={openModelPicker}>
-                      Switch model
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => document.querySelector<HTMLElement>('[aria-label="Settings"]')?.click()}
-                    >
-                      Open settings
-                    </button>
-                    {message.errorMessage?.toLowerCase().includes("credit") && (
-                      <a href="https://openrouter.ai/settings/credits" target="_blank" rel="noreferrer">
-                        Add credits
-                      </a>
-                    )}
-                  </div>
-                )}
-                {message.attachment && (
-                  <img
-                    className="studio-agent__message-image"
-                    src={message.attachment.dataUrl}
-                    alt="Screenshot sent with this message"
-                  />
-                )}
-                {message.errorMessage && (
-                  <p role="alert" className="studio-agent__message-error">
-                    {message.errorMessage}
-                  </p>
-                )}
-              </article>
+                message={message}
+                onRetry={retryLastUserMessage}
+                onOpenModels={openModelPicker}
+              />
             ))
           )}
           {chatRunStatusLabel(chatRun?.status) && (
@@ -815,6 +1083,30 @@ export function AgentHarnessSidebar({
             </div>
           )}
         </div>
+        <details className="studio-agent__more">
+          <summary>Connection and privacy</summary>
+          <section className="studio-agent__section" aria-label="OpenRouter connection">
+            <div className="studio-agent__section-heading">
+              <span className="studio-agent__provider-name">OpenRouter</span>
+              <span
+                role="status"
+                className={`studio-agent__connection-status${connected ? " studio-agent__connection-status--connected" : ""}`}
+              >
+                {connectionLabel}
+              </span>
+            </div>
+            <p className="studio-agent__connection-message">{connectionMessage}</p>
+            <p className="studio-agent__connection-message">Connect, test, replace, and disconnect are in Settings.</p>
+          </section>
+          <section className="studio-agent__section studio-agent-sidebar__privacy" aria-label="Privacy and context">
+            <div className="studio-agent__privacy-title">Review before sending</div>
+            <p className="studio-agent__privacy-copy">
+              Studio sends the conversation only after review. A screenshot is included only when you attach it; the
+              review shows the image before sending. Other canvas content, SVG, Blender scenes, and local paths stay
+              local. Attach the screenshot again if a later message needs it.
+            </p>
+          </section>
+        </details>
         {toolCalls.map((call) => (
           <ToolCallCard
             key={call.id}
@@ -822,13 +1114,11 @@ export function AgentHarnessSidebar({
             modelName={selectedModel?.name}
             onApprove={onApproveToolCall}
             onReject={onRejectToolCall}
+            {...(onUndoToolCall ? { onUndo: () => onUndoToolCall() } : {})}
           />
         ))}
-      </div>
-
-      <footer className="studio-agent-composer">
-        <div className="studio-agent__context" aria-label="Context">
-          <span>Context</span>
+        <details className="studio-agent__context" role="group" aria-label="Context">
+          <summary>Context</summary>
           <ul>
             {sendContextLines({
               modelName: selectedModel?.name ?? null,
@@ -862,8 +1152,22 @@ export function AgentHarnessSidebar({
             />
             Always show the full request preview
           </label>
-        </div>
-        <label className="studio-agent__composer-label" htmlFor="studio-chat-composer">
+        </details>
+      </div>
+
+      <footer
+        className="studio-agent-composer"
+        onKeyDown={(event) => {
+          if (event.key === "Tab" && event.shiftKey) {
+            event.preventDefault();
+            setComposerMode((mode) => nextComposerMode(mode));
+          }
+        }}
+      >
+        <label
+          className="studio-agent__composer-label studio-agent__composer-label--mobile-sr-only"
+          htmlFor="studio-chat-composer"
+        >
           Message
         </label>
         <textarea
@@ -901,7 +1205,8 @@ export function AgentHarnessSidebar({
             <Plus size={16} aria-hidden="true" />
           </button>
           {plusOpen && (
-            <div id="studio-composer-plus" className="studio-agent__plus" role="menu">
+            <div id="studio-composer-plus" className="studio-agent__plus" role="menu" aria-label="Add to context">
+              <p className="studio-agent__plus-label">Add to context</p>
               {plusItems.map((item) => (
                 <button
                   key={item.id}
@@ -911,7 +1216,52 @@ export function AgentHarnessSidebar({
                   title={item.reason ?? ""}
                   onClick={() => void runPlus(item.id)}
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  {item.id === "choose-style" || item.id === "pick-skill" ? (
+                    <span className="studio-agent__plus-chevron" aria-hidden="true">
+                      ›
+                    </span>
+                  ) : item.id === "add-canvas" && !item.enabled ? (
+                    <span className="studio-agent__plus-hint">Selection</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          )}
+          {skillMenuOpen && (
+            <div id="studio-composer-skills" className="studio-agent__plus" role="menu" aria-label="Design skills">
+              {DESIGN_SKILLS.map((skill) => (
+                <button
+                  key={skill.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    appendDraft(skill.prompt);
+                    setSkillMenuOpen(false);
+                  }}
+                >
+                  {skill.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {styleMenuOpen && editor && (
+            <div id="studio-composer-styles" className="studio-agent__plus" role="menu" aria-label="Project styles">
+              {STYLE_PRESETS.map((style) => (
+                <button
+                  key={style.name}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={readProjectStyle(editor.getDocumentSettings()?.meta).name === style.name}
+                  onClick={() => {
+                    const current = editor.getDocumentSettings();
+                    const meta = withProjectStyle(current?.meta ?? {}, style);
+                    if (meta) editor.updateDocumentSettings({ meta: meta as NonNullable<typeof current>["meta"] });
+                    appendDraft(`Use the ${style.name} style.`);
+                    setStyleMenuOpen(false);
+                  }}
+                >
+                  {style.name}
                 </button>
               ))}
             </div>
@@ -927,14 +1277,41 @@ export function AgentHarnessSidebar({
               event.target.value = "";
             }}
           />
-          <button
-            className="studio-agent__chip"
-            type="button"
-            title={modeDescription(composerMode)}
-            onClick={() => setComposerMode((mode) => nextComposerMode(mode))}
-          >
-            {composerMode}
-          </button>
+          <div className="studio-agent__mode">
+            <button
+              className="studio-agent__chip"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={modeMenuOpen}
+              aria-controls="studio-composer-mode"
+              title={modeDescription(composerMode)}
+              onClick={() => setModeMenuOpen((open) => !open)}
+            >
+              {composerMode}
+            </button>
+            {modeMenuOpen && (
+              <div id="studio-composer-mode" className="studio-agent__plus studio-agent__mode-menu" role="menu">
+                {COMPOSER_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={mode === composerMode}
+                    onClick={() => {
+                      setComposerMode(mode);
+                      setModeMenuOpen(false);
+                    }}
+                  >
+                    <span>{mode}</span>
+                    <span>{modeDescription(mode)}</span>
+                  </button>
+                ))}
+                <p className="studio-agent__menu-note">
+                  Cycle modes <kbd>Shift+Tab</kbd>
+                </p>
+              </div>
+            )}
+          </div>
           {effectiveComposerMode(composerMode, selectedModel?.supportedParameters.includes("tools") ?? false).reason ? (
             <p role="status">
               {
@@ -943,20 +1320,74 @@ export function AgentHarnessSidebar({
               }
             </p>
           ) : null}
-          <button
-            className="studio-agent__chip"
-            type="button"
-            title="Choose 1 to 4 frames. A variant run has not started."
-            onClick={() => setVariantScale((count) => (count >= 4 ? 1 : count + 1))}
-          >
-            {variantScale}×
-          </button>
+          <div className="studio-agent__mode">
+            <button
+              className="studio-agent__chip"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={variantMenuOpen}
+              aria-controls="studio-composer-variants"
+              title="Run this prompt in 1 to 4 frames side by side."
+              onClick={() => setVariantMenuOpen((open) => !open)}
+            >
+              {variantScale}×
+            </button>
+            {variantMenuOpen && (
+              <div
+                id="studio-composer-variants"
+                className="studio-agent__plus studio-agent__mode-menu"
+                role="menu"
+                aria-label="Variants"
+              >
+                {(
+                  [
+                    [1, "One agent"],
+                    [2, "Two variants, side by side"],
+                    [3, "Three variants"],
+                    [4, "Four variants"]
+                  ] as const
+                ).map(([count, label]) => (
+                  <button
+                    key={count}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={variantScale === count}
+                    onClick={() => {
+                      setVariantScale(count);
+                      setVariantMenuOpen(false);
+                    }}
+                  >
+                    <span>{count}×</span>
+                    <span>{label}</span>
+                  </button>
+                ))}
+                <p className="studio-agent__menu-note">Each variant runs in its own frame.</p>
+              </div>
+            )}
+          </div>
+          {variantSessions.length > 1 ? (
+            <div className="studio-agent__variants" role="group" aria-label="Variant frames">
+              {variantSessions.map((session) => (
+                <button
+                  key={session.frameId}
+                  type="button"
+                  onClick={() => {
+                    if (!editor) return;
+                    keepVariantFrame(adaptEditorForVariants(editor), variantSessions, session.index);
+                    setVariantSessions([]);
+                  }}
+                >
+                  Keep {session.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div
             className="studio-model-picker-anchor"
             ref={modelPickerAnchorRef}
             style={
               {
-                "--studio-model-picker-width": `${Math.max(280, Math.min(380, panelWidth - 24))}px`
+                "--studio-model-picker-width": "440px"
               } as React.CSSProperties
             }
           >
@@ -1188,20 +1619,20 @@ export function AgentHarnessSidebar({
                     ];
                     if (options.length === 0) return;
                     event.preventDefault();
-                    const current = options.indexOf(document.activeElement as HTMLButtonElement);
-                    const nextIndex =
-                      event.key === "Home"
-                        ? 0
-                        : event.key === "End"
-                          ? options.length - 1
-                          : Math.max(
-                              0,
-                              Math.min(
-                                options.length - 1,
-                                (current < 0 ? 0 : current) + (event.key === "ArrowDown" ? 1 : -1)
-                              )
-                            );
-                    options[nextIndex]?.focus();
+                    const activeElement = document.activeElement as HTMLElement | null;
+                    const activeOption = activeElement?.dataset.modelId
+                      ? activeElement
+                      : activeElement?.closest<HTMLElement>("[data-model-id]");
+                    const activeModelId = activeOption?.dataset.modelId;
+                    const current = activeModelId
+                      ? options.findIndex((option) => option.dataset.modelId === activeModelId)
+                      : -1;
+                    const next = nextModelOptionIndex(
+                      event.key as "ArrowDown" | "ArrowUp" | "Home" | "End",
+                      current,
+                      options.length
+                    );
+                    if (next !== null) options[next]?.focus();
                   }}
                 >
                   {groupCatalogModels(
@@ -1209,8 +1640,9 @@ export function AgentHarnessSidebar({
                     readStoredIds(FAVORITE_MODELS_KEY),
                     readStoredIds(RECENT_MODELS_KEY)
                   ).map((group) => (
+                    // biome-ignore lint/a11y/useSemanticElements: A listbox group labels related options and must keep ARIA listbox semantics.
                     <div
-                      key={`${group.id}:${favoriteTick}`}
+                      key={group.id}
                       className="studio-model-picker-popover__group"
                       role="group"
                       aria-label={group.label}
@@ -1236,6 +1668,11 @@ export function AgentHarnessSidebar({
                                   ? "This model does not advertise text input and text output."
                                   : `Select ${model.name}`
                               }
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return;
+                                event.preventDefault();
+                                chooseModel(model.id);
+                              }}
                               onClick={() => chooseModel(model.id)}
                             >
                               <span className="studio-model-picker-popover__model-copy">
@@ -1266,6 +1703,7 @@ export function AgentHarnessSidebar({
                             <button
                               className={`studio-model-picker-popover__favorite${favorite ? " is-active" : ""}`}
                               type="button"
+                              data-model-id={model.id}
                               aria-label={`${favorite ? "Remove" : "Add"} ${model.name} ${favorite ? "from" : "to"} favorites`}
                               aria-pressed={favorite}
                               onClick={() => {
@@ -1312,7 +1750,8 @@ export function AgentHarnessSidebar({
           </div>
         </div>
         {attachedImage && (
-          <div className="studio-agent__attachment" aria-label="Local screenshot attachment">
+          // biome-ignore lint/a11y/useSemanticElements: This is a labeled attachment group, not a form fieldset.
+          <div className="studio-agent__attachment" role="group" aria-label="Local screenshot attachment">
             {attachmentUrl && <img src={attachmentUrl} alt="Screenshot attached for review" />}
             <span title={attachedImage.name}>{attachedImage.name}</span>
             <button type="button" aria-label="Remove screenshot attachment" onClick={() => setAttachedImage(null)}>
@@ -1335,36 +1774,40 @@ export function AgentHarnessSidebar({
             {attachmentError}
           </p>
         )}
-        <div className="studio-agent__composer-actions">
-          <button
-            className="studio-agent__button"
-            type="button"
-            disabled={!lastExchange(messages) || isChatBusy(chatRun)}
-            title={
-              lastExchange(messages) ? "Put the last message back in the composer" : "Send a message before editing it."
-            }
-            onClick={retryLastUserMessage}
-          >
-            Edit last message
-          </button>
-          <button
-            className="studio-agent__button"
-            type="button"
-            disabled={!lastExchange(messages) || !selectedModel || isChatBusy(chatRun) || Boolean(outboundPreview)}
-            title="Review the last message again before sending another reply."
-            onClick={regenerateLastReply}
-          >
-            Regenerate
-          </button>
-          <button
-            className="studio-agent__button"
-            type="button"
-            disabled={!messages.some((message) => message.role === "assistant" && message.content.trim())}
-            title="Copy the latest assistant reply."
-            onClick={copyLastReply}
-          >
-            Copy reply
-          </button>
+        <div
+          className={`studio-agent__composer-actions${lastExchange(messages) ? " studio-agent__composer-actions--history" : ""}`}
+        >
+          {lastExchange(messages) ? (
+            <div className="studio-agent__composer-history-actions">
+              <button
+                className="studio-agent__button"
+                type="button"
+                disabled={isChatBusy(chatRun)}
+                title="Put the last message back in the composer."
+                onClick={retryLastUserMessage}
+              >
+                Edit last message
+              </button>
+              <button
+                className="studio-agent__button"
+                type="button"
+                disabled={!selectedModel || isChatBusy(chatRun) || Boolean(outboundPreview)}
+                title="Review the last message again before sending another reply."
+                onClick={regenerateLastReply}
+              >
+                Regenerate
+              </button>
+              <button
+                className="studio-agent__button"
+                type="button"
+                disabled={!messages.some((message) => message.role === "assistant" && message.content.trim())}
+                title="Copy the latest assistant reply."
+                onClick={copyLastReply}
+              >
+                Copy reply
+              </button>
+            </div>
+          ) : null}
           <span className="studio-agent__composer-count">
             {draft.length.toLocaleString()} / 12,000 · Enter to review
           </span>
@@ -1392,15 +1835,16 @@ export function AgentHarnessSidebar({
             </button>
           )}
         </div>
-        {!canChat && (
-          <div className="studio-agent__composer-help">
-            {connectionHost === "browser"
-              ? "Use the VS Code editor tab to connect and chat."
-              : !workspaceTrusted
-                ? "Workspace trust is required for OpenRouter requests."
-                : "Connect OpenRouter to enable chat."}
-          </div>
-        )}
+        {!canChat && connectionHost === "browser" ? (
+          <div className="studio-agent__composer-help">Use the VS Code editor tab to connect and chat.</div>
+        ) : !canChat && !workspaceTrusted ? (
+          <div className="studio-agent__composer-help">Workspace trust is required for OpenRouter requests.</div>
+        ) : null}
+        <p className={`studio-agent__host-status${connected ? " studio-agent__host-status--on" : ""}`} role="status">
+          {connected
+            ? "OpenRouter connected · your key stays on this computer"
+            : `OpenRouter ${connectionLabel.toLowerCase()}`}
+        </p>
       </footer>
 
       {consentOpen && (
@@ -1424,11 +1868,7 @@ export function AgentHarnessSidebar({
               onClick={() => {
                 setConsented(true);
                 setConsentOpen(false);
-                try {
-                  window.sessionStorage.setItem(consentKey, "yes");
-                } catch {
-                  // Consent still applies until this page reloads.
-                }
+                recordProjectChatConsent(projectId, window.sessionStorage);
                 void requestPreview(true);
               }}
             >
@@ -1466,19 +1906,14 @@ function OutboundRequestDialog({
   onCancel: () => void;
   onSend: () => void;
 }) {
-  const outboundMessages: StudioChatHistoryMessage[] = [
-    { role: "assistant", content: STUDIO_CHAT_SYSTEM_PROMPT },
-    ...preview.history,
-    { role: "user", content: preview.message }
-  ];
+  const outboundMessages = keyedOutboundMessages([
+    { kind: "system" as const, role: "assistant" as const, content: STUDIO_CHAT_SYSTEM_PROMPT },
+    ...preview.history.map((message) => ({ kind: "history" as const, ...message })),
+    { kind: "draft" as const, role: "user" as const, content: preview.message }
+  ]);
 
   return (
-    <div
-      className="studio-outbound-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-    >
+    <div className="studio-outbound-overlay">
       <section
         className="studio-outbound-dialog"
         role="dialog"
@@ -1514,10 +1949,10 @@ function OutboundRequestDialog({
         </header>
         {showFull && (
           <div className="studio-outbound-dialog__messages">
-            {outboundMessages.map((message, index) => (
-              <article className="studio-outbound-dialog__message" key={`${message.role}-${index}`}>
+            {outboundMessages.map(({ key, kind, message }) => (
+              <article className="studio-outbound-dialog__message" key={key}>
                 <strong className="studio-outbound-dialog__message-role">
-                  {index === 0
+                  {kind === "system"
                     ? "Studio instructions"
                     : message.role === "user"
                       ? "User message"
@@ -1550,6 +1985,26 @@ function OutboundRequestDialog({
       </section>
     </div>
   );
+}
+
+function keyedOutboundMessages(
+  messages: Array<{ kind: "system" | "history" | "draft"; role: "assistant" | "user"; content: string }>
+): Array<{
+  key: string;
+  kind: "system" | "history" | "draft";
+  message: { role: "assistant" | "user"; content: string };
+}> {
+  const occurrences = new Map<string, number>();
+  return messages.map(({ kind, role, content }) => {
+    let hash = 2_166_136_261;
+    for (let index = 0; index < content.length; index += 1) {
+      hash = Math.imul(hash ^ content.charCodeAt(index), 16_777_619);
+    }
+    const identity = `${kind}:${role}:${content.length}:${(hash >>> 0).toString(36)}`;
+    const occurrence = occurrences.get(identity) ?? 0;
+    occurrences.set(identity, occurrence + 1);
+    return { key: `${identity}:${occurrence}`, kind, message: { role, content } };
+  });
 }
 
 function toolDisclosure(mode: OutboundPreview["mode"]): string {
@@ -1598,8 +2053,44 @@ function boundOutboundHistory(
   return compactHistory(bounded.slice(-40), contextLength);
 }
 
+function adaptEditorForVariants(editor: Editor): VariantFrameEditor {
+  return {
+    markHistoryStoppingPoint: (name) => editor.markHistoryStoppingPoint(name),
+    createShape: (shape) => {
+      if (shape.type !== "frame") return;
+      editor.createShape({
+        type: "frame",
+        x: shape.x,
+        y: shape.y,
+        props: {
+          w: typeof shape.props.w === "number" ? shape.props.w : 800,
+          h: typeof shape.props.h === "number" ? shape.props.h : 600,
+          name: typeof shape.props.name === "string" ? shape.props.name : "Variant"
+        }
+      });
+    },
+    getCurrentPageShapes: () =>
+      editor.getCurrentPageShapes().map((shape) => ({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...(typeof (shape.props as { name?: unknown }).name === "string"
+            ? { name: (shape.props as { name: string }).name }
+            : {})
+        }
+      })),
+    deleteShapes: (ids) =>
+      editor.deleteShapes(
+        editor
+          .getCurrentPageShapes()
+          .filter((shape) => ids.includes(shape.id))
+          .map((shape) => shape.id)
+      )
+  };
+}
+
 function getComposerPlaceholder(
-  host: "vscode" | "browser",
+  host: "vscode" | "standalone" | "browser",
   canChat: boolean,
   catalog: StudioModelCatalog,
   model?: StudioModel

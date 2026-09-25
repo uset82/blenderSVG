@@ -20,9 +20,7 @@ export function serializeDocumentToSvg(doc: VectorDocument): string {
       .map((key) => {
         const item = defs[key];
         if (!item) return "";
-        return item.type === "linearGradient"
-          ? serializeLinearGradient(item)
-          : serializeRadialGradient(item);
+        return item.type === "linearGradient" ? serializeLinearGradient(item) : serializeRadialGradient(item);
       })
       .filter(Boolean)
       .join("\n    ");

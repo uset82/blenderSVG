@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyProposal, type ProposalEditor } from "../src/components/canvasProposal.js";
+import { applyProposal, proposalFromTool, type ProposalEditor } from "../src/components/canvasProposal.js";
 
 describe("canvas proposal", () => {
   it("applies every shape after one history mark", () => {
@@ -17,5 +17,19 @@ describe("canvas proposal", () => {
       ]
     });
     expect(calls).toEqual(["apply proposal-1", "shape:a", "shape:b"]);
+  });
+
+  it("turns an approved design-frame tool into one dashed preview", () => {
+    const proposal = proposalFromTool(
+      "create_design_frame",
+      JSON.stringify({ name: "Landing", html: "<h1>Hello</h1><script>alert(1)</script>" }),
+      { x: 400, y: 300 }
+    );
+    expect(proposal?.summary).toBe("Add design frame Landing");
+    expect(proposal?.shapes).toHaveLength(1);
+    expect(proposal?.shapes[0]).toMatchObject({ type: "design-frame", x: 0, y: 0, w: 800, h: 600, label: "Landing" });
+    expect(proposal?.shapes[0]?.html ?? "").not.toContain("<script");
+    expect(proposal?.shapes[0]?.html).toContain("<h1>Hello</h1>");
+    expect(proposalFromTool("get_canvas_summary", "{}", { x: 0, y: 0 })).toBeNull();
   });
 });

@@ -43,6 +43,8 @@ export interface StudioInspectorProps {
   onTextStyle: (property: "font" | "size" | "weight" | "textAlign", value: string) => void;
   onShapeStyle: (property: "fill" | "dash" | "color" | "frameColor", value: string) => void;
   onExport: () => void;
+  onExportPage?: (format: "png" | "svg" | "json", scale: 1 | 2) => void;
+  onExportFrame?: () => void;
   panelWidth: number;
   panelHeight: number;
 }
@@ -59,9 +61,13 @@ export function StudioInspector({
   onTextStyle,
   onShapeStyle,
   onExport,
+  onExportPage,
+  onExportFrame,
   panelWidth,
   panelHeight
 }: StudioInspectorProps) {
+  const [pageFormat, setPageFormat] = useState<"png" | "svg" | "json">("png");
+  const [pageScale, setPageScale] = useState<1 | 2>(2);
   if (!isOpen) return null;
 
   return (
@@ -78,7 +84,9 @@ export function StudioInspector({
     >
       <header className="studio-inspector__header">
         <div>
-          <div className="studio-inspector__title">Inspector</div>
+          <div className="studio-inspector__title">
+            {selectedShape?.type === "frame" ? "Frame" : selectedShape ? "Selection" : "Page"}
+          </div>
           {selectedShape && (
             <div className="studio-inspector__selection-count">
               {selectedShape.count === 1 ? "1 object selected" : `${selectedShape.count} objects selected`}
@@ -95,14 +103,14 @@ export function StudioInspector({
           <div className="studio-inspector__section-title">Position and size</div>
           <div className="studio-inspector__geometry">
             <NumericProperty
-              label="X position"
+              label="X"
               value={selectedShape.x}
               min={-1_000_000}
               max={1_000_000}
               onCommit={(value) => onUpdate("x", value)}
             />
             <NumericProperty
-              label="Y position"
+              label="Y"
               value={selectedShape.y}
               min={-1_000_000}
               max={1_000_000}
@@ -110,7 +118,7 @@ export function StudioInspector({
             />
             {selectedShape.width !== undefined && (
               <NumericProperty
-                label="Width"
+                label="W"
                 value={selectedShape.width}
                 min={1}
                 max={1_000_000}
@@ -119,7 +127,7 @@ export function StudioInspector({
             )}
             {selectedShape.height !== undefined && (
               <NumericProperty
-                label="Height"
+                label="H"
                 value={selectedShape.height}
                 min={1}
                 max={1_000_000}
@@ -166,6 +174,11 @@ export function StudioInspector({
                 <span className="studio-inspector__status-dot" aria-hidden="true" />
                 Content clipped to frame
               </div>
+              {onExportFrame && (
+                <button className="studio-inspector__export" type="button" onClick={onExportFrame}>
+                  Export frame
+                </button>
+              )}
             </>
           )}
           {selectedShape.fill !== undefined && (
@@ -233,38 +246,96 @@ export function StudioInspector({
           <dl className="studio-inspector__metadata">
             <dt>Type</dt>
             <dd>{selectedShape.type}</dd>
-            {selectedShape.id && (
-              <>
-                <dt>ID</dt>
-                <dd>{selectedShape.id}</dd>
-              </>
-            )}
           </dl>
         </div>
       ) : (
-        <div className="studio-inspector__body">
-          <div className="studio-inspector__section-title">Page</div>
-          <HexColorProperty value={page.background} onCommit={(background) => onPageChange({ ...page, background })} />
-          <NumericProperty
-            label="Background opacity"
-            value={page.opacity}
-            min={0}
-            max={100}
-            onCommit={(opacity) => onPageChange({ ...page, opacity })}
-          />
-          <label className="studio-inspector__field-label">
-            Grid
-            <input
-              aria-label="Show grid"
-              type="checkbox"
-              checked={page.grid}
-              onChange={(event) => onPageChange({ ...page, grid: event.target.checked })}
-            />
-          </label>
-          <button className="studio-inspector__export" type="button" onClick={onExport}>
-            Export
-          </button>
+        <div className="studio-inspector__body studio-inspector__body--page">
+          <section className="studio-inspector__section">
+            <div className="studio-inspector__section-title">Background</div>
+            <div className="studio-inspector__background-row">
+              <HexColorProperty
+                value={page.background}
+                onCommit={(background) => onPageChange({ ...page, background })}
+              />
+              <NumericProperty
+                label="Opacity"
+                value={page.opacity}
+                min={0}
+                max={100}
+                suffix="%"
+                onCommit={(opacity) => onPageChange({ ...page, opacity })}
+              />
+            </div>
+            <label className="studio-inspector__toggle-row">
+              <span>Dot grid</span>
+              <input
+                aria-label="Show dot grid"
+                type="checkbox"
+                role="switch"
+                checked={page.grid}
+                onChange={(event) => onPageChange({ ...page, grid: event.target.checked })}
+              />
+            </label>
+          </section>
+          <div className="studio-inspector__rule" />
+          <section className="studio-inspector__section studio-inspector__section--presets">
+            <div className="studio-inspector__section-title">New frame presets</div>
+            <div className="studio-inspector__presets">
+              {[
+                ["Desktop", 1440, 1024],
+                ["Tablet", 834, 1194],
+                ["Mobile", 390, 844]
+              ].map(([label, width, height]) => (
+                <button key={label} type="button" onClick={() => onFramePreset(Number(width), Number(height))}>
+                  <span>{label}</span>
+                  <span>
+                    {width} × {height}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+          <div className="studio-inspector__rule" />
+          <section className="studio-inspector__section studio-inspector__section--export">
+            <div className="studio-inspector__section-title">Export</div>
+            <div className="studio-inspector__export-row">
+              <label>
+                <span className="sr-only">Export format</span>
+                <select
+                  aria-label="Export format"
+                  value={pageFormat}
+                  onChange={(event) => setPageFormat(event.target.value as "png" | "svg" | "json")}
+                >
+                  <option value="png">PNG</option>
+                  <option value="svg">SVG</option>
+                  <option value="json">JSON</option>
+                </select>
+              </label>
+              <label>
+                <span className="sr-only">Export scale</span>
+                <select
+                  aria-label="Export scale"
+                  value={pageScale}
+                  disabled={pageFormat !== "png"}
+                  onChange={(event) => setPageScale(event.target.value === "1" ? 1 : 2)}
+                >
+                  <option value={1}>1×</option>
+                  <option value={2}>2×</option>
+                </select>
+              </label>
+            </div>
+            <button
+              className="studio-inspector__export"
+              type="button"
+              onClick={() => (onExportPage ? onExportPage(pageFormat, pageScale) : onExport())}
+            >
+              Export page
+            </button>
+          </section>
         </div>
+      )}
+      {!selectedShape && (
+        <p className="studio-inspector__hint">Select a layer to edit its position, size, fill and type.</p>
       )}
     </aside>
   );
@@ -374,12 +445,14 @@ function NumericProperty({
   value,
   min,
   max,
+  suffix,
   onCommit
 }: {
   label: string;
   value: number | null;
   min: number;
   max: number;
+  suffix?: string;
   onCommit: (value: number) => void;
 }) {
   const serializedValue = value === null ? "" : String(Math.round(value));
@@ -472,6 +545,7 @@ function NumericProperty({
         }}
         className="studio-inspector__field"
       />
+      {suffix ? <span className="studio-inspector__suffix">{suffix}</span> : null}
     </label>
   );
 }

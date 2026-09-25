@@ -11,6 +11,17 @@ interface ThumbnailEntry {
 
 type ThumbnailCache = Record<string, ThumbnailEntry>;
 
+interface PendingFrameThumbnail {
+  editor: Editor;
+  delayMs: number;
+  timer: ReturnType<typeof setTimeout> | undefined;
+  inFlight: boolean;
+  queued: boolean;
+  onStored: (() => void) | undefined;
+}
+
+const pendingFrameThumbnails = new Map<string, PendingFrameThumbnail>();
+
 function readCache(): ThumbnailCache {
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(CACHE_KEY) ?? "{}");
@@ -61,6 +72,71 @@ export async function storeFrameThumbnail(editor: Editor, projectId: string): Pr
     body: image.blob
   });
   return response.ok;
+}
+
+/** Coalesce autosaves into one trailing host thumbnail render per project. */
+export function scheduleFrameThumbnail(
+  editor: Editor,
+  projectId: string,
+  delayMs = 1_200,
+  onStored?: () => void
+): void {
+  if (!projectId) return;
+  const delay = Number.isFinite(delayMs) ? Math.max(0, delayMs) : 1_200;
+  let pending = pendingFrameThumbnails.get(projectId);
+  if (!pending) {
+    pending = { editor, delayMs: delay, timer: undefined, inFlight: false, queued: false, onStored };
+    pendingFrameThumbnails.set(projectId, pending);
+  }
+  pending.editor = editor;
+  pending.delayMs = delay;
+  pending.onStored = onStored;
+  pending.queued = true;
+  if (pending.timer !== undefined) clearTimeout(pending.timer);
+  if (!pending.inFlight) schedulePendingFrameThumbnail(projectId, pending);
+}
+
+export function cancelFrameThumbnail(projectId: string): void {
+  const pending = pendingFrameThumbnails.get(projectId);
+  if (!pending) return;
+  if (pending.timer !== undefined) clearTimeout(pending.timer);
+  pending.timer = undefined;
+  pending.queued = false;
+  pending.onStored = undefined;
+  if (!pending.inFlight) pendingFrameThumbnails.delete(projectId);
+}
+
+export function cancelScheduledFrameThumbnails(): void {
+  for (const [projectId, pending] of pendingFrameThumbnails) {
+    if (pending.timer !== undefined) clearTimeout(pending.timer);
+    pending.timer = undefined;
+    pending.queued = false;
+    pending.onStored = undefined;
+    if (!pending.inFlight) pendingFrameThumbnails.delete(projectId);
+  }
+}
+
+function schedulePendingFrameThumbnail(projectId: string, pending: PendingFrameThumbnail): void {
+  pending.timer = setTimeout(() => {
+    pending.timer = undefined;
+    void flushPendingFrameThumbnail(projectId, pending);
+  }, pending.delayMs);
+}
+
+async function flushPendingFrameThumbnail(projectId: string, pending: PendingFrameThumbnail): Promise<void> {
+  if (pending.inFlight || !pending.queued) return;
+  const editor = pending.editor;
+  pending.queued = false;
+  pending.inFlight = true;
+  try {
+    if (await storeFrameThumbnail(editor, projectId)) pending.onStored?.();
+  } catch {
+    // Thumbnail work is optional and must not change project-save status.
+  } finally {
+    pending.inFlight = false;
+    if (pending.queued) schedulePendingFrameThumbnail(projectId, pending);
+    else if (pendingFrameThumbnails.get(projectId) === pending) pendingFrameThumbnails.delete(projectId);
+  }
 }
 
 /** Capture a small, genuine image of the active tldraw page after it is saved. */

@@ -5,6 +5,7 @@ export * from "./manifestGenerator.js";
 export * from "./optimizeSvg.js";
 export * from "./paths.js";
 export * from "./quiverVectorEngine.js";
+export * from "./rasterPrep.js";
 export * from "./svgIr.js";
 export * from "./svgParser.js";
 export * from "./svgSerializer.js";

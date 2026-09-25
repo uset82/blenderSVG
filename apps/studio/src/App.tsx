@@ -1,15 +1,21 @@
-import React, { useEffect, useRef, useState } from "react";
-import { type Editor, GeoShapeGeoStyle, type TLDefaultColorStyle, type TLPageId, Tldraw } from "tldraw";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { type Editor, GeoShapeGeoStyle, type TLDefaultColorStyle, type TLPageId, type TLShapeId, Tldraw } from "tldraw";
 import "tldraw/tldraw.css";
 import "./styles/studio.css";
 import { type StudioProjectsState, useStudioHost } from "./bridge/studioHost.js";
+import type { AgentConversation, StoredAgentConversation } from "./components/agentConversations.js";
+import { stopRunningReply } from "./components/agentSessions.js";
+import { CanvasLicenseNotice } from "./components/CanvasLicenseNotice.js";
 import { decodeAssetDrag, placeCanvasAsset } from "./components/canvasAssets.js";
-import { applyProposal, type CanvasProposal } from "./components/canvasProposal.js";
+import { applyProposal, type CanvasProposal, proposalFromTool } from "./components/canvasProposal.js";
 import type { PaletteCommand } from "./components/commandPalette.js";
+import { CONNECTOR_SNIPPETS, connectorSnippetsForLaunch } from "./components/connectorSnippets.js";
 import { capCanvasSummary } from "./components/contextBudget.js";
 import { executeCanvasTool } from "./components/executeCanvasTool.js";
 import { summarizeShapeSelection } from "./components/inspectorSelection.js";
 import { ProposalBar } from "./components/ProposalBar.js";
+import { ProposalGhost } from "./components/ProposalGhost.js";
 import {
   clampPanelSize,
   getPanelSizeRange,
@@ -19,10 +25,12 @@ import {
   writePanelSize
 } from "./components/panelSizing.js";
 import {
+  cancelFrameThumbnail,
+  cancelScheduledFrameThumbnails,
   captureProjectThumbnail,
   readProjectThumbnails,
   removeProjectThumbnail,
-  storeFrameThumbnail
+  scheduleFrameThumbnail
 } from "./components/projectThumbnail.js";
 import { RecentsDashboard, SCRATCHPAD_PROJECT_ID, type SessionCanvas } from "./components/RecentsDashboard.js";
 import { readCanvasTimes, rememberCanvasTimes, stampCanvasTimes } from "./components/recentCanvas.js";
@@ -41,8 +49,20 @@ import { StudioWindowBar } from "./components/StudioWindowBar.js";
 import { ensureSessionScratchpad, isSessionScratchpad } from "./components/sessionScratchpad.js";
 import { setRichTextWeight } from "./components/textWeight.js";
 import { VectorAssetDialog } from "./components/VectorAssetDialog.js";
+import {
+  keepVariantFrame,
+  placeVariantFrames,
+  type VariantFrameEditor,
+  type VariantSession
+} from "./components/variantSessions.js";
 import { type ZoomCommand, zoomScale } from "./components/zoomMenu.js";
-import { buildStudioProjectExport, studioExportFileName } from "./projects/exportProjectFile.js";
+import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
+import {
+  buildStudioProjectExport,
+  safeExportFileName,
+  stableExportSvgIds,
+  studioExportFileName
+} from "./projects/exportProjectFile.js";
 import { createHostAssetStore } from "./projects/hostAssetStore.js";
 import {
   hostProjectSaveRequest,
@@ -74,7 +94,7 @@ import { StudioFrameShapeUtil } from "./shapes/StudioFrameShapeUtil.js";
 import { StudioGeoShapeUtil } from "./shapes/StudioGeoShapeUtil.js";
 import { VectorStudioShapeUtil } from "./shapes/VectorStudioCanvasShape.js";
 import { tldrawAssetUrls } from "./tldrawAssets.js";
-import { readTldrawLicenseKey } from "./tldrawLicense.js";
+import { canRenderTldrawCanvas, readTldrawLicenseKey } from "./tldrawLicense.js";
 
 const customShapeUtils = [
   AvatarShapeUtil,
@@ -115,15 +135,98 @@ function readStandaloneHostMode(): boolean {
 }
 
 function fitCurrentFrame(editor: Editor): number {
-  const frame = editor.getCurrentPageShapes().find((shape) => shape.type === "frame");
-  const bounds = frame ? editor.getShapePageBounds(frame.id) : undefined;
-  if (!bounds) {
-    editor.zoomToFit();
+  try {
+    const viewport = editor.getViewportScreenBounds();
+    if (!viewport || viewport.w < 2 || viewport.h < 2) return editor.getZoomLevel();
+    const frame = editor.getCurrentPageShapes().find((shape) => shape.type === "frame");
+    const bounds = frame ? editor.getShapePageBounds(frame.id) : undefined;
+    if (!bounds) {
+      editor.zoomToFit();
+      return editor.getZoomLevel();
+    }
+    editor.zoomToBounds(bounds, { inset: 40, animation: { duration: 0 } });
+    const toolbar = document.querySelector(".studio-toolbar");
+    const header = document.querySelector(".studio-windowbar__left");
+    const headerGap = window.innerWidth <= 700 ? 24 : 8;
+    const frameScreen = editor.pageToScreen({ x: bounds.x, y: bounds.y });
+    let camera = editor.getCamera();
+    if (toolbar && window.innerWidth > 700) {
+      const overlap = toolbar.getBoundingClientRect().right + 48 - frameScreen.x;
+      if (overlap > 0) camera = { ...camera, x: camera.x + overlap / camera.z };
+    }
+    if (header) {
+      const overlap = header.getBoundingClientRect().bottom + headerGap - frameScreen.y;
+      if (overlap > 0) camera = { ...camera, y: camera.y - overlap / camera.z };
+    }
+    editor.setCamera(camera);
+    if (window.innerWidth > 700) {
+      const inspector = document.querySelector(".studio-inspector");
+      if (inspector) {
+        const frameRight = editor.pageToScreen({ x: bounds.x + bounds.w, y: bounds.y }).x;
+        const overlap = frameRight + 16 - inspector.getBoundingClientRect().left;
+        if (overlap > 0) {
+          const next = editor.getCamera();
+          editor.setCamera({ ...next, x: next.x - overlap / next.z });
+        }
+        const toolbarRight = toolbar ? toolbar.getBoundingClientRect().right + 48 : 16;
+        const available = inspector.getBoundingClientRect().left - 16 - toolbarRight;
+        const fittedLeft = editor.pageToScreen({ x: bounds.x, y: bounds.y }).x;
+        const fittedRight = editor.pageToScreen({ x: bounds.x + bounds.w, y: bounds.y }).x;
+        const fittedWidth = fittedRight - fittedLeft;
+        if (available > 80 && fittedWidth > available) {
+          const fitted = editor.getCamera();
+          editor.setCamera({ ...fitted, z: fitted.z * (available / fittedWidth) });
+          const nextLeft = editor.pageToScreen({ x: bounds.x, y: bounds.y }).x;
+          const placed = editor.getCamera();
+          editor.setCamera({ ...placed, x: placed.x + (toolbarRight - nextLeft) / placed.z });
+        }
+      } else {
+        const toolbarRight = toolbar ? toolbar.getBoundingClientRect().right + 48 : 16;
+        const limitRight = window.innerWidth - 16;
+        const available = limitRight - toolbarRight;
+        const fittedLeft = editor.pageToScreen({ x: bounds.x, y: bounds.y }).x;
+        const fittedRight = editor.pageToScreen({ x: bounds.x + bounds.w, y: bounds.y }).x;
+        const fittedWidth = fittedRight - fittedLeft;
+        if (available > 80 && fittedWidth > available) {
+          const fitted = editor.getCamera();
+          editor.setCamera({ ...fitted, z: fitted.z * (available / fittedWidth) });
+          const nextLeft = editor.pageToScreen({ x: bounds.x, y: bounds.y }).x;
+          const placed = editor.getCamera();
+          editor.setCamera({ ...placed, x: placed.x + (toolbarRight - nextLeft) / placed.z });
+        } else if (fittedRight > limitRight) {
+          const placed = editor.getCamera();
+          editor.setCamera({ ...placed, x: placed.x - (fittedRight - limitRight) / placed.z });
+        }
+      }
+    }
+    const zoomCluster = document.querySelector(".studio-zoom-cluster");
+    const headerBottom = header ? header.getBoundingClientRect().bottom + headerGap : 16;
+    const limitBottom = zoomCluster ? zoomCluster.getBoundingClientRect().top - 8 : window.innerHeight - 16;
+    const available = limitBottom - headerBottom;
+    if (available > 80) {
+      const screenTop = () => editor.pageToScreen({ x: bounds.x, y: bounds.y }).y;
+      const screenBottom = () => editor.pageToScreen({ x: bounds.x, y: bounds.y + bounds.h }).y;
+      const top = screenTop();
+      const bottom = screenBottom();
+      const height = bottom - top;
+      if (height > available) {
+        const fitted = editor.getCamera();
+        editor.setCamera({ ...fitted, z: fitted.z * (available / height) });
+        const nextTop = screenTop();
+        const placed = editor.getCamera();
+        editor.setCamera({ ...placed, y: placed.y - (nextTop - headerBottom) / placed.z });
+      } else if (top < headerBottom) {
+        const placed = editor.getCamera();
+        editor.setCamera({ ...placed, y: placed.y - (top - headerBottom) / placed.z });
+      } else if (bottom > limitBottom) {
+        const placed = editor.getCamera();
+        editor.setCamera({ ...placed, y: placed.y - (bottom - limitBottom) / placed.z });
+      }
+    }
+    return editor.getZoomLevel();
+  } catch {
     return editor.getZoomLevel();
   }
-  editor.centerOnPoint({ x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 });
-  editor.zoomToBounds(bounds, { inset: 40 });
-  return editor.getZoomLevel();
 }
 
 function inspectSelection(editor: Editor): InspectedShape | null {
@@ -170,6 +273,11 @@ export function App() {
     approveToolCall,
     rejectToolCall,
     completeToolExecution,
+    listConversations,
+    readConversation,
+    saveConversation,
+    renameConversation,
+    deleteConversation,
     requestProjects,
     importProject,
     ensureScratchpad,
@@ -181,8 +289,11 @@ export function App() {
     deleteProject,
     clearProjectAction
   } = useStudioHost();
-  const launchToken = typeof window === "undefined" ? null : studioHostToken(window.location.search);
+  const [launchToken] = useState(() =>
+    typeof window === "undefined" ? null : studioHostToken(window.location.search)
+  );
   const [isStandaloneHost] = useState(() => Boolean(launchToken) || readStandaloneHostMode());
+  const [hostKeyConfigured, setHostKeyConfigured] = useState(false);
   useEffect(() => {
     if (!launchToken) return;
     try {
@@ -229,7 +340,10 @@ export function App() {
     if (isStandaloneHost) refreshProjectLibrary();
   }, [isStandaloneHost, refreshProjectLibrary]);
   const editorRef = useRef<Editor | null>(null);
+  const mountedEditorRef = useRef<Editor | null>(null);
+  const mountingRef = useRef(false);
   const startedToolExecutionsRef = useRef(new Set<string>());
+  const stagedExecutionRef = useRef<{ requestId: string; callId: string } | null>(null);
   const shouldAutoFitRef = useRef(true);
   const projectIdRef = useRef<string | null>(null);
   const projectTitleRef = useRef("Untitled");
@@ -238,6 +352,7 @@ export function App() {
   const initialBlankSnapshotRef = useRef<string | null>(null);
   const scratchpadRequestedRef = useRef(false);
   const pendingNewCanvasRef = useRef<string | null>(null);
+  const pendingFramePresetRef = useRef<(typeof HOME_CATEGORY_PRESETS)[number] | null>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
   const stampCanvasTimerRef = useRef<number | undefined>(undefined);
   const refreshCanvasesRef = useRef<(editor: Editor, touchCurrent?: boolean) => void>(() => undefined);
@@ -261,7 +376,10 @@ export function App() {
   const traceInputRef = useRef<HTMLInputElement | null>(null);
   const screenshotInputRef = useRef<HTMLInputElement | null>(null);
   const [importNotice, setImportNotice] = useState<string | undefined>(undefined);
-  const [isAgentSidebarOpen, setAgentSidebarOpen] = useState(false);
+  const [isAgentSidebarOpen, setAgentSidebarOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth >= 1100 || window.innerWidth <= 700;
+  });
   const [isAgentPanelCollapsed, setAgentPanelCollapsed] = useState(false);
   const [canvasEpoch, setCanvasEpoch] = useState(0);
   const [isInspectorOpen, setInspectorOpen] = useState(false);
@@ -288,6 +406,16 @@ export function App() {
         });
         continue;
       }
+      const call = toolCalls.find((item) => item.requestId === execution.requestId && item.callId === execution.callId);
+      const preview =
+        call?.requiresApproval === true
+          ? proposalFromTool(execution.name, execution.arguments, editor.getViewportPageBounds().center)
+          : null;
+      if (preview) {
+        stagedExecutionRef.current = execution;
+        setCanvasProposal(preview);
+        continue;
+      }
       void executeCanvasTool(editor, execution.name, execution.arguments)
         .then((result) => completeToolExecution(execution.requestId, execution.callId, { ok: true, ...result }))
         .catch((error: unknown) =>
@@ -297,8 +425,106 @@ export function App() {
           })
         );
     }
-  }, [completeToolExecution, editorReady, pendingToolExecutions]);
+  }, [completeToolExecution, editorReady, pendingToolExecutions, toolCalls]);
+
+  useEffect(() => {
+    const onPreview = (event: Event) => {
+      const detail = (event as CustomEvent<{ name?: string; arguments?: string }>).detail;
+      const editor = editorRef.current;
+      if (!editor || !detail?.name || !detail.arguments) return;
+      const proposal = proposalFromTool(detail.name, detail.arguments, editor.getViewportPageBounds().center);
+      if (proposal) setCanvasProposal(proposal);
+    };
+    window.addEventListener("kurva-preview-tool", onPreview);
+    const sessions: { current: VariantSession[] } = { current: [] };
+    const onVariants = (event: Event) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const count = Number((event as CustomEvent<{ count?: number }>).detail?.count ?? 3);
+      sessions.current = placeVariantFrames(adaptEditorForVariants(editor), count);
+    };
+    const onKeep = (event: Event) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const index = Number((event as CustomEvent<{ index?: number }>).detail?.index ?? 0);
+      keepVariantFrame(adaptEditorForVariants(editor), sessions.current, index);
+      sessions.current = sessions.current.filter((session) => session.index === index);
+    };
+    window.addEventListener("kurva-start-variants", onVariants);
+    window.addEventListener("kurva-keep-variant", onKeep);
+    let lastCameraKey = "";
+    const proposalTimer = window.setInterval(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const camera = editor.getCamera();
+      const cameraKey = `${camera.x}:${camera.y}:${camera.z}`;
+      if (cameraKey !== lastCameraKey) {
+        lastCameraKey = cameraKey;
+        return;
+      }
+      void fetch("/api/mcp-proposal", { credentials: "same-origin" })
+        .then((response) => response.json())
+        .then((body: { proposal?: { badge?: string; name?: string; arguments?: string } | null }) => {
+          const staged = body.proposal;
+          if (!staged?.name || !staged.arguments) return;
+          const proposal = proposalFromTool(staged.name, staged.arguments, editor.getViewportPageBounds().center);
+          if (!proposal) return;
+          setCanvasProposal({ ...proposal, summary: `${staged.badge ?? "MCP"}: ${proposal.summary}` });
+        })
+        .catch(() => undefined);
+      void fetch("/api/mcp-screenshot", { credentials: "same-origin" })
+        .then((response) => response.json())
+        .then(async (body: { request?: { id?: string; frameId?: string } | null }) => {
+          const request = body.request;
+          if (!request?.id || !request.frameId) return;
+          const frame = editor.getShape(request.frameId as Parameters<typeof editor.getShape>[0]);
+          if (frame?.type !== "frame") {
+            await fetch("/api/mcp-screenshot", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ requestId: request.id, error: "Choose a frame on the current page." })
+            });
+            return;
+          }
+          const image = await editor.toImage([frame.id], {
+            format: "png",
+            pixelRatio: 1,
+            background: true,
+            padding: 0
+          });
+          const pngDataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(image.blob);
+          });
+          await fetch("/api/mcp-screenshot", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ requestId: request.id, pngDataUrl })
+          });
+        })
+        .catch(() => undefined);
+      void fetch("/api/mcp-live-edit", { credentials: "same-origin" })
+        .then((response) => response.json())
+        .then(async (body: { edit?: { name?: string; arguments?: string } | null }) => {
+          if (!body.edit?.name || !body.edit.arguments) return;
+          await executeCanvasTool(editor, body.edit.name, body.edit.arguments);
+        })
+        .catch(() => undefined);
+    }, 1000);
+    return () => {
+      window.clearInterval(proposalTimer);
+      window.removeEventListener("kurva-preview-tool", onPreview);
+      window.removeEventListener("kurva-start-variants", onVariants);
+      window.removeEventListener("kurva-keep-variant", onKeep);
+    };
+  }, []);
   const tldrawLicenseKey = readTldrawLicenseKey(import.meta.env.VITE_TLDRAW_LICENSE_KEY);
+  const hostAssets = React.useMemo(() => (isStandaloneHost ? createHostAssetStore() : undefined), [isStandaloneHost]);
+  const canRenderCanvas = canRenderTldrawCanvas(tldrawLicenseKey, import.meta.env.PROD && !isStandaloneHost);
   const [chatPanelWidth, setChatPanelWidth] = useState(() => readPanelSize("chat", "width"));
   const [chatPanelHeight, setChatPanelHeight] = useState(() => readPanelSize("chat", "height"));
   const [inspectorPanelWidth, setInspectorPanelWidth] = useState(() => readPanelSize("inspector", "width"));
@@ -308,6 +534,7 @@ export function App() {
   const [canvases, setCanvases] = useState<SessionCanvas[]>([]);
   const [currentCanvasId, setCurrentCanvasId] = useState<string | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState(readProjectThumbnails);
+  const [hostThumbnailVersions, setHostThumbnailVersions] = useState<Record<string, number>>({});
   const [draftPrefill, setDraftPrefill] = useState<{ id: string; text: string } | null>(null);
   const [draftImagePrefill, setDraftImagePrefill] = useState<{ id: string; file: File } | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -322,6 +549,8 @@ export function App() {
   };
   const effectiveChatPanelHeight = clampPanelSize("chat", "height", chatPanelHeight, workspaceHeight);
   const effectiveInspectorPanelHeight = clampPanelSize("inspector", "height", inspectorPanelHeight, workspaceHeight);
+  const compactPanelOpen = isCompactViewport && (isAgentSidebarOpen || isInspectorOpen);
+  const compactPanelHeight = isInspectorOpen ? effectiveInspectorPanelHeight : effectiveChatPanelHeight;
 
   const setPanelSize = (panel: ResizablePanel, axis: PanelSizeAxis, size: number) => {
     const bounded = clampPanelSize(panel, axis, size, workspaceRef.current?.clientHeight);
@@ -402,7 +631,12 @@ export function App() {
         .then((response) => {
           setProjectSaveStatus(response.ok ? "Saved" : "Save failed");
           if (response.ok && isStandaloneHost) {
-            void storeFrameThumbnail(editor, projectId).catch(() => undefined);
+            scheduleFrameThumbnail(editor, projectId, 1_200, () => {
+              setHostThumbnailVersions((current) => ({
+                ...current,
+                [projectId]: (current[projectId] ?? 0) + 1
+              }));
+            });
             refreshProjectLibrary();
           }
         })
@@ -433,11 +667,22 @@ export function App() {
     () => () => {
       window.clearTimeout(saveTimerRef.current);
       window.clearTimeout(stampCanvasTimerRef.current);
+      cancelScheduledFrameThumbnails();
       stopStoreListenerRef.current?.();
       stopInspectorListenerRef.current?.();
     },
     []
   );
+
+  React.useEffect(() => {
+    const query = window.matchMedia("(hover: none)");
+    const apply = () => {
+      document.documentElement.dataset.hover = query.matches ? "none" : "hover";
+    };
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
 
   React.useEffect(() => {
     const updateViewportMode = () => setIsCompactViewport(window.innerWidth <= 700);
@@ -517,6 +762,8 @@ export function App() {
       pendingSnapshotRef.current = JSON.parse(project.snapshot) as unknown;
       setProjectTitle(project.title);
       setProjectSaveStatus("Saved");
+      mountingRef.current = false;
+      mountedEditorRef.current = null;
       setEditorGeneration((generation) => generation + 1);
       if (projectAction.status === "imported") navigateRoute({ name: "project", projectId: project.id });
       clearProjectAction();
@@ -536,8 +783,14 @@ export function App() {
     } else if (projectAction.status === "revealed") {
       clearProjectAction();
     } else if (projectAction.status === "deleted" && projectAction.projectId) {
-      removeProjectThumbnail(projectAction.projectId);
+      const deletedProjectId = projectAction.projectId;
+      removeProjectThumbnail(deletedProjectId);
       setThumbnailUrls(readProjectThumbnails());
+      setHostThumbnailVersions((current) => {
+        const next = { ...current };
+        delete next[deletedProjectId];
+        return next;
+      });
       if (projectAction.projectId === projectIdRef.current) {
         projectIdRef.current = null;
         projectWritableRef.current = false;
@@ -564,6 +817,7 @@ export function App() {
     let refitTimer: number | undefined;
     const observer = new ResizeObserver(() => {
       if (!editorRef.current || !shouldAutoFitRef.current) return;
+      if (canvas.clientWidth < 2 || canvas.clientHeight < 2) return;
       window.clearTimeout(refitTimer);
       refitTimer = window.setTimeout(() => {
         requestAnimationFrame(() =>
@@ -608,7 +862,14 @@ export function App() {
   refreshCanvasesRef.current = refreshCanvases;
 
   const handleMount = (editor: Editor) => {
+    if (mountedEditorRef.current === editor) return;
+    if (mountingRef.current && mountedEditorRef.current && !mountedEditorRef.current.isDisposed) return;
+    mountingRef.current = true;
+    mountedEditorRef.current = editor;
     editorRef.current = editor;
+    if (new URLSearchParams(window.location.search).get("perf") === "1") {
+      (window as Window & { __studioEditor?: Editor }).__studioEditor = editor;
+    }
     const pendingSnapshot = pendingSnapshotRef.current;
     if (pendingSnapshot) {
       try {
@@ -623,16 +884,36 @@ export function App() {
       pendingSnapshotRef.current = null;
     } else {
       editor.renamePage(editor.getCurrentPageId(), projectTitleRef.current);
+      const pendingCategory = pendingNewCanvasRef.current;
+      const preset = HOME_CATEGORY_PRESETS.find((candidate) => candidate.id === pendingCategory);
       const existingFrames = editor.getCurrentPageShapes().filter((shape) => shape.type === "frame");
       if (existingFrames.length === 0) {
-        const center = editor.getViewportPageBounds().center;
         editor.createShape({
           type: "frame",
-          x: center.x - 540,
-          y: center.y - 360,
-          props: { w: 1080, h: 720, name: "Frame" }
+          x: 0,
+          y: 0,
+          props: {
+            w: preset?.width ?? 1080,
+            h: preset?.height ?? 720,
+            name: preset?.label ?? "Frame"
+          }
         });
       }
+      const pendingPreset = pendingFramePresetRef.current;
+      if (pendingPreset) {
+        const frame = editor.getCurrentPageShapes().find((shape) => shape.type === "frame");
+        if (frame) {
+          editor.updateShape({
+            id: frame.id,
+            type: "frame",
+            props: { w: pendingPreset.width, h: pendingPreset.height, name: pendingPreset.label }
+          });
+        }
+      }
+      editor.selectNone();
+      setSelectedShape(null);
+      setZoomLevel(fitCurrentFrame(editor));
+      setInspectorOpen(window.innerWidth >= 1100);
       if (!initialBlankSnapshotRef.current) {
         try {
           initialBlankSnapshotRef.current = JSON.stringify(editor.getSnapshot());
@@ -643,9 +924,14 @@ export function App() {
     }
 
     // Keep inspector values tied to the real current selection.
+    let selectionKey = "";
     editor.sideEffects.registerAfterChangeHandler("instance_page_state", () => {
+      const zoom = editor.getZoomLevel();
+      setZoomLevel((current) => (current === zoom ? current : zoom));
+      const key = editor.getSelectedShapeIds().join("\n");
+      if (key === selectionKey) return;
+      selectionKey = key;
       setSelectedShape(inspectSelection(editor));
-      setZoomLevel(editor.getZoomLevel());
     });
 
     stopStoreListenerRef.current?.();
@@ -667,8 +953,12 @@ export function App() {
     stopInspectorListenerRef.current = editor.store.listen(() => setSelectedShape(inspectSelection(editor)), {
       scope: "document"
     });
-    requestAnimationFrame(() => requestAnimationFrame(() => setZoomLevel(fitCurrentFrame(editor))));
-    if (hostState.host !== "vscode") {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (shouldAutoFitRef.current) setZoomLevel(fitCurrentFrame(editor));
+      })
+    );
+    if (hostState.host !== "vscode" || isStandaloneHost) {
       if (!isStandaloneHost) ensureSessionScratchpad(editor);
       const routedHostProject = route.name === "project" && isProjectUuid(route.projectId);
       if (
@@ -690,9 +980,52 @@ export function App() {
     if (pendingNewCanvasRef.current !== null) {
       const categoryId = pendingNewCanvasRef.current;
       pendingNewCanvasRef.current = null;
-      window.setTimeout(() => handleNewCanvas(categoryId || undefined), 0);
+      if (projectIdRef.current && isProjectUuid(projectIdRef.current)) {
+        projectWritableRef.current = true;
+        scheduleProjectSaveRef.current();
+      } else {
+        window.setTimeout(() => handleNewCanvas(categoryId || undefined), 0);
+      }
     }
   };
+
+  useEffect(() => {
+    if (route.name !== "project") return;
+    const applyPresetFrame = () => {
+      const preset = pendingFramePresetRef.current;
+      const editor = editorRef.current;
+      if (!preset || !editor) return;
+      const frames = editor.getCurrentPageShapes().filter((shape) => shape.type === "frame");
+      const props = frames[0]?.props as { w?: number; h?: number; name?: string } | undefined;
+      if (
+        props?.w === preset.width &&
+        props.h === preset.height &&
+        props.name === preset.label &&
+        frames.length === 1
+      ) {
+        return;
+      }
+      if (frames.length) editor.deleteShapes(frames.map((shape) => shape.id));
+      editor.createShape({
+        type: "frame",
+        x: 0,
+        y: 0,
+        props: { w: preset.width, h: preset.height, name: preset.label }
+      });
+      editor.selectNone();
+    };
+    applyPresetFrame();
+    const editor = editorRef.current;
+    const stop = editor?.store.listen(applyPresetFrame);
+    const timer = window.setTimeout(() => {
+      stop?.();
+      pendingFramePresetRef.current = null;
+    }, 1200);
+    return () => {
+      stop?.();
+      window.clearTimeout(timer);
+    };
+  }, [route, editorReady, editorGeneration]);
 
   const handleTitleChange = (title: string) => {
     projectTitleRef.current = title;
@@ -720,6 +1053,76 @@ export function App() {
     link.download = studioExportFileName(title);
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
+  const handleExportPage = (format: "png" | "svg" | "json", scale: 1 | 2) => {
+    if (format === "json") {
+      handleExportProject();
+      return;
+    }
+    const editor = editorRef.current;
+    if (!editor) return;
+    const shapes = editor.getCurrentPageShapes();
+    const frame = shapes.find((shape) => shape.type === "frame");
+    const ids = (frame ? [frame.id] : shapes.map((shape) => shape.id)) as TLShapeId[];
+    if (ids.length === 0) {
+      setProjectSaveStatus("There is nothing on this page to export.");
+      return;
+    }
+    const title = projectTitleRef.current.trim() || "page";
+    if (format === "svg") {
+      void editor
+        .getSvgString(ids)
+        .then((exported) => {
+          if (!exported?.svg) {
+            setProjectSaveStatus("The page could not be exported.");
+            return;
+          }
+          const url = URL.createObjectURL(
+            new Blob([sanitizeSvg(stableExportSvgIds(exported.svg))], { type: "image/svg+xml" })
+          );
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = safeExportFileName(title, "svg");
+          link.click();
+          window.setTimeout(() => URL.revokeObjectURL(url), 0);
+        })
+        .catch(() => setProjectSaveStatus("The page could not be exported."));
+      return;
+    }
+    void editor
+      .toImage(ids, { format: "png", pixelRatio: scale, background: true, padding: 0 })
+      .then((image) => {
+        const url = URL.createObjectURL(image.blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = safeExportFileName(title, "png");
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      })
+      .catch(() => setProjectSaveStatus("The page could not be exported."));
+  };
+
+  const handleExportFrame = () => {
+    const editor = editorRef.current;
+    const frameId = selectedShape?.type === "frame" ? selectedShape.id : undefined;
+    if (!editor || !frameId) return;
+    void editor
+      .toImage([frameId as TLShapeId], {
+        format: "png",
+        pixelRatio: 2,
+        background: true,
+        padding: 0
+      })
+      .then((image) => {
+        const url = URL.createObjectURL(image.blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = safeExportFileName(projectTitleRef.current.trim() || "frame", "png");
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      })
+      .catch(() => setProjectSaveStatus("The frame could not be exported."));
   };
 
   const handleDuplicateCurrent = () => {
@@ -769,15 +1172,34 @@ export function App() {
   };
 
   const handleNewCanvas = (categoryId?: string) => {
+    pendingFramePresetRef.current = HOME_CATEGORY_PRESETS.find((candidate) => candidate.id === categoryId) ?? null;
     const editor = editorRef.current;
     if (!editor) {
       pendingNewCanvasRef.current = categoryId ?? "";
+      if ((hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost) {
+        const nextProjectId = crypto.randomUUID();
+        projectIdRef.current = nextProjectId;
+        projectWritableRef.current = true;
+        projectTitleRef.current = "Untitled";
+        setActiveProjectId(nextProjectId);
+        setProjectTitle("Untitled");
+        routedProjectRef.current = nextProjectId;
+        navigateRoute({ name: "project", projectId: nextProjectId });
+      }
       return;
     }
     const preset = HOME_CATEGORY_PRESETS.find((candidate) => candidate.id === categoryId);
     const frameWidth = preset?.width ?? 1080;
     const frameHeight = preset?.height ?? 720;
-    shouldAutoFitRef.current = true;
+    const currentFrame = editor.getCurrentPageShapes().find((shape) => shape.type === "frame");
+    if (currentFrame && preset) {
+      editor.updateShape({
+        id: currentFrame.id,
+        type: "frame",
+        props: { w: frameWidth, h: frameHeight, name: preset.label }
+      });
+    }
+    shouldAutoFitRef.current = false;
     if ((hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost) {
       persistProjectNow();
       const title = "Untitled";
@@ -806,27 +1228,25 @@ export function App() {
           return;
         }
         try {
-          const previousPages = [...current.getPages()];
-          const created = current.createPage({ name: title });
-          const createdId = typeof created === "string" ? created : created.id;
-          const newPage =
-            current.getPages().find((page) => page.id === createdId) ??
-            current.getPages().find((page) => !previousPages.some((previous) => previous.id === page.id));
-          if (!newPage) throw new Error("Missing new page");
-          current.setCurrentPage(newPage);
-          for (const page of previousPages) {
-            const shapes = current.getPageShapeIds(page.id);
-            if (shapes.size) current.deleteShapes([...shapes]);
+          const currentPage = current.getCurrentPage();
+          current.renamePage(currentPage.id, title);
+          const currentShapes = current.getCurrentPageShapes().map((shape) => shape.id);
+          if (currentShapes.length) current.deleteShapes(currentShapes);
+          for (const page of current.getPages()) {
+            if (page.id === currentPage.id) continue;
             current.deletePage(page.id);
           }
           current.clearHistory();
-          const placed = current.getViewportPageBounds().center;
           current.createShape({
             type: "frame",
-            x: placed.x - frameWidth / 2,
-            y: placed.y - frameHeight / 2,
-            props: { w: frameWidth, h: frameHeight, name: "Frame" }
+            x: 0,
+            y: 0,
+            props: { w: frameWidth, h: frameHeight, name: preset?.label ?? "Frame" }
           });
+          current.selectNone();
+          setSelectedShape(null);
+          setInspectorOpen(window.innerWidth >= 1100);
+          shouldAutoFitRef.current = true;
           setZoomLevel(fitCurrentFrame(current));
           refreshCanvases(current, true);
           scheduleProjectSave();
@@ -849,7 +1269,7 @@ export function App() {
       type: "frame",
       x: center.x - frameWidth / 2,
       y: center.y - frameHeight / 2,
-      props: { w: frameWidth, h: frameHeight, name: "Frame" }
+      props: { w: frameWidth, h: frameHeight, name: preset?.label ?? "Frame" }
     });
     setZoomLevel(fitCurrentFrame(editor));
     setProjectTitle(page.name);
@@ -924,13 +1344,128 @@ export function App() {
   };
 
   const handleToggleAgentSidebar = () => setAgentSidebarOpen((current) => !current);
-  const conversationHostTarget = (conversationId: string) => {
-    const projectId = projectIdRef.current;
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!isStandaloneHost || !projectId || !uuid.test(projectId) || !uuid.test(conversationId)) return null;
-    return { projectId, url: `/api/projects/${projectId}/conversations/${conversationId}` };
-  };
+  const canUseProjectConversationStore =
+    isStandaloneHost || (hostState.host === "vscode" && hostState.workspaceTrusted);
+  const conversationHostTarget = useCallback(
+    (conversationId: string) => {
+      const projectId = projectIdRef.current;
+      const url = projectId ? projectConversationUrl(projectId, conversationId) : null;
+      if (!isStandaloneHost || !projectId || !url) return null;
+      return { projectId, url };
+    },
+    [isStandaloneHost]
+  );
+  const loadProjectConversations = useCallback(
+    async (projectId: string): Promise<AgentConversation[]> => {
+      if (isStandaloneHost) {
+        const url = projectConversationUrl(projectId);
+        if (!url) return [];
+        const response = await fetch(url, { credentials: "same-origin" });
+        if (!response.ok) throw new Error("Saved conversations could not be loaded.");
+        const records: unknown = await response.json();
+        if (!Array.isArray(records)) throw new Error("The conversation list was invalid.");
+        return records as AgentConversation[];
+      }
+      if (hostState.host === "vscode" && hostState.workspaceTrusted) return listConversations(projectId);
+      return [];
+    },
+    [hostState.host, hostState.workspaceTrusted, isStandaloneHost, listConversations]
+  );
+  const loadProjectConversation = useCallback(
+    async (projectId: string, conversationId: string): Promise<StoredAgentConversation | null> => {
+      if (isStandaloneHost) {
+        const url = projectConversationUrl(projectId, conversationId);
+        if (!url) return null;
+        const response = await fetch(url, { credentials: "same-origin" });
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error("The saved conversation could not be opened.");
+        return (await response.json()) as StoredAgentConversation;
+      }
+      if (hostState.host === "vscode" && hostState.workspaceTrusted) return readConversation(projectId, conversationId);
+      return null;
+    },
+    [hostState.host, hostState.workspaceTrusted, isStandaloneHost, readConversation]
+  );
+  const persistProjectConversation = useCallback(
+    async (conversation: {
+      id: string;
+      title: string;
+      modelId: string;
+      updatedAt: string;
+      messages: Array<{ role: "user" | "assistant"; content: string }>;
+    }) => {
+      const projectId = projectIdRef.current;
+      const url = projectId ? projectConversationUrl(projectId) : null;
+      if (!projectId || !projectConversationUrl(projectId, conversation.id)) return;
+      if (isStandaloneHost && url) {
+        const response = await fetch(url, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...conversation, projectId })
+        });
+        if (!response.ok) throw new Error("The conversation could not be saved.");
+        return;
+      }
+      if (hostState.host === "vscode" && hostState.workspaceTrusted) {
+        await saveConversation(projectId, conversation);
+      }
+    },
+    [hostState.host, hostState.workspaceTrusted, isStandaloneHost, saveConversation]
+  );
+  const renameProjectConversation = useCallback(
+    async (id: string, title: string) => {
+      const target = conversationHostTarget(id);
+      if (target) {
+        const response = await fetch(`${target.url}/rename`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ title })
+        });
+        if (!response.ok) throw new Error("The conversation title could not be saved.");
+      } else if (hostState.host === "vscode" && hostState.workspaceTrusted) {
+        const projectId = projectIdRef.current;
+        if (projectId) await renameConversation(projectId, id, title);
+      }
+    },
+    [conversationHostTarget, hostState.host, hostState.workspaceTrusted, renameConversation]
+  );
+  const deleteProjectConversation = useCallback(
+    async (id: string) => {
+      const target = conversationHostTarget(id);
+      if (target) {
+        const response = await fetch(`${target.url}/delete`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ confirm: true })
+        });
+        if (!response.ok) throw new Error("The conversation could not be deleted.");
+      } else if (hostState.host === "vscode" && hostState.workspaceTrusted) {
+        const projectId = projectIdRef.current;
+        if (projectId) await deleteConversation(projectId, id);
+      }
+    },
+    [conversationHostTarget, deleteConversation, hostState.host, hostState.workspaceTrusted]
+  );
   const handleToggleInspector = () => setInspectorOpen((current) => !current);
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || window.innerWidth <= 700) return;
+    setZoomLevel(fitCurrentFrame(editor));
+  }, [isInspectorOpen]);
+
+  useEffect(() => {
+    const onResize = () => {
+      const width = window.innerWidth;
+      if (width <= 700) setAgentSidebarOpen(true);
+      else if (width < 1100) setAgentSidebarOpen(false);
+      if (width < 1100) setInspectorOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -1026,7 +1561,13 @@ export function App() {
   const handleFramePreset = (width: number, height: number) => {
     const editor = editorRef.current;
     if (!editor) return;
-    const frames = editor.getSelectedShapes().filter((shape) => shape.type === "frame");
+    const selected = editor.getSelectedShapes().filter((shape) => shape.type === "frame");
+    const frames = selected.length
+      ? selected
+      : editor
+          .getCurrentPageShapes()
+          .filter((shape) => shape.type === "frame")
+          .slice(0, 1);
     if (frames.length === 0) return;
     editor.updateShapes(
       frames.map((shape) => ({ id: shape.id, type: "frame" as const, props: { w: width, h: height } }))
@@ -1132,7 +1673,12 @@ export function App() {
   };
 
   useEffect(() => {
-    if (route.name !== "project") routedProjectRef.current = null;
+    if (route.name !== "project") {
+      mountingRef.current = false;
+      mountedEditorRef.current = null;
+      editorRef.current = null;
+      routedProjectRef.current = null;
+    }
   }, [route.name]);
 
   useEffect(() => {
@@ -1188,7 +1734,7 @@ export function App() {
       setProjectSaveStatus("Opening…");
       void openStandaloneProject(route.projectId)
         .then((project) => {
-          if (routedProjectRef.current !== project.id) return;
+          if (routedProjectRef.current !== project.id || projectIdRef.current === project.id) return;
           projectIdRef.current = project.id;
           projectWritableRef.current = false;
           setActiveProjectId(project.id);
@@ -1196,6 +1742,8 @@ export function App() {
           pendingSnapshotRef.current = JSON.parse(project.snapshot) as unknown;
           setProjectTitle(project.title);
           setProjectSaveStatus("Saved");
+          mountingRef.current = false;
+          mountedEditorRef.current = null;
           setEditorGeneration((generation) => generation + 1);
           refreshProjectLibrary();
         })
@@ -1305,6 +1853,7 @@ export function App() {
       if (projectId === projectIdRef.current) persistProjectNow();
       void deleteStandaloneProject(projectId)
         .then(() => {
+          cancelFrameThumbnail(projectId);
           refreshProjectLibrary();
           removeProjectThumbnail(projectId);
           setThumbnailUrls(readProjectThumbnails());
@@ -1434,7 +1983,13 @@ export function App() {
       {/* Keep the canvas mounted across routes, but remove it from interaction outside a project. */}
       <div
         ref={workspaceRef}
-        className="studio-workspace"
+        className={`studio-workspace${isAgentSidebarOpen && !isCompactViewport ? " studio-workspace--docked" : ""}${compactPanelOpen ? " studio-workspace--compact-panel-open" : ""}`}
+        style={
+          {
+            "--studio-panel-width": `${isAgentPanelCollapsed ? 56 : chatPanelWidth}px`,
+            "--studio-mobile-panel-height": `${compactPanelOpen ? compactPanelHeight : 0}px`
+          } as React.CSSProperties
+        }
         hidden={route.name !== "project"}
         inert={route.name !== "project"}
         aria-hidden={route.name !== "project"}
@@ -1457,47 +2012,26 @@ export function App() {
             toolCalls={toolCalls}
             panelWidth={chatPanelWidth}
             panelHeight={effectiveChatPanelHeight}
-            onConnectionAction={onConnectionAction}
+            editor={editorReady ? editorRef.current : null}
             onRefreshModels={requestModelCatalog}
             onSendChat={sendChat}
             onCancelChat={cancelChat}
             onClearChatRun={clearChatRun}
             onApproveToolCall={approveToolCall}
             onRejectToolCall={rejectToolCall}
-            onPersistConversation={(conversation) => {
-              const target = conversationHostTarget(conversation.id);
-              if (!target) return;
-              void fetch(`/api/projects/${target.projectId}/conversations`, {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ ...conversation, projectId: target.projectId })
-              });
-            }}
-            onRenameConversation={(id, title) => {
-              const target = conversationHostTarget(id);
-              if (!target) return;
-              void fetch(`${target.url}/rename`, {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ title })
-              });
-            }}
-            onDeleteConversation={(id) => {
-              const target = conversationHostTarget(id);
-              if (!target) return;
-              void fetch(`${target.url}/delete`, {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ confirm: true })
-              });
-            }}
+            onUndoToolCall={() => editorRef.current?.undo()}
+            {...(canUseProjectConversationStore
+              ? {
+                  onPersistConversation: persistProjectConversation,
+                  onLoadConversations: loadProjectConversations,
+                  onLoadConversation: loadProjectConversation,
+                  onRenameConversation: renameProjectConversation,
+                  onDeleteConversation: deleteProjectConversation
+                }
+              : {})}
             projectId={activeProjectId}
             onSessionsChange={setAgentSessions}
             onOpenVectorDialog={() => setVectorDialogOpen(true)}
-            editor={canvasEpoch >= 0 ? editorRef.current : null}
           />
         )}
         {isAgentSidebarOpen && !isAgentPanelCollapsed && (
@@ -1524,7 +2058,9 @@ export function App() {
             );
             if (!file || !editorRef.current) return;
             event.preventDefault();
-            void placeFileOnCanvas(editorRef.current, file);
+            void placeFileOnCanvas(editorRef.current, file).catch((error: unknown) => {
+              setImportNotice(error instanceof Error ? error.message : "The file could not be placed.");
+            });
           }}
           onDrop={(event) => {
             const file = [...event.dataTransfer.files].find(
@@ -1533,7 +2069,9 @@ export function App() {
             );
             if (file && editorRef.current) {
               event.preventDefault();
-              void placeFileOnCanvas(editorRef.current, file);
+              void placeFileOnCanvas(editorRef.current, file).catch((error: unknown) => {
+                setImportNotice(error instanceof Error ? error.message : "The file could not be placed.");
+              });
               return;
             }
             const payload = decodeAssetDrag(event.dataTransfer.getData("text/plain"));
@@ -1569,13 +2107,67 @@ export function App() {
             onZoomOut={handleZoomOut}
             onZoomCommand={handleZoomCommand}
             canZoomSelection={(selectedShape?.count ?? 0) > 0}
-            canManageConnection={hostState.host === "vscode" && hostState.workspaceTrusted}
-            connected={hostState.connection.status === "connected"}
-            onConnectionAction={onConnectionAction}
+            canManageConnection={(hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost}
+            connected={hostState.connection.status === "connected" || hostKeyConfigured}
+            onConnectionAction={(action) => {
+              if (!isStandaloneHost) {
+                onConnectionAction(action);
+                return;
+              }
+              if (action === "connect" || action === "replace") {
+                document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus();
+                return;
+              }
+              onConnectionAction(action);
+            }}
+            {...(isStandaloneHost
+              ? {
+                  onSaveHostKey: (key: string) => {
+                    void fetch("/api/openrouter-key", {
+                      method: "POST",
+                      credentials: "same-origin",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ key })
+                    })
+                      .then(async (response) => {
+                        const status = (await response.json()) as { configured?: boolean };
+                        if (!response.ok || !status.configured) throw new Error("Could not save the OpenRouter key.");
+                        setHostKeyConfigured(true);
+                        onConnectionAction("test");
+                      })
+                      .catch(() => setHostKeyConfigured(false));
+                  }
+                }
+              : {})}
+            canSendToBlender={selectedShape?.type === "vector-studio" && selectedShape.count === 1}
+            onSendToBlender={() => {
+              const shape = editorRef.current?.getSelectedShapes().find((item) => item.type === "vector-studio");
+              const svg = (shape?.props as { lastSvg?: unknown } | undefined)?.lastSvg;
+              return typeof svg === "string" ? svg : "";
+            }}
+            onBlenderAssets={(result) => {
+              const editor = editorRef.current;
+              if (!editor) return;
+              const shape = editor.getSelectedShapes().find((item) => item.type === "vector-studio");
+              editor.markHistoryStoppingPoint("send to blender");
+              editor.createShape({
+                type: "blender-connector",
+                x: (shape?.x ?? 0) + 480,
+                y: shape?.y ?? 0,
+                props: {
+                  w: 360,
+                  h: 280,
+                  blenderVersion: "",
+                  isConnected: true,
+                  activeScene: result.sceneFile,
+                  lastExport: `${result.pngSrc}\n${result.glbSrc}`
+                }
+              });
+            }}
             agentSessions={agentSessions}
             onStopAgent={() => {
-              if (chatRun && (chatRun.status === "streaming" || chatRun.status === "stopping"))
-                cancelChat(chatRun.requestId);
+              if (!chatRun) return;
+              stopRunningReply(chatRun.status, cancelChat, chatRun.requestId);
             }}
           />
           <StudioToolbar
@@ -1583,16 +2175,21 @@ export function App() {
             onImportAsset={() => assetInputRef.current?.click()}
             onTraceAsset={() => setVectorDialogOpen(true)}
           />
-          {vectorDialogOpen && (
-            <VectorAssetDialog
-              onClose={() => setVectorDialogOpen(false)}
-              onTrace={(file, preset, signal) => traceImageFileLocally(file, preset, signal)}
-              onInsert={async (svg, name) => {
-                const editor = editorRef.current;
-                if (!editor) throw new Error("The editor is still starting. Try again.");
-                await placeFileOnCanvas(editor, svgTextToFile(svg, name));
-              }}
-            />
+          {vectorDialogOpen &&
+            createPortal(
+              <VectorAssetDialog
+                onClose={() => setVectorDialogOpen(false)}
+                onTrace={(file, preset, signal, tuning) => traceImageFileLocally(file, preset, signal, tuning)}
+                onInsert={async (svg, name) => {
+                  const editor = editorRef.current;
+                  if (!editor) throw new Error("The editor is still starting. Try again.");
+                  await placeFileOnCanvas(editor, svgTextToFile(svg, name));
+                }}
+              />,
+              document.querySelector(".studio-app") ?? document.body
+            )}
+          {canvasProposal && editorRef.current && (
+            <ProposalGhost editor={editorRef.current} proposal={canvasProposal} />
           )}
           {canvasProposal && (
             <ProposalBar
@@ -1601,9 +2198,27 @@ export function App() {
                 const editor = editorRef.current;
                 if (!editor) return;
                 applyProposal(editor as unknown as Parameters<typeof applyProposal>[0], canvasProposal);
+                const staged = stagedExecutionRef.current;
+                if (staged) {
+                  completeToolExecution(staged.requestId, staged.callId, {
+                    ok: true,
+                    content: `Applied ${canvasProposal.shapes.length} previewed shapes.`
+                  });
+                  stagedExecutionRef.current = null;
+                }
                 setCanvasProposal(null);
               }}
-              onReject={() => setCanvasProposal(null)}
+              onReject={() => {
+                const staged = stagedExecutionRef.current;
+                if (staged) {
+                  completeToolExecution(staged.requestId, staged.callId, {
+                    ok: false,
+                    content: "Rejected. No canvas changes were made."
+                  });
+                  stagedExecutionRef.current = null;
+                }
+                setCanvasProposal(null);
+              }}
             />
           )}
 
@@ -1631,16 +2246,21 @@ export function App() {
                   shouldAutoFitRef.current = false;
                 }}
               >
-                <Tldraw
-                  key={editorGeneration}
-                  assetUrls={tldrawAssetUrls}
-                  hideUi={true}
-                  colorScheme="light"
-                  {...(tldrawLicenseKey ? { licenseKey: tldrawLicenseKey } : {})}
-                  {...(isStandaloneHost ? { assets: createHostAssetStore() } : {})}
-                  shapeUtils={customShapeUtils}
-                  onMount={handleMount}
-                />
+                {route.name === "project" &&
+                  (canRenderCanvas ? (
+                    <Tldraw
+                      key={editorGeneration}
+                      assetUrls={tldrawAssetUrls}
+                      hideUi={true}
+                      colorScheme="light"
+                      {...(tldrawLicenseKey ? { licenseKey: tldrawLicenseKey } : {})}
+                      {...(hostAssets ? { assets: hostAssets } : {})}
+                      shapeUtils={customShapeUtils}
+                      onMount={handleMount}
+                    />
+                  ) : (
+                    <CanvasLicenseNotice />
+                  ))}
               </div>
             </StudioCanvasMenu>
           </div>
@@ -1670,15 +2290,30 @@ export function App() {
             onTextStyle={handleTextStyle}
             onShapeStyle={handleShapeStyle}
             onExport={handleExportProject}
+            onExportPage={handleExportPage}
+            onExportFrame={handleExportFrame}
             panelWidth={inspectorPanelWidth}
             panelHeight={effectiveInspectorPanelHeight}
           />
         )}
       </div>
 
-      {route.name !== "home" && route.name !== "project" && (route.name !== "gallery" || !DevGallery) && (
-        <StudioRouteNotice route={route} onHome={() => navigateRoute({ name: "home" })} />
-      )}
+      {route.name !== "home" &&
+        route.name !== "project" &&
+        route.name !== "connectors" &&
+        (route.name !== "gallery" || !DevGallery) && (
+          <StudioRouteNotice
+            route={route}
+            theme={theme}
+            onHome={() => navigateRoute({ name: "home" })}
+            onConnectors={() => navigateRoute({ name: "connectors" })}
+            onSettings={() => navigateRoute({ name: "settings" })}
+            onTheme={setTheme}
+            onRefreshCatalog={requestModelCatalog}
+            catalogStatus={modelCatalog.message}
+            launchToken={launchToken}
+          />
+        )}
 
       {route.name === "gallery" && DevGallery && (
         <React.Suspense fallback={<div role="status">Loading component gallery…</div>}>
@@ -1740,9 +2375,25 @@ export function App() {
         onClose={() => setPaletteOpen(false)}
         onRun={runPaletteCommand}
       />
-      {route.name === "home" && (
+      {(route.name === "home" || route.name === "connectors") && (
         <RecentsDashboard
-          isOpen={route.name === "home"}
+          isOpen
+          currentNav={route.name === "connectors" ? "connectors" : "home"}
+          companion={
+            route.name === "connectors" ? (
+              <StudioRouteNotice
+                route={route}
+                theme={theme}
+                onHome={() => navigateRoute({ name: "home" })}
+                onConnectors={() => navigateRoute({ name: "connectors" })}
+                onSettings={() => navigateRoute({ name: "settings" })}
+                onTheme={setTheme}
+                onRefreshCatalog={requestModelCatalog}
+                catalogStatus={modelCatalog.message}
+                launchToken={launchToken}
+              />
+            ) : undefined
+          }
           canvases={canvases}
           currentCanvasId={currentCanvasId}
           projects={projectLibraryState.projects}
@@ -1751,6 +2402,8 @@ export function App() {
           projectMessage={projectLibraryState.message}
           corruptCount={projectLibraryState.corruptCount}
           thumbnailUrls={thumbnailUrls}
+          hostProjectThumbnails={isStandaloneHost}
+          hostThumbnailVersions={hostThumbnailVersions}
           activeProjectId={activeProjectId}
           projectActionMessage={
             projectAction?.message ?? (isStandaloneHost ? projectLibraryState.message : importNotice)
@@ -1776,10 +2429,18 @@ export function App() {
           onDuplicateCanvas={handleDuplicateCanvas}
           onDeleteCanvas={handleDeleteCanvas}
           onRefreshProjects={refreshProjectLibrary}
-          onNewCanvas={() => handleNewCanvas()}
+          onNavigate={(next) => {
+            if (next === "home") navigateRoute({ name: "home" });
+            if (next === "settings") navigateRoute({ name: "settings" });
+            if (next === "connectors") navigateRoute({ name: "connectors" });
+          }}
+          onNewCanvas={(categoryId) => handleNewCanvas(categoryId)}
           onOpenFile={handleOpenFile}
           onStartDesign={handleStartDesign}
-          onImageToSvg={() => setVectorDialogOpen(true)}
+          onImageToSvg={() => {
+            handleNewCanvas();
+            setVectorDialogOpen(true);
+          }}
           onRecreateScreenshot={() => screenshotInputRef.current?.click()}
           onImportAsset={() => assetInputRef.current?.click()}
         />
@@ -1792,6 +2453,11 @@ function isProjectUuid(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 }
 
+function projectConversationUrl(projectId: string, conversationId?: string): string | null {
+  if (!isProjectUuid(projectId) || (conversationId && !isProjectUuid(conversationId))) return null;
+  return `/api/projects/${projectId}/conversations${conversationId ? `/${conversationId}` : ""}`;
+}
+
 function encodeBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
@@ -1801,20 +2467,90 @@ function encodeBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function StudioRouteNotice({ route, onHome }: { route: StudioRoute; onHome: () => void }) {
+function StudioRouteNotice({
+  route,
+  theme,
+  onHome,
+  onConnectors,
+  onSettings,
+  onTheme,
+  onRefreshCatalog,
+  catalogStatus,
+  launchToken
+}: {
+  route: StudioRoute;
+  theme: "dark" | "light" | "contrast";
+  onHome: () => void;
+  onConnectors: () => void;
+  onSettings: () => void;
+  onTheme: (theme: "dark" | "light" | "contrast") => void;
+  onRefreshCatalog: () => void;
+  catalogStatus: string;
+  launchToken: string | null;
+}) {
+  const [mcpClients, setMcpClients] = useState<
+    Array<{ id: string; name: string; permission: string; revoked: boolean; lastSeen: string | null }>
+  >([]);
+  const [issuedToken, setIssuedToken] = useState<string | null>(null);
+  const [keyStatus, setKeyStatus] = useState<{ configured: boolean; source: string }>({
+    configured: false,
+    source: "none"
+  });
+  const [keyNotice, setKeyNotice] = useState("Credit usage was not returned by the host.");
+  const [quiverStatus, setQuiverStatus] = useState<{ configured: boolean; enabled: boolean; message: string }>({
+    configured: false,
+    enabled: false,
+    message: "QuiverAI stays off until you turn it on."
+  });
+  const [alwaysPreview, setAlwaysPreview] = useState(() => {
+    try {
+      return window.localStorage.getItem("studio-always-preview") !== "no";
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    if (route.name === "settings") {
+      void fetch("/api/openrouter-key", { credentials: "same-origin" })
+        .then((response) => response.json())
+        .then((body: { configured?: boolean; source?: string }) =>
+          setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" })
+        )
+        .catch(() => setKeyStatus({ configured: false, source: "none" }));
+      void fetch("/api/quiver", { credentials: "same-origin" })
+        .then((response) => response.json())
+        .then((body: { configured?: boolean; enabled?: boolean; message?: string }) =>
+          setQuiverStatus({
+            configured: body.configured === true,
+            enabled: body.enabled === true,
+            message: body.message ?? "QuiverAI stays off until you turn it on."
+          })
+        )
+        .catch(() =>
+          setQuiverStatus({ configured: false, enabled: false, message: "QuiverAI status is unavailable." })
+        );
+    }
+    if (route.name === "connectors") loadClients();
+  }, [route.name]);
+  const loadClients = () => {
+    void fetch("/api/mcp-clients", { credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((body: { clients?: typeof mcpClients }) => setMcpClients(body.clients ?? []))
+      .catch(() => setMcpClients([]));
+  };
   const title =
     route.name === "connectors"
       ? "Connectors"
       : route.name === "settings"
-        ? "Settings"
+        ? "Models & keys"
         : route.name === "gallery"
           ? "Gallery"
           : "Page not found";
   const message =
     route.name === "connectors"
-      ? "IDE connectors are not available in this build yet. Studio is not listening for Codex, Claude Code, Cursor, WorkBuddy, or Qoder."
+      ? "Let coding agents read and edit this canvas over MCP. They connect to the Studio on this computer, and their changes appear live on the canvas where you can undo them."
       : route.name === "settings"
-        ? "Settings are not available in this build yet. API keys stay in the host and are not entered on this page."
+        ? "Keys stay on this computer. The page never shows a saved key."
         : route.name === "gallery"
           ? "The component gallery is available only in a development build."
           : "This address is not a Studio page.";
@@ -1822,6 +2558,496 @@ function StudioRouteNotice({ route, onHome }: { route: StudioRoute; onHome: () =
     <section className="studio-route-page" aria-labelledby="studio-route-title">
       <h1 id="studio-route-title">{title}</h1>
       <p>{message}</p>
+      {route.name === "settings" ? (
+        <div className="studio-settings">
+          <nav aria-label="Settings">
+            <button type="button" onClick={onHome}>
+              Back to Home
+            </button>
+            <p className="studio-settings__label">Settings</p>
+            <button
+              type="button"
+              onClick={() => document.getElementById("appearance")?.scrollIntoView({ block: "start" })}
+            >
+              Appearance
+            </button>
+            <button
+              type="button"
+              aria-current="page"
+              onClick={() => document.getElementById("models")?.scrollIntoView({ block: "start" })}
+            >
+              Models & keys
+            </button>
+            <button type="button" onClick={onConnectors}>
+              Connectors
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById("blender")?.scrollIntoView({ block: "start" })}
+            >
+              Blender
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById("privacy")?.scrollIntoView({ block: "start" })}
+            >
+              Privacy
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById("shortcuts")?.scrollIntoView({ block: "start" })}
+            >
+              Keyboard shortcuts
+            </button>
+          </nav>
+          <div>
+            <section id="models" className="studio-settings-card">
+              <div className="studio-settings-card__title">
+                <h2>OpenRouter</h2>
+                <span
+                  className={`studio-settings-card__status${keyStatus.configured ? " studio-settings-card__status--on" : ""}`}
+                >
+                  {keyStatus.configured ? "Configured" : "Not connected"}
+                </span>
+              </div>
+              <dl className="studio-settings-card__facts">
+                <div>
+                  <dt>Key</dt>
+                  <dd>Not shown</dd>
+                </div>
+                <div>
+                  <dt>Stored in</dt>
+                  <dd>
+                    {keyStatus.source === "keychain"
+                      ? "This computer's keychain"
+                      : keyStatus.source === "environment"
+                        ? "Environment variable"
+                        : "Not stored"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Credit</dt>
+                  <dd>Not returned</dd>
+                </div>
+              </dl>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const input = event.currentTarget.elements.namedItem("openrouter-key");
+                  const key = input instanceof HTMLInputElement ? input.value : "";
+                  void fetch("/api/openrouter-key", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ key })
+                  })
+                    .then((response) => response.json())
+                    .then((body: { configured?: boolean; source?: string }) => {
+                      setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" });
+                      setKeyNotice(
+                        body.configured ? "Key saved on this computer." : "The key was not saved. It is not shown."
+                      );
+                    })
+                    .catch(() => setKeyNotice("The key was not saved. It is not shown."))
+                    .finally(() => {
+                      if (input instanceof HTMLInputElement) input.value = "";
+                    });
+                }}
+              >
+                <label>
+                  OpenRouter key
+                  <input name="openrouter-key" type="password" autoComplete="off" aria-label="OpenRouter key" />
+                </label>
+                <div className="studio-settings-card__actions">
+                  <button type="submit">Save key on this computer</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void fetch("/api/openrouter-key", {
+                        method: "POST",
+                        credentials: "same-origin",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ action: "test" })
+                      })
+                        .then((response) => response.json())
+                        .then((body: { configured?: boolean }) =>
+                          setKeyNotice(
+                            body.configured
+                              ? "A key is stored on this computer."
+                              : "No OpenRouter key is stored on this computer."
+                          )
+                        )
+                        .catch(() => setKeyNotice("The key could not be checked."));
+                    }}
+                  >
+                    Test
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus()}
+                  >
+                    Replace key
+                  </button>
+                  <button
+                    className="studio-settings-card__danger"
+                    type="button"
+                    onClick={() => {
+                      void fetch("/api/openrouter-key", {
+                        method: "POST",
+                        credentials: "same-origin",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ action: "disconnect" })
+                      })
+                        .then((response) => response.json())
+                        .then((body: { configured?: boolean; source?: string }) => {
+                          setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" });
+                          setKeyNotice("The stored key was removed from this computer.");
+                        })
+                        .catch(() => setKeyNotice("The key could not be removed."));
+                    }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </form>
+              <p>{keyNotice}</p>
+              <p>Your key stays in the local Studio host. This page only learns whether a key is stored.</p>
+            </section>
+            <section className="studio-settings-card" aria-label="Chat defaults">
+              <h2>Chat defaults</h2>
+              <div className="studio-settings-card__row">
+                <span>
+                  <strong>Model for new conversations</strong>
+                  <span>No default. Each conversation keeps the model you choose in the composer.</span>
+                </span>
+              </div>
+              <div className="studio-settings-card__row">
+                <span>
+                  <strong>Warn before using a paid model</strong>
+                  <span>Shows the model's price before the first message. That warning stays on.</span>
+                </span>
+                <span>On</span>
+              </div>
+              <label className="studio-settings-card__row">
+                <span>
+                  <strong>Always show the full request preview</strong>
+                  <span>Review instructions, history and attachments before each send.</span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={alwaysPreview}
+                  aria-label="Always show the full request preview"
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setAlwaysPreview(next);
+                    try {
+                      window.localStorage.setItem("studio-always-preview", next ? "yes" : "no");
+                    } catch {
+                      // The agent panel still receives the event for this page.
+                    }
+                    window.dispatchEvent(new Event("studio-always-preview"));
+                  }}
+                />
+              </label>
+              <div className="studio-settings-card__row">
+                <span>
+                  <strong>Model catalog</strong>
+                  <span>{catalogStatus}</span>
+                </span>
+                <button type="button" onClick={onRefreshCatalog}>
+                  Refresh catalog
+                </button>
+              </div>
+            </section>
+            <section className="studio-settings-card" aria-label="Optional QuiverAI SVG generation">
+              <div className="studio-settings-card__title">
+                <h2>QuiverAI</h2>
+                <span
+                  className={`studio-settings-card__status${quiverStatus.enabled ? " studio-settings-card__status--on" : ""}`}
+                >
+                  {quiverStatus.enabled ? "On" : "Off"}
+                </span>
+              </div>
+              <p>
+                Generates SVG from a prompt and a reference image you choose. Saving a key does not turn it on. Turning
+                it on can send that prompt and image to QuiverAI.
+              </p>
+              <p>{quiverStatus.message}</p>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const input = event.currentTarget.elements.namedItem("quiver-key");
+                  const key = input instanceof HTMLInputElement ? input.value : "";
+                  void fetch("/api/quiver", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ action: "save", key })
+                  })
+                    .then((response) => response.json())
+                    .then((body: { configured?: boolean; enabled?: boolean; message?: string }) =>
+                      setQuiverStatus({
+                        configured: body.configured === true,
+                        enabled: body.enabled === true,
+                        message: body.message ?? "The QuiverAI key was not saved."
+                      })
+                    )
+                    .catch(() =>
+                      setQuiverStatus({
+                        configured: false,
+                        enabled: false,
+                        message: "The QuiverAI key was not saved."
+                      })
+                    )
+                    .finally(() => {
+                      if (input instanceof HTMLInputElement) input.value = "";
+                    });
+                }}
+              >
+                <label>
+                  QuiverAI key
+                  <input name="quiver-key" type="password" autoComplete="off" aria-label="QuiverAI API key" />
+                </label>
+                <div className="studio-settings-card__actions">
+                  <button type="submit">Save key on this computer</button>
+                  <button
+                    type="button"
+                    disabled={!quiverStatus.configured || quiverStatus.enabled}
+                    onClick={() => {
+                      void fetch("/api/quiver", {
+                        method: "POST",
+                        credentials: "same-origin",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ action: "enable" })
+                      })
+                        .then((response) => response.json())
+                        .then((body: { configured?: boolean; enabled?: boolean; message?: string }) =>
+                          setQuiverStatus({
+                            configured: body.configured === true,
+                            enabled: body.enabled === true,
+                            message: body.message ?? "QuiverAI was not turned on."
+                          })
+                        )
+                        .catch(() =>
+                          setQuiverStatus((current) => ({ ...current, message: "QuiverAI was not turned on." }))
+                        );
+                    }}
+                  >
+                    Turn on for this session
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!quiverStatus.enabled}
+                    onClick={() => {
+                      void fetch("/api/quiver", {
+                        method: "POST",
+                        credentials: "same-origin",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ action: "disable" })
+                      })
+                        .then((response) => response.json())
+                        .then((body: { configured?: boolean; enabled?: boolean; message?: string }) =>
+                          setQuiverStatus({
+                            configured: body.configured === true,
+                            enabled: body.enabled === true,
+                            message: body.message ?? "QuiverAI was not turned off."
+                          })
+                        )
+                        .catch(() =>
+                          setQuiverStatus((current) => ({ ...current, message: "QuiverAI was not turned off." }))
+                        );
+                    }}
+                  >
+                    Turn off
+                  </button>
+                </div>
+              </form>
+            </section>
+            <section id="appearance">
+              <h2>Appearance</h2>
+              <p>Current theme: {theme}.</p>
+              <div className="studio-settings__themes">
+                {(["dark", "light", "contrast"] as const).map((next) => (
+                  <button key={next} type="button" aria-pressed={theme === next} onClick={() => onTheme(next)}>
+                    {next}
+                  </button>
+                ))}
+              </div>
+            </section>
+            <section id="blender">
+              <h2>Blender</h2>
+              <p>Check Blender from the editor Settings menu. A missing install does not change a scene file.</p>
+            </section>
+            <section id="privacy">
+              <h2>Privacy</h2>
+              <p>The first send in a project asks before anything leaves this computer. The key is not included.</p>
+            </section>
+            <section id="shortcuts">
+              <h2>Keyboard shortcuts</h2>
+              <ul className="studio-settings-shortcuts">
+                {[
+                  ["Select", "V"],
+                  ["Hand", "H"],
+                  ["Frame", "F"],
+                  ["Rectangle", "R"],
+                  ["Ellipse", "O"],
+                  ["Line", "L"],
+                  ["Arrow", "A"],
+                  ["Pen", "P"],
+                  ["Text", "T"],
+                  ["Sticky", "N"],
+                  ["Command palette", "Ctrl+K"],
+                  ["Toggle panels", "Ctrl+\\"],
+                  ["Undo", "Ctrl+Z"],
+                  ["Redo", "Ctrl+Shift+Z"],
+                  ["Duplicate", "Ctrl+D"],
+                  ["Group", "Ctrl+G"],
+                  ["Snapping", "Ctrl+Shift+S"],
+                  ["Zoom to fit", "Shift+1"],
+                  ["Zoom to selection", "Shift+2"],
+                  ["Shortcut sheet", "?"]
+                ].map(([label, keys]) => (
+                  <li key={keys}>
+                    <span>{label}</span>
+                    <kbd>{keys}</kbd>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        </div>
+      ) : null}
+      {route.name === "connectors" ? (
+        <div className="studio-settings">
+          <nav aria-label="Studio">
+            <button type="button" onClick={onHome}>
+              Back to Home
+            </button>
+            <button type="button" onClick={onSettings}>
+              Settings
+            </button>
+          </nav>
+          <div>
+            <div className="studio-route-page__endpoint-row">
+              <div className="studio-route-page__endpoint">
+                <span>MCP endpoint</span>
+                <span className="studio-route-page__endpoint-url">{`${window.location.origin}/mcp`}</span>
+                <button
+                  type="button"
+                  aria-label="Copy endpoint"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(`${window.location.origin}/mcp`);
+                  }}
+                >
+                  Copy
+                </button>
+                <span className="studio-settings-card__status studio-settings-card__status--on">
+                  Host running · loopback only
+                </span>
+              </div>
+            </div>
+            <p className="studio-route-page__endpoint-note">
+              {launchToken ? "Each snippet includes this launch token." : "Create a token before an IDE connects."}
+            </p>
+            <ul className="studio-route-page__connectors">
+              {(launchToken ? connectorSnippetsForLaunch(window.location.origin, launchToken) : CONNECTOR_SNIPPETS).map(
+                (connector) => {
+                  const client = mcpClients.find((item) => item.name.toLowerCase() === connector.name.toLowerCase());
+                  const status = !client ? "Not connected" : client.revoked ? "Revoked" : client.permission;
+                  return (
+                    <li key={connector.id}>
+                      <div className="studio-route-page__connector-title">
+                        <h2>{connector.name}</h2>
+                        <span
+                          className={`studio-settings-card__status${client && !client.revoked ? " studio-settings-card__status--on" : ""}`}
+                        >
+                          {status}
+                        </span>
+                      </div>
+                      <p>
+                        {connector.file}
+                        {client?.lastSeen ? ` · last seen ${client.lastSeen}` : ""}
+                      </p>
+                      <pre>{connector.snippet}</pre>
+                      <div className="studio-route-page__connector-actions">
+                        <select
+                          aria-label={`Permission for ${connector.name}`}
+                          {...(client && !client.revoked ? { value: client.permission } : { defaultValue: "read" })}
+                          onChange={(event) => {
+                            if (!client || client.revoked) return;
+                            const permission = event.currentTarget.value;
+                            void fetch("/api/mcp-clients", {
+                              method: "POST",
+                              credentials: "same-origin",
+                              headers: { "content-type": "application/json" },
+                              body: JSON.stringify({ action: "permission", id: client.id, permission })
+                            }).then(() => loadClients());
+                          }}
+                        >
+                          <option value="read">Read only</option>
+                          <option value="propose">Propose</option>
+                          <option value="apply">Apply</option>
+                        </select>
+                        {client && !client.revoked ? (
+                          <button
+                            className="studio-route-page__revoke"
+                            type="button"
+                            onClick={() => {
+                              void fetch("/api/mcp-clients", {
+                                method: "POST",
+                                credentials: "same-origin",
+                                headers: { "content-type": "application/json" },
+                                body: JSON.stringify({ action: "revoke", id: client.id })
+                              }).then(() => loadClients());
+                            }}
+                          >
+                            Revoke
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              const select = event.currentTarget.parentElement?.querySelector("select");
+                              const permission =
+                                select instanceof HTMLSelectElement &&
+                                (select.value === "propose" || select.value === "apply")
+                                  ? select.value
+                                  : "read";
+                              void fetch("/api/mcp-clients", {
+                                method: "POST",
+                                credentials: "same-origin",
+                                headers: { "content-type": "application/json" },
+                                body: JSON.stringify({ name: connector.name, permission })
+                              })
+                                .then((response) => response.json())
+                                .then((body: { token?: string }) => {
+                                  setIssuedToken(body.token ?? null);
+                                  loadClients();
+                                })
+                                .catch(() => setIssuedToken(null));
+                            }}
+                          >
+                            Create token
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(connector.snippet);
+                          }}
+                        >
+                          Copy snippet
+                        </button>
+                      </div>
+                    </li>
+                  );
+                }
+              )}
+            </ul>
+            {issuedToken ? <p>Copy this token now. It will not be shown again. {issuedToken}</p> : null}
+          </div>
+        </div>
+      ) : null}
       <button className="studio-route-page__home" type="button" onClick={onHome}>
         Go to Home
       </button>
@@ -1863,6 +3089,42 @@ function PanelResizer({
       onKeyDown={onKeyDown}
     />
   );
+}
+
+function adaptEditorForVariants(editor: Editor): VariantFrameEditor {
+  return {
+    markHistoryStoppingPoint: (name) => editor.markHistoryStoppingPoint(name),
+    createShape: (shape) => {
+      if (shape.type !== "frame") return;
+      editor.createShape({
+        type: "frame",
+        x: shape.x,
+        y: shape.y,
+        props: {
+          w: typeof shape.props.w === "number" ? shape.props.w : 800,
+          h: typeof shape.props.h === "number" ? shape.props.h : 600,
+          name: typeof shape.props.name === "string" ? shape.props.name : "Variant"
+        }
+      });
+    },
+    getCurrentPageShapes: () =>
+      editor.getCurrentPageShapes().map((shape) => ({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...(typeof (shape.props as { name?: unknown }).name === "string"
+            ? { name: (shape.props as { name: string }).name }
+            : {})
+        }
+      })),
+    deleteShapes: (ids) =>
+      editor.deleteShapes(
+        editor
+          .getCurrentPageShapes()
+          .filter((shape) => ids.includes(shape.id))
+          .map((shape) => shape.id)
+      )
+  };
 }
 
 export default App;

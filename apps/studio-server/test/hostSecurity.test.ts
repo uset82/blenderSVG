@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { guardStudioRequest, readCookieToken, sessionCookie } from "../src/hostSecurity.js";
+import {
+  guardStudioRequest,
+  MAX_QUIVER_GENERATION_BODY_BYTES,
+  readCookieToken,
+  sessionCookie
+} from "../src/hostSecurity.js";
 
 const base = {
   method: "POST",
@@ -42,5 +47,33 @@ describe("studio host guard", () => {
     expect(readCookieToken("studio_session=launch-token")).toBe("launch-token");
     expect(guardStudioRequest(base).headers["content-security-policy"]).toContain("default-src 'self'");
     expect(guardStudioRequest(base).headers["access-control-allow-origin"]).toBeUndefined();
+    expect(guardStudioRequest({ ...base, method: "POST", origin: null }).status).toBe(200);
+  });
+
+  it("permits only the bounded Quiver generation payload size when the host route opts in", () => {
+    expect(guardStudioRequest({ ...base, contentLength: 5_000_000 }).status).toBe(413);
+    expect(
+      guardStudioRequest({ ...base, contentLength: 5_000_000, maxBodyBytes: MAX_QUIVER_GENERATION_BODY_BYTES }).status
+    ).toBe(200);
+    expect(
+      guardStudioRequest({
+        ...base,
+        contentLength: MAX_QUIVER_GENERATION_BODY_BYTES + 1,
+        maxBodyBytes: MAX_QUIVER_GENERATION_BODY_BYTES
+      }).status
+    ).toBe(413);
+  });
+
+  it("replaces a stale session cookie when the new launch token is in the URL", () => {
+    const decision = guardStudioRequest({
+      ...base,
+      method: "GET",
+      cookieToken: "previous-launch",
+      queryToken: "launch-token",
+      origin: null,
+      contentLength: null
+    });
+    expect(decision.status).toBe(200);
+    expect(decision.setCookie).toBe(true);
   });
 });

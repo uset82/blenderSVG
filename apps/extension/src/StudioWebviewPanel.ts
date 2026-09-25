@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { lstat, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { traceImageBuffer } from "@codex-avatar-studio/asset-pipeline/trace-pixels";
 import {
@@ -7,6 +8,14 @@ import {
   parseStudioToHostMessage,
   type StudioToHostMessage
 } from "@codex-avatar-studio/avatar-core";
+import {
+  conversationRecord,
+  deleteConversation,
+  listConversations,
+  readConversation,
+  renameConversation,
+  writeConversation
+} from "@codex-avatar-studio/studio-host-core/conversationStore";
 import * as vscode from "vscode";
 import { OpenRouterChatController } from "./openRouterChat.js";
 import { OpenRouterConnectionController, type OpenRouterConnectionState } from "./openRouterConnection.js";
@@ -32,6 +41,27 @@ type StudioProjectMessage = Extract<
       | "studio:projectDelete";
   }
 >;
+
+type StudioConversationMessage = Extract<
+  StudioToHostMessage,
+  {
+    type:
+      | "studio:conversationListRequest"
+      | "studio:conversationReadRequest"
+      | "studio:conversationSaveRequest"
+      | "studio:conversationRenameRequest"
+      | "studio:conversationDeleteRequest";
+  }
+>;
+
+class StudioConversationRequestError extends Error {
+  public constructor(
+    public readonly code: "workspace" | "missing" | "invalid" | "io",
+    message: string
+  ) {
+    super(message);
+  }
+}
 
 export class StudioWebviewPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
@@ -128,6 +158,11 @@ export class StudioWebviewPanel implements vscode.Disposable {
 
     if (isStudioProjectMessage(message)) {
       await this.handleProjectMessage(message);
+      return;
+    }
+
+    if (isStudioConversationMessage(message)) {
+      await this.handleConversationMessage(message);
       return;
     }
 
@@ -352,6 +387,103 @@ export class StudioWebviewPanel implements vscode.Disposable {
     }
   }
 
+  private async handleConversationMessage(message: StudioConversationMessage): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+      this.postMessage({
+        type: "studio:conversationError",
+        requestId: message.requestId,
+        code: "workspace",
+        message: "Trust a local workspace before saving Studio conversations."
+      });
+      return;
+    }
+
+    try {
+      this.ensureProjectWorkspace();
+      const { libraryRoot, workspaceRoot } = await this.conversationStorage();
+      const conversationDirectory = await ensureSafeDirectory(
+        path.join(libraryRoot, "conversations"),
+        message.projectId,
+        workspaceRoot,
+        message.type === "studio:conversationSaveRequest"
+      );
+      if (message.type === "studio:conversationListRequest") {
+        const conversations = conversationDirectory ? await listConversations(libraryRoot, message.projectId) : [];
+        this.postMessage({ type: "studio:conversationList", requestId: message.requestId, conversations });
+        return;
+      }
+      if (message.type === "studio:conversationReadRequest") {
+        const conversation = conversationDirectory
+          ? await readConversation(libraryRoot, message.projectId, message.conversationId)
+          : null;
+        this.postMessage({ type: "studio:conversationRead", requestId: message.requestId, conversation });
+        return;
+      }
+      if (message.type === "studio:conversationSaveRequest") {
+        const conversation = conversationRecord({
+          ...message.conversation,
+          projectId: message.projectId,
+          updatedAt: new Date().toISOString()
+        });
+        if (!conversation) {
+          throw new StudioConversationRequestError("invalid", "The conversation contains invalid or unsupported data.");
+        }
+        await this.queueProjectWrite(message.projectId, () => writeConversation(libraryRoot, conversation));
+        this.postMessage({ type: "studio:conversationSaved", requestId: message.requestId, conversation });
+        return;
+      }
+      if (message.type === "studio:conversationRenameRequest") {
+        if (!conversationDirectory) {
+          throw new StudioConversationRequestError("missing", "That conversation is no longer available.");
+        }
+        let conversation: Awaited<ReturnType<typeof renameConversation>>;
+        try {
+          conversation = await this.queueProjectWrite(message.projectId, () =>
+            renameConversation(libraryRoot, message.projectId, message.conversationId, message.title)
+          );
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "";
+          if (detail.includes("not in the library")) {
+            throw new StudioConversationRequestError("missing", "That conversation is no longer available.");
+          }
+          if (detail.includes("title is not valid")) {
+            throw new StudioConversationRequestError("invalid", "The conversation title could not be saved.");
+          }
+          throw error;
+        }
+        const { id, title, modelId, updatedAt } = conversation;
+        this.postMessage({
+          type: "studio:conversationRenamed",
+          requestId: message.requestId,
+          conversation: { id, title, modelId, updatedAt }
+        });
+        return;
+      }
+      if (message.type === "studio:conversationDeleteRequest") {
+        if (conversationDirectory) {
+          await this.queueProjectWrite(message.projectId, () =>
+            deleteConversation(libraryRoot, message.projectId, message.conversationId)
+          );
+        }
+        this.postMessage({
+          type: "studio:conversationDeleted",
+          requestId: message.requestId,
+          conversationId: message.conversationId
+        });
+      }
+    } catch (error) {
+      this.postMessage({
+        type: "studio:conversationError",
+        requestId: message.requestId,
+        code: error instanceof StudioConversationRequestError ? error.code : "io",
+        message:
+          error instanceof StudioConversationRequestError
+            ? error.message
+            : "Studio could not access saved conversations in this workspace."
+      });
+    }
+  }
+
   private async queueProjectWrite<T>(projectId: string, operation: () => Promise<T>): Promise<T> {
     const previous = this.projectWrites.get(projectId);
     const current = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(operation);
@@ -387,6 +519,28 @@ export class StudioWebviewPanel implements vscode.Disposable {
         "The workspace changed while Studio was open. Close and reopen Studio to use project storage here."
       );
     }
+  }
+
+  private async conversationStorage(): Promise<{ libraryRoot: string; workspaceRoot: string }> {
+    if (!this.boundProjectWorkspace) {
+      throw new StudioConversationRequestError("workspace", "Open a trusted local workspace to save conversations.");
+    }
+    let workspaceRoot: string;
+    try {
+      workspaceRoot = await realpath(this.boundProjectWorkspace);
+    } catch {
+      throw new StudioConversationRequestError("workspace", "The trusted workspace folder is not available.");
+    }
+    let current = workspaceRoot;
+    for (const segment of [".codex-avatar", "studio"]) {
+      const next = await ensureSafeDirectory(current, segment, workspaceRoot, true);
+      if (!next) throw new StudioConversationRequestError("io", "Studio could not prepare local conversation storage.");
+      current = next;
+    }
+    const conversations = await ensureSafeDirectory(current, "conversations", workspaceRoot, true);
+    if (!conversations)
+      throw new StudioConversationRequestError("io", "Studio could not prepare local conversation storage.");
+    return { libraryRoot: current, workspaceRoot };
   }
 
   private async sendCurrentState(): Promise<void> {
@@ -493,4 +647,67 @@ function isStudioProjectMessage(message: StudioToHostMessage): message is Studio
     message.type === "studio:projectReveal" ||
     message.type === "studio:projectDelete"
   );
+}
+
+function isStudioConversationMessage(message: StudioToHostMessage): message is StudioConversationMessage {
+  return (
+    message.type === "studio:conversationListRequest" ||
+    message.type === "studio:conversationReadRequest" ||
+    message.type === "studio:conversationSaveRequest" ||
+    message.type === "studio:conversationRenameRequest" ||
+    message.type === "studio:conversationDeleteRequest"
+  );
+}
+
+async function ensureSafeDirectory(
+  parent: string,
+  name: string,
+  workspaceRoot: string,
+  create: boolean
+): Promise<string | null> {
+  const target = path.join(parent, name);
+  let info: Awaited<ReturnType<typeof lstat>>;
+  try {
+    info = await lstat(target);
+  } catch (error) {
+    if (!isFileSystemError(error, "ENOENT") || !create) {
+      if (isFileSystemError(error, "ENOENT")) return null;
+      throw new StudioConversationRequestError("io", "Studio could not access local conversation storage.");
+    }
+    try {
+      await mkdir(target);
+    } catch (createError) {
+      if (!isFileSystemError(createError, "EEXIST")) {
+        throw new StudioConversationRequestError("io", "Studio could not create local conversation storage.");
+      }
+    }
+    info = await lstat(target).catch(() => {
+      throw new StudioConversationRequestError("io", "Studio could not access local conversation storage.");
+    });
+  }
+  if (info.isSymbolicLink() || !info.isDirectory()) {
+    throw new StudioConversationRequestError(
+      "workspace",
+      "Conversation storage cannot use a symbolic link or non-folder path."
+    );
+  }
+  const canonical = await realpath(target).catch(() => {
+    throw new StudioConversationRequestError("io", "Studio could not resolve local conversation storage.");
+  });
+  if (!isPathWithin(workspaceRoot, canonical)) {
+    throw new StudioConversationRequestError(
+      "workspace",
+      "Conversation storage must remain inside the trusted workspace."
+    );
+  }
+  return canonical;
+}
+
+function isFileSystemError(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === code);
+}
+
+function isPathWithin(parent: string, target: string): boolean {
+  const relative = path.relative(parent, target);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
 }

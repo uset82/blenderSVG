@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build && node ../../scripts/copy-studio-build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm --workspace-root exec vitest run apps/studio",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -30,10 +31,13 @@
     "tldraw": "^5.4.2"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^22.13.14",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.4",
+    "jsdom": "^30.1.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.9"
   }

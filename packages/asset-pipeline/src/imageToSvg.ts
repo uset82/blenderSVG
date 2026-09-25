@@ -6,6 +6,7 @@ import { assertTraceableImageFile, assertTraceableImageMetadata, readImageMetada
 import { createManifestEntry } from "./manifestGenerator.js";
 import { optimizeSvg } from "./optimizeSvg.js";
 import { assertSupportedImagePath, createAvailableOutputPaths, getSvgExportDirectory } from "./paths.js";
+import { fittedTraceSize, prepareRasterPixels } from "./rasterPrep.js";
 import type {
   RasterPreprocessingOptions,
   VectorizeImageOptions,
@@ -246,24 +247,19 @@ function createTraceOptions(preprocessing: RasterPreprocessingOptions): ImageTra
 }
 
 function applyPreprocessing(image: JimpImage, preprocessing: RasterPreprocessingOptions): void {
+  const fitted = fittedTraceSize(image.bitmap.width, image.bitmap.height);
+  if (fitted.width !== image.bitmap.width || fitted.height !== image.bitmap.height) {
+    (image as JimpImage & { resize(width: number, height: number): JimpImage }).resize(fitted.width, fitted.height);
+  }
   if (preprocessing.grayscale) image.greyscale();
   if (preprocessing.threshold !== undefined) {
     image.threshold({ max: preprocessing.threshold, replace: 255, autoGreyscale: true });
   }
-  if (preprocessing.noiseReduction !== undefined && preprocessing.noiseReduction > 0) {
-    image.blur(Math.min(5, Math.max(1, Math.ceil(preprocessing.noiseReduction / 25))));
-  }
-  if (preprocessing.removeBackground !== false) removeNearWhiteBackground(image);
-}
-
-function removeNearWhiteBackground(image: JimpImage): void {
-  const pixels = image.bitmap.data;
-  for (let index = 0; index < pixels.length; index += 4) {
-    const red = pixels[index] ?? 0;
-    const green = pixels[index + 1] ?? 0;
-    const blue = pixels[index + 2] ?? 0;
-    if (red >= 248 && green >= 248 && blue >= 248) pixels[index + 3] = 0;
-  }
+  prepareRasterPixels(image.bitmap.data, image.bitmap.width, image.bitmap.height, {
+    quantizationLevels: preprocessing.grayscale ? 2 : (preprocessing.quantizationLevels ?? 16),
+    removeNearWhiteBackground: preprocessing.removeBackground !== false,
+    noiseReduction: preprocessing.noiseReduction ?? 0
+  });
 }
 
 function detectAverageAlpha(image: JimpImage): number | undefined {

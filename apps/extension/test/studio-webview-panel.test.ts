@@ -341,6 +341,114 @@ describe("Studio editor panel", () => {
     reopenedPanel.dispose();
   });
 
+  it("stores conversations in the trusted workspace and supports list, read, rename and delete", async () => {
+    const root = studioFixture();
+    const secrets = { get: vi.fn(async () => undefined), store: vi.fn(), delete: vi.fn() };
+    new StudioWebviewPanel(root as never, secrets as never, () => root.fsPath).open();
+    const projectId = "44a4252c-5bc5-41e6-b7b7-68a79736c7d5";
+    const conversationId = "00000000-0000-4000-8000-000000000001";
+    const messages = [{ role: "user", content: "Remember this local draft." }];
+
+    state.handlers[0]?.({
+      protocolVersion: 1,
+      type: "studio:conversationSaveRequest",
+      requestId: "conversation-save-1",
+      projectId,
+      conversation: { id: conversationId, title: "Saved iteration", modelId: "openrouter/auto", messages }
+    });
+    await vi.waitFor(() =>
+      expect(state.messages).toContainEqual(
+        expect.objectContaining({ type: "studio:conversationSaved", requestId: "conversation-save-1" })
+      )
+    );
+    expect(state.messages.at(-1)).toMatchObject({ conversation: { projectId, messages, modelId: "openrouter/auto" } });
+    expect(state.messages.at(-1)).not.toHaveProperty("conversation.apiKey");
+
+    state.handlers[0]?.({
+      protocolVersion: 1,
+      type: "studio:conversationListRequest",
+      requestId: "conversation-list-1",
+      projectId
+    });
+    await vi.waitFor(() =>
+      expect(state.messages).toContainEqual(
+        expect.objectContaining({ type: "studio:conversationList", requestId: "conversation-list-1" })
+      )
+    );
+    expect(state.messages.at(-1)).toMatchObject({ conversations: [{ id: conversationId, title: "Saved iteration" }] });
+
+    state.handlers[0]?.({
+      protocolVersion: 1,
+      type: "studio:conversationReadRequest",
+      requestId: "conversation-read-1",
+      projectId,
+      conversationId
+    });
+    await vi.waitFor(() =>
+      expect(state.messages).toContainEqual(
+        expect.objectContaining({ type: "studio:conversationRead", requestId: "conversation-read-1" })
+      )
+    );
+    expect(state.messages.at(-1)).toMatchObject({ conversation: { title: "Saved iteration", messages } });
+
+    state.handlers[0]?.({
+      protocolVersion: 1,
+      type: "studio:conversationRenameRequest",
+      requestId: "conversation-rename-1",
+      projectId,
+      conversationId,
+      title: "Renamed draft"
+    });
+    await vi.waitFor(() =>
+      expect(state.messages).toContainEqual(
+        expect.objectContaining({
+          type: "studio:conversationRenamed",
+          requestId: "conversation-rename-1",
+          conversation: expect.objectContaining({ title: "Renamed draft" })
+        })
+      )
+    );
+
+    state.handlers[0]?.({
+      protocolVersion: 1,
+      type: "studio:conversationDeleteRequest",
+      requestId: "conversation-delete-1",
+      projectId,
+      conversationId
+    });
+    await vi.waitFor(() =>
+      expect(state.messages).toContainEqual(
+        expect.objectContaining({
+          type: "studio:conversationDeleted",
+          requestId: "conversation-delete-1",
+          conversationId
+        })
+      )
+    );
+    expect(
+      await import("@codex-avatar-studio/studio-host-core/conversationStore").then(({ readConversation }) =>
+        readConversation(path.join(root.fsPath, ".codex-avatar", "studio"), projectId, conversationId)
+      )
+    ).toBeNull();
+
+    state.trusted = false;
+    state.handlers[0]?.({
+      protocolVersion: 1,
+      type: "studio:conversationListRequest",
+      requestId: "conversation-list-2",
+      projectId
+    });
+    await vi.waitFor(() =>
+      expect(state.messages).toContainEqual(
+        expect.objectContaining({
+          type: "studio:conversationError",
+          requestId: "conversation-list-2",
+          code: "workspace"
+        })
+      )
+    );
+  });
+
   it("renames a stored project and reveals only its verified local path", async () => {
     const root = studioFixture();
     const secrets = { get: vi.fn(async () => undefined), store: vi.fn(), delete: vi.fn() };

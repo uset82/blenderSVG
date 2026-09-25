@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import {
-  analyzeBlenderSvgCompatibility,
-  parseSvgToDocument,
-  serializeDocumentToSvg
-} from "../src/index.js";
+import { analyzeBlenderSvgCompatibility, parseSvgToDocument, serializeDocumentToSvg } from "../src/index.js";
 
 const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
   <defs>

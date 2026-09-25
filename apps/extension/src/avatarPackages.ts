@@ -84,7 +84,10 @@ export class AvatarPackageRegistry {
 
   public async importPackage(sourcePath: string): Promise<AvatarPackage> {
     const assetRoot = this.requireAssetRoot();
-    const sourceRoot = await resolvePackageRoot(sourcePath);
+    const packageSource = sourcePath.toLowerCase().endsWith(".zip")
+      ? await extractImportedArchive(sourcePath, assetRoot)
+      : sourcePath;
+    const sourceRoot = await resolvePackageRoot(packageSource);
     const sourcePackage = await loadAvatarPackage(sourceRoot);
     const targetRoot = path.join(assetRoot, "avatars", sourcePackage.id);
     assertInside(assetRoot, targetRoot, "Avatar package target");
@@ -474,6 +477,13 @@ export async function loadAvatarPackage(packageRoot: string): Promise<AvatarPack
     );
   }
   return { id: validation.manifest.id, rootPath: await realpath(packageRoot), manifest: validation.manifest };
+}
+
+async function extractImportedArchive(archivePath: string, assetRoot: string): Promise<string> {
+  const { extractAvatarPackageArchive } = await import("./avatarPackageExport.js");
+  const destination = path.join(assetRoot, "cache", "avatar-import");
+  await rm(destination, { recursive: true, force: true });
+  return extractAvatarPackageArchive(archivePath, destination);
 }
 
 async function resolvePackageRoot(sourcePath: string): Promise<string> {

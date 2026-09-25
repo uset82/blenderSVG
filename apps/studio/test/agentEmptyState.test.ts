@@ -6,8 +6,10 @@ describe("agent empty state", () => {
     expect(AGENT_EMPTY_HEADLINE).toBe("Ask me to design anything");
     expect(AGENT_SUGGESTIONS).toHaveLength(6);
     expect(AGENT_EMPTY_TIPS).toHaveLength(2);
-    expect(AGENT_EMPTY_TIPS[0]).toMatch(/Export/);
-    expect(AGENT_EMPTY_TIPS[1]).toMatch(/Attach/);
+    expect(AGENT_EMPTY_TIPS[0].title).toBe("Export");
+    expect(AGENT_EMPTY_TIPS[0].body).toMatch(/Export/);
+    expect(AGENT_EMPTY_TIPS[1].title).toBe("Attach context");
+    expect(AGENT_EMPTY_TIPS[1].body).toMatch(/Attach/);
     expect(AGENT_SUGGESTIONS.join(" ")).not.toMatch(/pen\.dev/i);
   });
 });

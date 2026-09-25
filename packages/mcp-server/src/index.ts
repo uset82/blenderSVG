@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { analyzeBlenderSvgCompatibility, previewImageToSvg } from "@codex-avatar-studio/asset-pipeline";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { analyzeBlenderSvgCompatibility, previewImageToSvg } from "@codex-avatar-studio/asset-pipeline";
+import { MCP_SERVER_INSTRUCTIONS } from "./instructions.js";
+import { STUDIO_MCP_TOOLS } from "./studioTools.js";
 
 const server = new Server(
   {
@@ -14,7 +16,8 @@ const server = new Server(
   {
     capabilities: {
       tools: {}
-    }
+    },
+    instructions: MCP_SERVER_INSTRUCTIONS
   }
 );
 
@@ -26,7 +29,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         description: "Check the status of local blenderSVG image tracing and Blender.",
         inputSchema: {
           type: "object",
-          properties: {}
+          properties: {},
+          additionalProperties: false
         }
       },
       {
@@ -50,27 +54,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Optional destination path for the resulting SVG."
             }
           },
+          additionalProperties: false,
           required: ["imagePath"]
-        }
-      },
-      {
-        name: "avatar_set_state",
-        description:
-          "Control the animated 2D/3D avatar assistant state and speech on the infinite canvas and in the IDE.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            state: {
-              type: "string",
-              enum: ["idle", "thinking", "speaking", "coding", "celebrate", "error"],
-              description: "Avatar emotion or activity state."
-            },
-            speech: {
-              type: "string",
-              description: "Optional speech bubble text to display on the avatar."
-            }
-          },
-          required: ["state"]
         }
       },
       {
@@ -85,27 +70,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Path to the SVG file to analyze."
             }
           },
+          additionalProperties: false,
           required: ["svgPath"]
         }
       },
-      {
-        name: "blender_export_lineart",
-        description:
-          "Trigger Blender 4.5 line-art freestyle export from a 3D scene directly into clean 2D vector SVG lines.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            blendFilePath: {
-              type: "string",
-              description: "Optional path to the .blend scene file. Defaults to active project avatar blend."
-            },
-            outputPath: {
-              type: "string",
-              description: "Optional output SVG file path."
-            }
-          }
-        }
-      }
+      ...STUDIO_MCP_TOOLS.filter((tool) => tool.name !== "vectorize_image").map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema
+      }))
     ]
   };
 });
@@ -115,8 +88,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     if (name === "studio_status") {
-      const blenderPath = "C:\\Program Files\\Blender Foundation\\Blender 4.5\\blender.exe";
-      const hasBlender = existsSync(blenderPath);
+      const configured = process.env.BLENDER_PATH?.trim() ?? "";
+      const detected = configured.length > 0 && existsSync(configured);
 
       return {
         content: [
@@ -129,10 +102,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 engines: {
                   localVTracer: "Ready (@visioncortex/vtracer WASM Bézier splines, 100% free / local)",
                   localImageTracer: "Ready (ImageTracer.js, local)",
-                  blender45: {
-                    detected: hasBlender,
-                    path: blenderPath,
-                    version: "Blender 4.5.3 LTS"
+                  blender: {
+                    detected,
+                    source: configured ? "BLENDER_PATH" : "unset"
                   }
                 }
               },
@@ -145,12 +117,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === "vectorize_image") {
-      const imagePath = String(args?.["imagePath"] ?? "");
-      const engine = args?.["engine"] ?? "vtracer";
+      const imagePath = String(args?.imagePath ?? "");
+      const engine = args?.engine ?? "vtracer";
       if (engine !== "vtracer" && engine !== "imagetracer") {
         throw new Error("Only local vtracer and imagetracer engines are available.");
       }
-      const outputPath = args?.["outputPath"] ? String(args["outputPath"]) : undefined;
+      const outputPath = args?.outputPath ? String(args.outputPath) : undefined;
 
       const resolvedImagePath = path.resolve(imagePath);
       if (!existsSync(resolvedImagePath)) {
@@ -180,22 +152,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
-    if (name === "avatar_set_state") {
-      const state = String(args?.["state"] ?? "idle");
-      const speech = args?.["speech"] ? String(args["speech"]) : "";
+    if (name === "avatar_set_state" || name === "blender_export_lineart") {
+      throw new Error(`${name} was removed. It did not change the canvas.`);
+    }
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Avatar state updated to '${state}'${speech ? ` with speech: "${speech}"` : ""}. Canvas event dispatched.`
-          }
-        ]
-      };
+    if (STUDIO_MCP_TOOLS.some((tool) => tool.name === name) && name !== "vectorize_image") {
+      throw new Error("The Studio project bridge is not connected, so this tool did not change the canvas.");
     }
 
     if (name === "blender_capability_check") {
-      const svgPath = String(args?.["svgPath"] ?? "");
+      const svgPath = String(args?.svgPath ?? "");
       const resolved = path.resolve(svgPath);
       if (!existsSync(resolved)) {
         throw new Error(`SVG file not found: ${svgPath}`);
@@ -224,28 +190,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
-    if (name === "blender_export_lineart") {
-      const blendFilePath = args?.["blendFilePath"] ? String(args["blendFilePath"]) : "cholita.blend";
-      const outputPath = args?.["outputPath"] ? String(args["outputPath"]) : ".codex-avatar/exports/svg/lineart.svg";
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Blender 4.5 line-art SVG export triggered for scene '${blendFilePath}'. Output directed to: ${outputPath}`
-          }
-        ]
-      };
-    }
-
     throw new Error(`Unknown tool: ${name}`);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       isError: true,
       content: [
         {
           type: "text",
-          text: `Error executing ${name}: ${error.message}`
+          text: `Error executing ${name}: ${errorMessage}`
         }
       ]
     };

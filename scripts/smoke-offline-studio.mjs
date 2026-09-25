@@ -66,7 +66,7 @@ try {
   await cdp.send("Page.enable");
   await cdp.send("Runtime.enable");
   await cdp.send("Network.enable");
-  await cdp.send("Page.navigate", { url: `http://127.0.0.1:${port}/index.html` });
+  await cdp.send("Page.navigate", { url: `http://127.0.0.1:${port}/index.html#/p/page%3Apage` });
   await waitFor(cdp, `Boolean(document.querySelector('button[aria-label="All files"]'))`);
   await cdp.send("Runtime.evaluate", {
     expression: `(() => {
@@ -95,14 +95,18 @@ try {
           .filter(button => /^(connect|test|replace|disconnect)$/i.test(button.textContent?.trim() || ''))
           .some(button => !button.disabled),
         hasDisabledComposer: Boolean(sidebar?.querySelector('textarea:disabled')),
-        hasCanvas: Boolean(document.querySelector('.tl-container'))
+        hasCanvas: Boolean(document.querySelector('.tl-container')),
+        hasLicenseNotice: Boolean(document.querySelector('.studio-canvas-license')),
+        route: window.location.hash,
+        bodyText: document.body.innerText.slice(0, 360)
       };
     })()`,
     returnByValue: true
   });
   const rendered = result.result.value;
+  console.log("Packaged Studio smoke state:", rendered);
   assert.match(rendered.connectionText, /offline preview/i);
-  assert.match(rendered.settingsText, /credentials stay in the trusted host/i);
+  assert.match(rendered.settingsText, /key is sent once to this computer and is not kept in the page/i);
   assert.equal(rendered.hasCredentialField, false, "browser preview exposes no credential input");
   assert.equal(
     rendered.connectionControlsEnabled,
@@ -110,7 +114,17 @@ try {
     "browser preview exposes no enabled provider connection action"
   );
   assert.equal(rendered.hasDisabledComposer, true, "browser preview disables the chat composer");
-  assert.equal(rendered.hasCanvas, true, "packaged Studio canvas renders offline");
+  if (process.env.VITE_TLDRAW_LICENSE_KEY?.trim()) {
+    assert.equal(rendered.hasCanvas, true, "packaged Studio canvas renders with its configured license");
+    assert.equal(rendered.hasLicenseNotice, false, "licensed build does not show the missing-license notice");
+  } else {
+    assert.equal(rendered.hasCanvas, false, "unlicensed production preview does not mount tldraw");
+    assert.equal(
+      rendered.hasLicenseNotice,
+      true,
+      `unlicensed production preview explains how to enable the canvas: ${JSON.stringify(rendered)}`
+    );
+  }
   assert.ok(requests.length > 0, "the packaged UI requested local assets");
   const externalRequests = requests.filter(
     (url) => !url.startsWith(`http://127.0.0.1:${port}/`) && !url.startsWith("data:") && !url.startsWith("blob:")
@@ -120,7 +134,7 @@ try {
     `Browser preview attempted ${externalRequests.length} external requests: ${[...new Set(externalRequests)].slice(0, 8).join(", ")}`
   );
   console.log(
-    "Offline Studio smoke passed: bundled host made zero fetches; packaged browser UI rendered setup-only on loopback."
+    "Offline Studio smoke passed: bundled host made zero fetches; packaged browser UI rendered setup-only on loopback with the expected canvas license state."
   );
 } finally {
   try {
