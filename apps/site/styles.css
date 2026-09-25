@@ -1083,6 +1083,16 @@ a:hover {
   font-size: 18px;
   color: var(--ink-2);
 }
+.try-intro .btn {
+  align-self: flex-start;
+}
+.try-steps > .eyebrow {
+  margin: 0 0 4px;
+}
+.try-steps > p {
+  margin: 0 0 8px;
+  color: var(--ink-2);
+}
 .steps {
   list-style: none;
   margin: 0;

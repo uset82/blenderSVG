@@ -28,7 +28,7 @@
   - There is one random launch token per process, and state lives in one process: the canvas revision, the MCP proposal and screenshot, the QuiverAI toggle and the rate limiter.
   - Secrets live in the OS keychain (`@napi-rs/keyring`), with an `OPENROUTER_API_KEY` environment fallback that every visitor would share.
   - For these reasons, the Railway config in `05cb7c5` and `779da79`, which built and started `studio-server`, could never serve public traffic.
-- **Landing site.** `apps/site` is a static Caddy site on Railway for `kurva.agency`. It lives on branch `feat/kurva-site`, not on `main`. Its "Try it now" button means `git clone`, then `pnpm build`, then `pnpm studio`.
+- **Landing site.** `apps/site` is a static Caddy site on Railway for `kurva.agency`. It lives on branch `feat/kurva-site`, not on `main`. "Try it now" opens `https://app.kurva.agency`. Running from source stays under "Run locally".
 - **Already browser-ready:**
   - image → SVG (VTracer WASM in a worker, browser SVGO and the SVG sanitizer)
   - SVG, PNG and JPEG import
@@ -527,7 +527,7 @@ A network log shows the key only in requests to `openrouter.ai`.
 - [x] W8.1 Land `apps/site` on `main` from `feat/kurva-site` (after W0.8).
   - Evidence (2026-09-25): `apps/site/index.html` is in this tree. W0.8 recorded the merge of `feat/kurva-site`. Files: `apps/site/index.html`.
 - [x] W8.2 Replace the clone-and-build "Try it now" button with "Open Kurva in your browser", linking to `https://app.kurva.agency`. Keep "Run locally", and the desktop download once `feat/desktop-installer` lands, as secondary options.
-  - Evidence (2026-09-25): the header, hero, and closing buttons link to `https://app.kurva.agency`. Run locally still points at `#try`. Files: `apps/site/index.html`.
+  - Evidence (2026-09-25): the header, hero, try section, and closing buttons say Try it now and open `https://app.kurva.agency`. Run locally still points at the source steps. Files: `apps/site/index.html`.
 - [x] W8.3 Keep the site script-free under its current CSP, with links only.
   - Evidence (2026-09-25): the landing changes are anchors only. The site Caddyfile still sets `script-src 'none'`. Files: `apps/site/index.html`, `apps/site/Caddyfile`.
 - [x] W8.4 Add in-app links: About Kurva, Privacy, Notices, GitHub, and "Get the desktop app for Blender and MCP".
