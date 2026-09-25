@@ -527,7 +527,7 @@ A network log shows the key only in requests to `openrouter.ai`.
 - [x] W8.1 Land `apps/site` on `main` from `feat/kurva-site` (after W0.8).
   - Evidence (2026-09-25): `apps/site/index.html` is in this tree. W0.8 recorded the merge of `feat/kurva-site`. Files: `apps/site/index.html`.
 - [x] W8.2 Replace the clone-and-build "Try it now" button with "Open Kurva in your browser", linking to `https://app.kurva.agency`. Keep "Run locally", and the desktop download once `feat/desktop-installer` lands, as secondary options.
-  - Evidence (2026-09-25): the header, hero, try section, and closing buttons say Try it now and open `https://app.kurva.agency`. Run locally still points at the source steps. Files: `apps/site/index.html`.
+  - Evidence (2026-09-25): the primary button “Try it now — free” and the arrow link beside it open `https://app.kurva.agency`. Run locally still points at the source steps. Files: `apps/site/index.html`.
 - [x] W8.3 Keep the site script-free under its current CSP, with links only.
   - Evidence (2026-09-25): the landing changes are anchors only. The site Caddyfile still sets `script-src 'none'`. Files: `apps/site/index.html`, `apps/site/Caddyfile`.
 - [x] W8.4 Add in-app links: About Kurva, Privacy, Notices, GitHub, and "Get the desktop app for Blender and MCP".
