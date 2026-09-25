@@ -33,7 +33,9 @@ function supportsModuleWorker(): boolean {
   try {
     // A blob: probe fires a worker-src violation under the production CSP, which
     // allows only same-origin workers. Image tracing uses that same-origin kind.
-    const worker = new Worker(new URL("/module-worker-probe.js", window.location.href), { type: "module" });
+    const worker = new Worker(new URL(`${import.meta.env.BASE_URL}module-worker-probe.js`, window.location.href), {
+      type: "module"
+    });
     worker.terminate();
     return true;
   } catch {

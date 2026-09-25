@@ -14,7 +14,7 @@ if (!rootElement) throw new Error("Failed to find the root element in index.html
 
 preloadHomeFonts();
 if (isWebEdition() && "serviceWorker" in navigator) {
-  void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => undefined);
 }
 const browserGaps = isWebEdition() ? detectBrowserSupportGaps() : [];
 const openRouterReturn = isWebEdition() && window.location.pathname === "/oauth/openrouter";

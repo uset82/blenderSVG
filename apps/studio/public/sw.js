@@ -10,13 +10,15 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+  const scopePath = new URL(self.registration.scope).pathname.replace(/\/$/, "");
+  const appPath = (path) => `${scopePath}${path}`;
   if (url.origin !== self.location.origin) return;
   if (url.hostname === "openrouter.ai") return;
-  if (event.request.mode === "navigate" || url.pathname === "/" || url.pathname.endsWith(".html")) {
-    event.respondWith(fetch(event.request).catch(() => caches.match("/index.html")));
+  if (event.request.mode === "navigate" || url.pathname === appPath("/") || url.pathname === `${scopePath}/` || url.pathname.endsWith(".html")) {
+    event.respondWith(fetch(event.request).catch(() => caches.match(appPath("/index.html"))));
     return;
   }
-  if (url.pathname.startsWith("/assets/")) {
+  if (url.pathname.startsWith(appPath("/assets/"))) {
     event.respondWith(
       caches.open(ASSET_CACHE).then(async (cache) => {
         const cached = await cache.match(event.request);

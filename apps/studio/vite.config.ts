@@ -68,9 +68,9 @@ function manualChunk(id: string): string | undefined {
 }
 
 export default defineConfig(({ mode }) => {
-  const web = mode === "web";
+  const web = mode === "web" || mode === "web-site";
   return {
-    base: web ? "/" : "./",
+    base: mode === "web-site" ? "/app/" : web ? "/" : "./",
     plugins: [browserVtracerPlugin() as Plugin, react()],
     resolve: {
       alias: [{ find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) }]
