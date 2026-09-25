@@ -12,32 +12,33 @@ Use plain layout and dividers for routine UI. Reserve elevation for floating con
 
 ## Tokens
 
-All three themes expose the same names through `.studio-app` and its `data-theme` variants. Section dividers use the subtle hairline; interactive boundaries use the stronger control-border token so controls remain perceivable.
+All three themes expose the same names through `.studio-app` and its `data-theme` variants; the warm Kurva paper palette below is what `tokens.css` ships. Section dividers use the subtle hairline; interactive boundaries use the stronger control-border token so controls remain perceivable.
 
-| Token | Dark | Light | High contrast |
+| Token | Dark | Light (Kurva paper, standalone default) | High contrast |
 | --- | --- | --- | --- |
-| Canvas `--studio-canvas` | `#151516` | `#f3f3f1` | `#000000` |
-| Panel `--studio-surface-0` | `#1b1b1d` | `#ffffff` | `#000000` |
-| Raised `--studio-surface-1` | `#232326` | `#f7f7f5` | `#080808` |
-| Active `--studio-surface-2` | `#2b2b2f` | `#efefec` | `#151515` |
-| Divider `--studio-divider` | `#2e2e32` | `#e4e4e1` | `#ffffff` |
-| Hairline `--studio-hairline` | white 8% | graphite 8% | `#ffffff` |
-| Control boundary `--studio-control-border` | `#8b8b93` | `#6b6b73` | `#ffffff` |
-| Primary text `--studio-text-primary` | `#ededef` | `#18181b` | `#ffffff` |
-| Secondary text `--studio-text-secondary` | `#a3a3aa` | `#52525b` | `#ffffff` |
-| Muted text `--studio-text-muted` | `#8b8b93` | `#6b6b73` | `#ffffff` |
-| Accent `--studio-accent` | `#7aa7ff` | `#2d62d6` | `#ffff00` |
-| Accent text `--studio-accent-contrast` | `#0d1526` | `#ffffff` | `#000000` |
+| Canvas `--studio-canvas` | `#16150f` | `#f3eee3` | `#000000` |
+| Panel `--studio-surface-0` | `#16150f` | `#fbf8f1` | `#000000` |
+| Raised `--studio-surface-1` | `#201e17` | `#fbf8f1` | `#080808` |
+| Raised `--studio-surface-2` | `#2a271f` | `#f3eee3` | `#151515` |
+| Active `--studio-surface-active` | `#2a271f` | `#efe8da` | `#262600` |
+| Divider / hairline | ink 14% | paper ink 14% | `#ffffff` |
+| Control boundary `--studio-control-border` | `#a9a294` | `#5a554b` | `#ffffff` |
+| Primary text `--studio-text-primary` | `#efe9dc` | `#1b1a17` | `#ffffff` |
+| Secondary text `--studio-text-secondary` | `#a9a294` | `#5a554b` | `#ffffff` |
+| Muted text `--studio-text-muted` | `#a9a294` | `#5a554b` | `#ffffff` |
+| Accent `--studio-accent` | `#f0623a` | `#b53a17` | `#ffff00` |
+| Accent text `--studio-accent-contrast` | `#16150f` | `#fbf8f1` | `#000000` |
 | Success `--studio-success` | `#8fd694` | `#1f7a4d` | `#00ff85` |
 | Warning `--studio-warning` | `#f0a35e` | `#b4531f` | `#ffff00` |
 | Error `--studio-danger` | `#ff9fa3` | `#b42335` | `#ff8585` |
+| Grid dot `--studio-grid-dot` | `#3a362c` | `#c4bfb6` | `#666666` |
 
-The dark artboard uses a `#2a2a2d` dot on a 16px grid; the light artboard uses `#d6d6d1`. Spacing uses 4px increments. Controls use an 8px radius, panels 12px, and pills 999px. Floating pills have their own `--studio-elevation-pill` token; panels and dialogs have separate elevation tokens. Geist Sans and Geist Mono are bundled in the Studio build. UI body, meta, and caption sizes are 13px, 12px, and 11px. Coordinates and zoom use tabular figures.
+The canvas dot grid uses a 1px dot on a 16px grid. Spacing uses 4px increments. Controls use a 6px radius, panels 14px, and pills 999px. Floating pills have their own `--studio-elevation-pill` token; panels and dialogs have separate elevation tokens. The Studio build bundles Hanken Grotesk (UI text), Fraunces Variable (display), IBM Plex Mono and Geist fonts locally; no remote font requests. UI body, meta, and caption sizes are 13px, 12px, and 11px. Coordinates and zoom use tabular figures.
 
-Measured foreground contrast on the panel surface: dark primary 14.71:1, secondary 6.86:1, muted 5.09:1; light primary 17.72:1, secondary 7.73:1, muted 5.28:1. Accent text measures 7.64:1 in dark and 5.48:1 in light. Interactive boundary colors measure 5.09:1 in dark and 5.28:1 in light against the panel. These calculations cover the token pairs; the completed screens still need visual and keyboard acceptance at every target width.
+Measured contrast (WCAG 2.x ratios, recomputed 2026-09-25 against the current palette; panel surface = light `--studio-surface-0`, dark `--studio-surface-1`): light primary 16.41:1, secondary 6.98:1, accent text 5.53:1, text on accent 5.53:1, status 4.72–6.13:1, control boundary 6.98:1; dark primary 13.78:1, secondary 6.58:1, accent text 5.17:1, text on accent 5.67:1, status 8.02–9.70:1, control boundary 6.58:1. Every pair meets WCAG AA (4.5:1 for text, 3:1 for control boundaries). These calculations cover the token pairs; the completed screens still need visual and keyboard acceptance at every target width.
 
 ## Current behavior and acceptance
 
 The existing Studio shell has a project bar, compact tool rail, Recents overlay, and mutually exclusive Conversation and Inspector panels. This is the v1 layout, not the target arrangement. The tldraw artboard keeps a light shape palette so design frames remain clear. The canvas background and high-contrast focus follow Studio tokens.
 
-The theme control cycles dark → light → high contrast and stores only the appearance preference in browser-local storage. The visible focus ring is 2px, or 3px in high-contrast mode. At 900px and below, the tool rail moves above the canvas and an open context panel follows the visible canvas. Reduced-motion preferences disable transitions and animations. The later Phase 14 and 16 checks cover complete keyboard order, screen-reader names, and acceptance at 390, 768, 1280, 1440, and 1920px.
+The standalone Studio opens on the Kurva paper light theme; inside the VS Code Webview it follows the editor theme (`vscode-light` / `vscode-dark` / `vscode-high-contrast` body classes) until the user picks one. A picked theme is saved in browser-local storage and wins from then on. The theme control cycles light → dark → high contrast, keeping dark one click away from the default, and Settings → Appearance offers each theme directly. The visible focus ring is 2px, or 3px in high-contrast mode. At 900px and below, the tool rail moves above the canvas and an open context panel follows the visible canvas. Reduced-motion preferences disable transitions and animations. The later Phase 14 and 16 checks cover complete keyboard order, screen-reader names, and acceptance at 390, 768, 1280, 1440, and 1920px.
