@@ -33,6 +33,7 @@
     "dev:studio": "pnpm --filter @codex-avatar-studio/studio dev",
     "studio": "pnpm --filter @codex-avatar-studio/studio-server start",
     "build:studio": "pnpm --filter @codex-avatar-studio/studio build",
+    "build:web": "pnpm --filter \"@codex-avatar-studio/studio^...\" build && pnpm --filter @codex-avatar-studio/studio build:web",
     "package:vsix": "pnpm run package",
     "smoke:webview": "node scripts/smoke-webview-render.mjs",
     "smoke:blender": "pnpm --filter @codex-avatar-studio/studio-host-core... build && pnpm --filter codex-avatar-studio-extension build && node scripts/smoke-blender-host.mjs",

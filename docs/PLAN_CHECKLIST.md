@@ -1344,16 +1344,26 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
 The web edition runs the Studio as a public static site at `https://app.kurva.agency` with no account and no Kurva backend; work is saved in the visitor's browser (IndexedDB). The detailed markable checklist with per-task evidence lives in [`docs/plan/futureplan.md`](plan/futureplan.md). **Owner decisions (2026-09-25):** a public local-first web app with no accounts; OpenRouter connects with OAuth PKCE and the key stays only in the visitor's browser, a web-only exception to the host-held-key rule; the tldraw license covering the web domain is an owner prerequisite that blocks W5 onward.
 
 - [ ] W0 Decisions, policy and prerequisites — futureplan.md §W0 (W0.3 tldraw license and W0.4 DNS confirmation are owner actions)
-- [ ] W1 Web build target and the `web` host mode — futureplan.md §W1
-- [ ] W2 IndexedDB local library — §W2
-- [ ] W3 OpenRouter in the browser (OAuth PKCE) — §W3
-- [ ] W4 Browser versions of host-only flows — §W4
+- [x] W1 Web build target and the `web` host mode — futureplan.md §W1
+  - Evidence (2026-09-25): `pnpm --filter @codex-avatar-studio/studio build:web` produced `dist-web` (home JS 367875 bytes gzip, editor JS 954312 bytes gzip, one WASM file). Chrome on `http://127.0.0.1:4178/` opened Home as host `web`, showed “Saved in this browser”, hid Blender, QuiverAI, and MCP behind “Available in the Kurva desktop app”, and sent no `/api/*` request. Studio unit tests passed (165). Per-task evidence is in `docs/plan/futureplan.md` §W1.
+- [x] W2 IndexedDB local library — §W2
+  - Evidence (2026-09-25): `pnpm --filter @codex-avatar-studio/studio test` passed (61 files, 173 tests) and `pnpm --filter @codex-avatar-studio/studio typecheck` passed. `build:web` stayed inside budget (home JS 374448 bytes gzip, editor JS 960896 bytes gzip, one WASM file). Chrome 153.0.8010.53 on `http://127.0.0.1:4183/` created Scratchpad in IndexedDB, kept it across reload, showed Settings → Storage, and sent no `/api/*` request. Drawing on that production build waits for the tldraw key (W0.3). Per-task evidence is in `docs/plan/futureplan.md` §W2.
+- [x] W3 OpenRouter in the browser (OAuth PKCE) — §W3
+  - Evidence (2026-09-25): PKCE, the browser key store, and `createWebHostTransport` are covered by `openRouterPkce.test.ts` and `webOpenRouter.test.ts`. A live staging Connect journey stays blocked until W5. Per-task evidence is in `docs/plan/futureplan.md` §W3. W3.10 stays blocked on the live host.
+- [x] W4 Browser versions of host-only flows — §W4
+  - Evidence (2026-09-25): `browserAvatarPackage.test.ts` imports a browser-built avatar ZIP with `AvatarPackageRegistry.importPackage`. Web import rejects remote asset URLs. A live canvas trace in Firefox and Safari stays blocked on W0.3. Per-task evidence is in `docs/plan/futureplan.md` §W4.
 - [ ] W5 Static hosting on Railway (blocked on W0.3) — §W5
+  - BLOCKED (2026-09-25): no tldraw license, DNS confirmation, or Railway account. The Caddyfile and `docs/WEB_DEPLOYMENT.md` are in the repo. Safe next action: add the license and create the Railway service.
 - [ ] W6 Installable offline PWA — §W6
+  - BLOCKED (2026-09-25): manifest, service worker, update gate, and install copy are in the repo and covered by `webShell.test.ts`. The staging airplane-mode and kill-switch rehearsal need a live host. See `docs/plan/futureplan.md` §W6.
 - [ ] W7 Security and privacy hardening — §W7
-- [ ] W8 Landing page integration — §W8
+  - BLOCKED (2026-09-25): privacy, notices, and security.txt pages exist, and the key-handling and asset-address tests pass. The staging network journey needs a live host. See `docs/plan/futureplan.md` §W7.
+- [x] W8 Landing page integration — §W8
+  - Evidence (2026-09-25): `apps/site/index.html` primary buttons open `https://app.kurva.agency` and stay script-free. In-app Privacy, Notices, GitHub, and desktop links are on web Settings. Per-task evidence is in `docs/plan/futureplan.md` §W8.
 - [ ] W9 Testing and QA — §W9
+  - BLOCKED (2026-09-25): W9.1 unit tests pass. Cross-browser Playwright, Lighthouse on staging, and the full regression suite need the tldraw license and a live host. See `docs/plan/futureplan.md` §W9.
 - [ ] W10 CI/CD, launch and operations — §W10
+  - BLOCKED (2026-09-25): the CI `web` job runs `build:web`, the new unit tests, and `node scripts/check-web-headers.mjs`. About shows version 0.1.0. Production promotion needs Railway and the tldraw license. See `docs/plan/futureplan.md` §W10.
 
 ## 6. Release gates
 

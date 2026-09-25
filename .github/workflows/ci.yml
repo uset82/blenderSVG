@@ -29,6 +29,16 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Build web edition
+        run: |
+          pnpm --filter "@codex-avatar-studio/studio^..." build
+          if [ -z "${VITE_TLDRAW_LICENSE_KEY:-}" ]; then
+            echo "W0.3: tldraw license is not configured. Using the explicit local-development opt-out so the bundle check can run."
+            KURVA_ALLOW_MISSING_TLDRAW_LICENSE=1 pnpm --filter @codex-avatar-studio/studio build:web
+          else
+            pnpm --filter @codex-avatar-studio/studio build:web
+          fi
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -49,3 +59,30 @@ jobs:
 
       - name: Run packaged smoke
         run: pnpm smoke:vsix
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install pnpm
+        run: npm install -g pnpm@11.7.0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build web edition
+        run: |
+          pnpm --filter "@codex-avatar-studio/studio^..." build
+          if [ -z "${VITE_TLDRAW_LICENSE_KEY:-}" ]; then
+            KURVA_ALLOW_MISSING_TLDRAW_LICENSE=1 pnpm --filter @codex-avatar-studio/studio build:web
+          else
+            pnpm --filter @codex-avatar-studio/studio build:web
+          fi
+      - name: Web unit tests
+        run: pnpm exec vitest run apps/studio/test/webOpenRouter.test.ts apps/studio/test/webShell.test.ts apps/studio/test/browserLibrary.test.ts apps/studio/test/browserAvatarPackage.test.ts packages/studio-host-core/test/openRouterPkce.test.ts
+      - name: Web header file
+        run: node scripts/check-web-headers.mjs

@@ -39,6 +39,7 @@ for (const required of [
 
 const forbiddenPatterns = [
   /(^|\/)src\//i,
+  /(^|\/)dist-web\//i,
   /(^|\/)test\//i,
   /(^|\/)node_modules\//i,
   /(^|\/)AGENTS\.md$/i,

@@ -1,17 +1,20 @@
 import { prepareSvgPreview } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { assertLocalAssetFile } from "../projects/localAssets.js";
+import { DesktopOnlyNotice } from "../web/DesktopOnlyNotice.js";
 import { QuiverSvgPanel } from "./QuiverSvgPanel.js";
 import { svgPathCount, VECTOR_PRESETS, type VectorPresetId, type VectorTraceSettings } from "./vtracerPresets.js";
 
 export function VectorAssetDialog({
   onClose,
   onTrace,
-  onInsert
+  onInsert,
+  allowQuiver = true
 }: {
   onClose: () => void;
   onTrace: (file: File, preset: VectorPresetId, signal: AbortSignal, tuning: VectorTraceSettings) => Promise<string>;
   onInsert: (svg: string, name: string) => Promise<void>;
+  allowQuiver?: boolean;
 }) {
   const [preset, setPreset] = useState<VectorPresetId>("color-illustration");
   const [tuning, setTuning] = useState<VectorTraceSettings>(VECTOR_PRESETS["color-illustration"]);
@@ -212,15 +215,19 @@ export function VectorAssetDialog({
           >
             Trace locally
           </button>
-          <button
-            className={engine === "quiver" ? "is-active" : ""}
-            type="button"
-            aria-pressed={engine === "quiver"}
-            disabled={busy || inserting}
-            onClick={() => setEngine("quiver")}
-          >
-            Generate with QuiverAI · optional
-          </button>
+          {allowQuiver ? (
+            <button
+              className={engine === "quiver" ? "is-active" : ""}
+              type="button"
+              aria-pressed={engine === "quiver"}
+              disabled={busy || inserting}
+              onClick={() => setEngine("quiver")}
+            >
+              Generate with QuiverAI · optional
+            </button>
+          ) : (
+            <DesktopOnlyNotice feature="QuiverAI" />
+          )}
         </nav>
 
         <div className="studio-vector-dialog__body">
@@ -316,7 +323,7 @@ export function VectorAssetDialog({
           </div>
 
           <aside className="studio-vector-dialog__controls">
-            {engine === "quiver" ? (
+            {allowQuiver && engine === "quiver" ? (
               <QuiverSvgPanel
                 referenceImage={file}
                 onGenerated={(next) => {

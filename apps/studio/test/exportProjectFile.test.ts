@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
-import { parseImportedStudioProject } from "../src/projects/importProjectFile.js";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildStudioProjectExport,
   formatEditorSaveStatus,
@@ -8,15 +7,23 @@ import {
   stableExportSvgIds,
   studioExportFileName
 } from "../src/projects/exportProjectFile.js";
-import { readSanitizedSvgFile } from "../src/projects/localAssets.js";
 import { svgViewBoxSize } from "../src/projects/fittedMediaSize.js";
+import { inlineStandaloneAssetSources } from "../src/projects/hostAssetStore.js";
+import { parseImportedStudioProject } from "../src/projects/importProjectFile.js";
+import { readSanitizedSvgFile } from "../src/projects/localAssets.js";
 
 describe("editor save status and export", () => {
   it("uses the four honest save labels", () => {
     expect(formatEditorSaveStatus("Saved")).toEqual({ label: "Auto-saved", retry: false });
     expect(formatEditorSaveStatus("Saving…")).toEqual({ label: "Saving…", retry: false });
     expect(formatEditorSaveStatus("Browser session only")).toEqual({ label: "Offline – kept locally", retry: false });
+    expect(formatEditorSaveStatus("Saved in this browser")).toEqual({ label: "Saved in this browser", retry: false });
     expect(formatEditorSaveStatus("Save failed")).toEqual({ label: "Save failed", retry: true });
+    expect(formatEditorSaveStatus("This browser is out of space. Export a backup, then remove a project.")).toEqual({
+      label: "This browser is out of space. Export a backup, then remove a project.",
+      retry: false,
+      exportBackup: true
+    });
     expect(formatEditorSaveStatus("Traced locally. Nothing was uploaded.")).toEqual({
       label: "Traced locally. Nothing was uploaded.",
       retry: false
@@ -39,6 +46,25 @@ describe("editor save status and export", () => {
     expect(studioExportFileName("Landing page")).toBe("landing-page.studio.json");
     expect(safeExportFileName("../Secret blend", "svg")).toBe("secret-blend.svg");
     expect(safeExportFileName("Frame", "png")).toBe("frame.png");
+  });
+
+  it("inlines a standalone asset so the project file opens without the host", async () => {
+    const assetId = "99f97a71-a01a-46db-b0c0-bdfdc28b1c1a";
+    const snapshot = JSON.stringify({
+      document: { schema: { version: 1 }, store: { src: `/assets/${assetId}` } }
+    });
+    const fetchImpl = async (url: string) => {
+      expect(url).toBe(`/assets/${assetId}`);
+      return new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/png" } });
+    };
+    vi.stubGlobal("fetch", fetchImpl);
+    try {
+      const inlined = await inlineStandaloneAssetSources(snapshot);
+      expect(inlined).toContain("data:image/png;base64,AQID");
+      expect(inlined).not.toContain(`/assets/${assetId}`);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("rejects a corrupt project file", () => {

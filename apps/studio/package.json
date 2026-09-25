@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node ../../scripts/copy-studio-build.mjs",
+    "build:web": "node ../../scripts/check-web-license.mjs && vite build --mode web && node ../../scripts/check-web-bundle.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm --workspace-root exec vitest run apps/studio",
     "preview": "vite preview"
@@ -14,6 +15,7 @@
     "@codex-avatar-studio/asset-pipeline": "workspace:*",
     "@codex-avatar-studio/avatar-core": "workspace:*",
     "@codex-avatar-studio/studio-agent": "workspace:*",
+    "@codex-avatar-studio/studio-host-core": "workspace:*",
     "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource/geist-mono": "^5.3.0",
     "@fontsource/geist-sans": "^5.3.0",
@@ -37,6 +39,7 @@
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.4",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.1.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.9"

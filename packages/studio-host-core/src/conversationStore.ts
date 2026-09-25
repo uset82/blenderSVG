@@ -1,61 +1,16 @@
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { conversationRecord, MAX_CONVERSATIONS, PROJECT_ID, type StoredConversation } from "./projectEnvelope.js";
 import { containedLibraryPath } from "./studioLibrary.js";
 
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MAX_CONVERSATIONS = 50;
-const SECRET_KEYS = new Set(["key", "apikey", "api_key", "authorization", "token", "secret"]);
-
-export interface StoredConversationMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-export interface StoredConversation {
-  id: string;
-  projectId: string;
-  title: string;
-  modelId: string;
-  updatedAt: string;
-  messages: StoredConversationMessage[];
-}
+export {
+  conversationRecord,
+  type StoredConversation,
+  type StoredConversationMessage
+} from "./projectEnvelope.js";
 
 export type StoredConversationSummary = Pick<StoredConversation, "id" | "title" | "modelId" | "updatedAt">;
-
-export function conversationRecord(value: unknown): StoredConversation | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
-  if (Object.keys(record).some((key) => SECRET_KEYS.has(key.toLowerCase()))) return null;
-  if (typeof record.id !== "string" || !ID.test(record.id)) return null;
-  if (typeof record.projectId !== "string" || !ID.test(record.projectId)) return null;
-  if (typeof record.title !== "string" || !record.title.trim() || record.title.length > 120) return null;
-  if (typeof record.modelId !== "string" || record.modelId.length > 200) return null;
-  if (typeof record.updatedAt !== "string" || !Number.isFinite(Date.parse(record.updatedAt))) return null;
-  if (!Array.isArray(record.messages) || record.messages.length > 200) return null;
-  const messages: StoredConversationMessage[] = [];
-  for (const message of record.messages) {
-    if (!message || typeof message !== "object") return null;
-    const item = message as Record<string, unknown>;
-    if (
-      (item.role !== "user" && item.role !== "assistant") ||
-      typeof item.content !== "string" ||
-      item.content.length > 12_000
-    ) {
-      return null;
-    }
-    if (Object.keys(item).some((key) => SECRET_KEYS.has(key.toLowerCase()))) return null;
-    messages.push({ role: item.role, content: item.content });
-  }
-  return {
-    id: record.id,
-    projectId: record.projectId,
-    title: record.title.trim(),
-    modelId: record.modelId,
-    updatedAt: record.updatedAt,
-    messages
-  };
-}
 
 export async function writeConversation(libraryRoot: string, conversation: StoredConversation): Promise<void> {
   const target = conversationPath(libraryRoot, conversation.projectId, conversation.id);
@@ -87,7 +42,7 @@ export async function readConversation(
 }
 
 export async function listConversations(libraryRoot: string, projectId: string): Promise<StoredConversationSummary[]> {
-  if (!ID.test(projectId)) return [];
+  if (!PROJECT_ID.test(projectId)) return [];
   const directory = containedLibraryPath(libraryRoot, path.join("conversations", projectId));
   if (!directory) return [];
   let names: string[];
@@ -97,7 +52,7 @@ export async function listConversations(libraryRoot: string, projectId: string):
     return [];
   }
   const ids = names
-    .filter((name) => name.endsWith(".json") && ID.test(name.slice(0, -5)))
+    .filter((name) => name.endsWith(".json") && PROJECT_ID.test(name.slice(0, -5)))
     .map((name) => name.slice(0, -5));
   const records = await Promise.all(ids.map((id) => readConversation(libraryRoot, projectId, id)));
   return records
@@ -128,7 +83,7 @@ export async function deleteConversation(libraryRoot: string, projectId: string,
 }
 
 function conversationPath(libraryRoot: string, projectId: string, id: string): string | null {
-  if (!ID.test(projectId) || !ID.test(id)) return null;
+  if (!PROJECT_ID.test(projectId) || !PROJECT_ID.test(id)) return null;
   return containedLibraryPath(libraryRoot, path.join("conversations", projectId, `${id}.json`));
 }
 

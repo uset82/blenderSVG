@@ -1,6 +1,6 @@
 import type { StudioToHostMessage } from "@codex-avatar-studio/avatar-core";
 import { describe, expect, it, vi } from "vitest";
-import { OpenRouterChatController } from "../src/openRouterChat.js";
+import { attributionHeaders, OpenRouterChatController } from "../src/openRouterChat.js";
 import { OPENROUTER_SECRET_KEY, type SecretStore } from "../src/openRouterConnection.js";
 
 type ChatRequest = Extract<StudioToHostMessage, { type: "studio:chatRequest" }>;
@@ -62,6 +62,29 @@ describe("chat gateway", () => {
     });
     expect(String(init?.body)).toContain('"include":true');
     expect(messages.some((message) => (message as { type?: string }).type === "studio:chatComplete")).toBe(true);
+  });
+
+  it("omits the custom referer on the web and asks for a reconnect after 401", async () => {
+    const denied = new Response("revoked", { status: 401 });
+    const request = vi.fn<typeof fetch>().mockResolvedValueOnce(catalog()).mockResolvedValueOnce(denied);
+    const messages: Array<{ type?: string; message?: string }> = [];
+    const controller = new OpenRouterChatController(secrets, (message) => messages.push(message), request, {
+      title: "Kurva"
+    });
+    await controller.refreshModels();
+    await controller.send({
+      protocolVersion: 1,
+      type: "studio:chatRequest",
+      requestId: "request-web",
+      modelId: "example/text",
+      history: [],
+      userMessage: "Hello"
+    });
+    const init = request.mock.calls.find((call) => String(call[0]).includes("/chat/completions"))?.[1];
+    expect(init?.headers).toMatchObject(attributionHeaders({ title: "Kurva" }));
+    expect(init?.headers).not.toHaveProperty("HTTP-Referer");
+    expect(messages.some((message) => message.message?.includes("Reconnect"))).toBe(true);
+    controller.cancel("request-web");
   });
 
   it("does not send an image to a text-only model", async () => {

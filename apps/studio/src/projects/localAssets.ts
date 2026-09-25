@@ -9,8 +9,8 @@ import {
   workerRasterPrepOptions,
   workerVtracerOptions
 } from "../components/vtracerPresets.js";
+import { isWebEdition } from "../web/kurvaTarget.js";
 import { fittedMediaSize, svgViewBoxSize } from "./fittedMediaSize.js";
-import { TRACE_CANCELLED, tracePixelsInWorker } from "./traceWorkerClient.js";
 
 const MAX_FILE_BYTES = 8_000_000;
 const MAX_CHAT_IMAGE_BYTES = 1_500_000;
@@ -34,7 +34,8 @@ export async function traceImageFileLocally(
   signal?: AbortSignal,
   tuning?: VectorTraceSettings
 ): Promise<string> {
-  if (signal?.aborted) throw new Error(TRACE_CANCELLED);
+  const tracing = await import("./traceWorkerClient.js");
+  if (signal?.aborted) throw new Error(tracing.TRACE_CANCELLED);
   assertLocalAssetFile(file, "image");
   const bitmap = await createImageBitmap(file);
   try {
@@ -51,7 +52,7 @@ export async function traceImageFileLocally(
     context.imageSmoothingQuality = "high";
     context.drawImage(bitmap, 0, 0, size.width, size.height);
     const pixels = context.getImageData(0, 0, size.width, size.height).data;
-    const traced = await tracePixelsInWorker(
+    const traced = await tracing.tracePixelsInWorker(
       pixels,
       size.width,
       size.height,
@@ -66,7 +67,7 @@ export async function traceImageFileLocally(
     const withNamespace = withoutPrelude.includes("xmlns=")
       ? withoutPrelude
       : withoutPrelude.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
-    if (signal?.aborted) throw new Error(TRACE_CANCELLED);
+    if (signal?.aborted) throw new Error(tracing.TRACE_CANCELLED);
     const svg = prepareSvgPreview(optimizeSvgForBrowser(withNamespace)).svg;
     assertSvgPathCount(svg);
     return svg;
@@ -125,6 +126,7 @@ function viewportCenter(editor: Editor): { x: number; y: number } {
 }
 
 async function hostAssetSrc(file: File): Promise<string | null> {
+  if (isWebEdition()) return null;
   try {
     if (window.sessionStorage.getItem("kurva-studio-standalone") !== "1") return null;
   } catch {

@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 
 const require = createRequire(import.meta.url);
 const vtracerPackageEntry = require.resolve("@visioncortex/vtracer");
@@ -47,25 +47,62 @@ export { vectorize_bytes, vectorize_rgba };`;
   };
 }
 
-export default defineConfig({
-  base: "./",
-  plugins: [browserVtracerPlugin(), react()],
-  resolve: {
-    alias: [{ find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) }]
-  },
-  optimizeDeps: {
-    // imports.vite.js uses Vite `?url` imports. Prebundling them drops the URLs.
-    exclude: ["@tldraw/assets", "@visioncortex/vtracer"]
-  },
-  worker: {
-    format: "es",
-    plugins: () => [browserVtracerPlugin()]
-  },
-  server: {
-    port: 5174,
-    host: "127.0.0.1"
-  },
-  preview: {
-    host: "127.0.0.1"
+// tldraw stays out of manualChunks. Forcing it into one chunk makes Vite's preload
+// helper a static import of that chunk, so Home downloads the editor.
+function manualChunk(id: string): string | undefined {
+  const normalized = id.replaceAll("\\", "/");
+  if (normalized.includes("/node_modules/radix-ui/") || normalized.includes("/node_modules/@radix-ui/")) return "radix";
+  if (
+    normalized.includes("/node_modules/react-markdown/") ||
+    normalized.includes("/node_modules/rehype-sanitize/") ||
+    normalized.includes("/node_modules/remark-") ||
+    normalized.includes("/node_modules/micromark") ||
+    normalized.includes("/node_modules/mdast") ||
+    normalized.includes("/node_modules/hast-") ||
+    normalized.includes("/node_modules/unified/") ||
+    normalized.includes("/node_modules/vfile")
+  ) {
+    return "markdown";
   }
+  return undefined;
+}
+
+export default defineConfig(({ mode }) => {
+  const web = mode === "web";
+  return {
+    base: web ? "/" : "./",
+    plugins: [browserVtracerPlugin() as Plugin, react()],
+    resolve: {
+      alias: [{ find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) }]
+    },
+    optimizeDeps: {
+      // imports.vite.js uses Vite `?url` imports. Prebundling them drops the URLs.
+      exclude: ["@tldraw/assets", "@visioncortex/vtracer"]
+    },
+    worker: {
+      format: "es",
+      plugins: () => [browserVtracerPlugin()]
+    },
+    build: {
+      outDir: web ? "dist-web" : "dist",
+      emptyOutDir: true,
+      ...(web
+        ? {
+            manifest: true,
+            rollupOptions: {
+              output: {
+                manualChunks: manualChunk
+              }
+            }
+          }
+        : {})
+    },
+    server: {
+      port: 5174,
+      host: "127.0.0.1"
+    },
+    preview: {
+      host: "127.0.0.1"
+    }
+  };
 });
