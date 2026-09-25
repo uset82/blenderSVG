@@ -1055,3 +1055,91 @@ a:hover {
   height: 0;
   overflow: hidden;
 }
+
+/* Try it now */
+.try {
+  background: var(--paper-2);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.try .wrap {
+  padding-top: 104px;
+  padding-bottom: 104px;
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 80px;
+  align-items: start;
+}
+.try-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.try-intro h2 {
+  font-size: clamp(40px, 5.4vw, 64px);
+}
+.try-intro p:not(.eyebrow) {
+  margin: 0;
+  font-size: 18px;
+  color: var(--ink-2);
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  counter-reset: step;
+}
+.steps li {
+  counter-increment: step;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.step-label {
+  font-weight: 600;
+}
+.step-label::before {
+  content: counter(step, decimal-leading-zero) " — ";
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--vermilion-deep);
+}
+.code {
+  margin: 0;
+  padding: 18px 20px;
+  background: var(--ink);
+  color: var(--night-text);
+  border-radius: 12px;
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-x: auto;
+  user-select: all;
+}
+.step-note,
+.try-help {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+@media (max-width: 1100px) {
+  .try .wrap {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+}
+@media (max-width: 640px) {
+  .try .wrap {
+    padding-top: 72px;
+    padding-bottom: 72px;
+  }
+  .code {
+    font-size: 13px;
+    padding: 14px 16px;
+  }
+}

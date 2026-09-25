@@ -40,7 +40,7 @@
     </nav>
     <div class="header-actions">
       <a href="https://github.com/uset82/blenderSVG">GitHub</a>
-      <a class="btn btn--ink" href="https://github.com/uset82/blenderSVG">Follow the build</a>
+      <a class="btn btn--ink" href="#try">Try it now</a>
     </div>
   </div>
 </header>
@@ -53,10 +53,10 @@
         <h1 class="display" id="hero-title">every line<br>finds its <em>curve.</em></h1>
         <p class="hero-lede">A design canvas for characters, SVG and Blender that runs on your machine — with agents only when you ask.</p>
         <div class="hero-actions">
-          <a class="btn btn--primary" href="https://github.com/uset82/blenderSVG">Follow the build on GitHub</a>
-          <a class="link-arrow" href="#roadmap">See what's shipped →</a>
+          <a class="btn btn--primary" href="#try">Try it now — free</a>
+          <a class="link-arrow" href="https://github.com/uset82/blenderSVG">View on GitHub →</a>
         </div>
-        <p class="hero-note">Public beta coming soon: a desktop app, plus an optional VS Code extension.</p>
+        <p class="hero-note">Free and open source (MIT). Runs wherever Node.js 22 runs. One-click installer coming soon.</p>
       </div>
       <figure class="plate" aria-label="The Kurva mark drawn with its Bézier handles">
         <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -231,6 +231,38 @@
     </div>
   </section>
 
+  <section class="try" id="try" aria-labelledby="try-title">
+    <div class="wrap">
+      <div class="try-intro">
+        <p class="eyebrow eyebrow--accent">Try it now</p>
+        <h2 class="display" id="try-title">run kurva<br><span class="dim">on your machine.</span></h2>
+        <p>No installer yet, so for now you run it from the source code. It takes a few minutes.</p>
+        <p>You need <a href="https://git-scm.com/downloads">Git</a> and <a href="https://nodejs.org/en/download">Node.js 22</a>. Blender is optional.</p>
+      </div>
+      <div class="try-steps">
+        <ol class="steps">
+          <li>
+            <span class="step-label">Get the code and install</span>
+            <pre class="code"><code>git clone https://github.com/uset82/blenderSVG.git kurva
+cd kurva
+corepack enable
+pnpm install</code></pre>
+          </li>
+          <li>
+            <span class="step-label">Build it once</span>
+            <pre class="code"><code>pnpm build</code></pre>
+          </li>
+          <li>
+            <span class="step-label">Open the Studio</span>
+            <pre class="code"><code>pnpm studio</code></pre>
+            <p class="step-note">Your browser opens Kurva. It runs only on your computer, and your projects are saved there.</p>
+          </li>
+        </ol>
+        <p class="try-help">Stuck? <a href="https://github.com/uset82/blenderSVG/issues">Open an issue on GitHub</a> and we'll help.</p>
+      </div>
+    </div>
+  </section>
+
   <section class="roadmap" id="roadmap" aria-labelledby="roadmap-title">
     <div class="wrap">
       <div class="roadmap-intro">
@@ -258,7 +290,7 @@
     <div class="wrap">
       <svg aria-hidden="true"><use href="#kmark"/></svg>
       <h2 class="display" id="closing-title">make the line <em>yours.</em></h2>
-      <a class="btn btn--primary" href="https://github.com/uset82/blenderSVG">Follow the build on GitHub</a>
+      <a class="btn btn--primary" href="#try">Try it now — free</a>
     </div>
   </section>
 </main>
@@ -275,6 +307,7 @@
     </div>
     <div class="footer-links">
       <ul>
+        <li><a href="#try">Try it</a></li>
         <li><a href="#studio">Studio</a></li>
         <li><a href="#roadmap">Roadmap</a></li>
       </ul>
