@@ -4,6 +4,8 @@ Codex Avatar Studio processes avatar assets locally. It does not upload images, 
 
 ## Provider keys
 
+The web edition is the exception recorded in ADR 0003. Its OpenRouter key is created with PKCE, stored only in the visitor's browser, and sent only to `openrouter.ai`. Remembered keys are AES-GCM ciphertext in IndexedDB. Session-only keys stay in memory. The key is not written to localStorage, sessionStorage, the page URL, or a Kurva server. Disconnect removes it and links to the OpenRouter key and activity pages by the SHA-256 hash of the key.
+
 The VS Code extension keeps the OpenRouter key in SecretStorage. The standalone Studio host keeps it in the OS keychain through `@napi-rs/keyring`, with `OPENROUTER_API_KEY` only as an environment fallback. The Settings form posts the key once to the authenticated host. The key is not written to browser storage, not returned to the page, and not written to logs. The page only receives whether a key is configured and whether it came from the keychain or the environment.
 
 The first chat send in each project opens a consent dialog. A review step shows the draft, earlier messages, and an attached image only when one is attached. The context row lists the model, draft size, message count, and that the key is not included. Paid models show their catalog price before send. The reply footer shows token counts and `usage.cost` when OpenRouter returns them, and says the cost was not returned otherwise.

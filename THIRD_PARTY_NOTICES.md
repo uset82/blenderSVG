@@ -17,7 +17,8 @@ Exact versions were checked against the installed workspace manifests and lockfi
 | `@vitejs/plugin-react` | 5.2.0 | MIT | <https://github.com/vitejs/vite-plugin-react> |
 | `@vscode/vsce` | 3.9.2 | MIT | <https://github.com/microsoft/vscode-vsce> |
 | `esbuild` | 0.28.1 | MIT | <https://github.com/evanw/esbuild> |
-| `fast-xml-parser` | 5.9.3 | MIT | <https://github.com/NaturalIntelligence/fast-xml-parser> |
+| `fake-indexeddb` | 6.2.5 | Apache-2.0 | <https://github.com/dumbmatter/fakeIndexedDB> |
+| `fast-xml-parser` | 5.11.1 | MIT | <https://github.com/NaturalIntelligence/fast-xml-parser> |
 | `@fontsource/geist-sans` / `@fontsource/geist-mono` | 5.3.0 | OFL-1.1 | <https://fontsource.org/fonts/geist> · bundled font license below |
 | `@fontsource-variable/fraunces` | 5.3.0 | OFL-1.1 | <https://fontsource.org/fonts/fraunces> |
 | `@fontsource/hanken-grotesk` | 5.3.0 | OFL-1.1 | <https://fontsource.org/fonts/hanken-grotesk> |
@@ -38,7 +39,7 @@ Exact versions were checked against the installed workspace manifests and lockfi
 | `@testing-library/react` | 16.3.3 | MIT | <https://github.com/testing-library/react-testing-library> |
 | `jsdom` | 30.1.1 | MIT | <https://github.com/jsdom/jsdom> |
 | `ws` | 8.21.3 | MIT | <https://github.com/websockets/ws> |
-| `svgo` | 4.0.1 | MIT | <https://github.com/svg/svgo> |
+| `svgo` | 4.1.0 | MIT | <https://github.com/svg/svgo> |
 | `three` | 0.185.1 | MIT | <https://github.com/mrdoob/three.js> |
 | `tldraw` / `@tldraw/tldraw` / `@tldraw/assets` | 5.4.2 | tldraw license | <https://tldraw.dev/community/license> · production use requires a valid license key |
 | `typescript` | 5.9.3 | Apache-2.0 | <https://github.com/microsoft/TypeScript> |

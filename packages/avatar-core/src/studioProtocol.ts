@@ -32,6 +32,9 @@ const connection = z.strictObject({
   status: z.enum(["disconnected", "connected", "checking", "error"]),
   message: z.string().trim().min(1).max(500)
 });
+/** vscode and standalone are desktop hosts. browser is the unsaved fixture. web is the public static edition. */
+export const studioHostKindSchema = z.enum(["vscode", "standalone", "browser", "web"]);
+export type StudioHostKind = z.infer<typeof studioHostKindSchema>;
 const model = z.strictObject({
   id: z.string().trim().min(1).max(200),
   name: z.string().trim().min(1).max(300),
@@ -218,7 +221,7 @@ export const hostToStudioMessageSchema = z.discriminatedUnion("type", [
   z.strictObject({
     protocolVersion: version,
     type: z.literal("studio:hostState"),
-    host: z.enum(["vscode", "standalone", "browser"]),
+    host: studioHostKindSchema,
     workspaceTrusted: z.boolean(),
     connection
   }),

@@ -7,3 +7,13 @@ allowBuilds:
   electron: true
   esbuild: true
   keytar: false
+
+overrides:
+  "@xmldom/xmldom": "0.8.15"
+  baseline-browser-mapping: "2.11.0"
+  browserslist: "4.28.7"
+  fast-uri: "3.1.6"
+  nanoid: "3.3.18"
+  "phin@2.9.3": "3.7.1"
+  postcss: "8.5.23"
+  qs: "6.16.0"

@@ -50,9 +50,9 @@
   },
   "dependencies": {
     "@visioncortex/vtracer": "1.0.0-alpha.4",
-    "fast-xml-parser": "^5.9.3",
+    "fast-xml-parser": "^5.10.1",
     "imagetracerjs": "1.2.6",
     "jimp": "0.14.0",
-    "svgo": "^4.0.1"
+    "svgo": "^4.1.0"
   }
 }

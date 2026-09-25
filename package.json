@@ -33,6 +33,7 @@
     "dev:studio": "pnpm --filter @codex-avatar-studio/studio dev",
     "studio": "pnpm --filter @codex-avatar-studio/studio-server start",
     "build:studio": "pnpm --filter @codex-avatar-studio/studio build",
+    "build:web": "pnpm --filter \"@codex-avatar-studio/studio^...\" build && pnpm --filter @codex-avatar-studio/studio build:web",
     "package:vsix": "pnpm run package",
     "smoke:webview": "node scripts/smoke-webview-render.mjs",
     "smoke:blender": "pnpm --filter @codex-avatar-studio/studio-host-core... build && pnpm --filter codex-avatar-studio-extension build && node scripts/smoke-blender-host.mjs",
@@ -48,6 +49,8 @@
     "verify:blender-mcp": "node scripts/setup-blender-mcp.mjs --verify-only",
     "validate:docs": "node scripts/validate-docs.mjs",
     "validate:notices": "node scripts/validate-notices.mjs",
+    "audit:prod": "pnpm audit --prod",
+    "test:web:csp": "node scripts/web-csp-journey.mjs",
     "validate:vsix": "node scripts/validate-vsix.mjs",
     "package:vsix:pre": "node scripts/package-vsix.mjs --pre-release"
   },

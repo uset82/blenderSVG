@@ -8,7 +8,7 @@ import {
 
 export const OFFLINE_HOST_MESSAGE = "Offline preview – nothing is saved";
 
-export type StudioTransportKind = "vscode" | "websocket" | "fixture";
+export type StudioTransportKind = "vscode" | "websocket" | "fixture" | "web";
 
 export interface StudioTransport {
   kind: StudioTransportKind;
@@ -179,6 +179,19 @@ export function createFixtureTransport(): StudioTransport & { sent: unknown[]; d
       const parsed = parseHostToStudioMessage(message);
       if (!parsed.success) return;
       for (const listener of listeners) listener(parsed.data);
+    }
+  };
+}
+
+/** In-page web host. W1 validates messages and does not call the network; W3 runs the controllers here. */
+export function createWebTransport(): StudioTransport {
+  return {
+    kind: "web",
+    send(message) {
+      createStudioToHostMessage(message);
+    },
+    subscribe() {
+      return () => undefined;
     }
   };
 }

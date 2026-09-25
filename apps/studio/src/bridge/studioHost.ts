@@ -1,20 +1,20 @@
-import {
-  type HostToStudioMessage,
-  STUDIO_PROTOCOL_VERSION,
-  type StudioChatUsage,
-  type StudioConversationMeta,
-  type StudioConversationRecord,
-  type StudioModel,
-  type StudioProjectDocument,
-  type StudioProjectMeta,
-  type StudioToHostMessage,
-  type StudioToHostMessageInput
+import type {
+  HostToStudioMessage,
+  StudioChatUsage,
+  StudioConversationMeta,
+  StudioConversationRecord,
+  StudioModel,
+  StudioProjectDocument,
+  StudioProjectMeta,
+  StudioToHostMessage,
+  StudioToHostMessageInput
 } from "@codex-avatar-studio/avatar-core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type ToolCallRecord, withToolTiming } from "../components/toolCallCard.js";
+import { createInitialHostState } from "../web/initialHostState.js";
+import { isWebEdition } from "../web/kurvaTarget.js";
 import {
   createReconnectingWebSocketTransport,
-  OFFLINE_HOST_MESSAGE,
   type StudioTransport,
   selectStudioTransport
 } from "./studioTransports.js";
@@ -132,6 +132,10 @@ declare global {
 let vscodeApi: VsCodeApi | null | undefined;
 
 function getVsCodeApi(): VsCodeApi | null {
+  if (isWebEdition()) {
+    vscodeApi = null;
+    return null;
+  }
   if (vscodeApi !== undefined) return vscodeApi;
   if (typeof window === "undefined" || typeof window.acquireVsCodeApi !== "function") {
     vscodeApi = null;
@@ -146,6 +150,7 @@ function getVsCodeApi(): VsCodeApi | null {
 }
 
 function hasStandaloneSession(): boolean {
+  if (isWebEdition()) return false;
   if (typeof window === "undefined") return false;
   if (new URLSearchParams(window.location.search).get("studioToken")?.trim()) return true;
   try {
@@ -156,33 +161,25 @@ function hasStandaloneSession(): boolean {
 }
 
 function standaloneLaunchToken(): string | null {
+  if (isWebEdition()) return null;
   if (typeof window === "undefined") return null;
   return new URLSearchParams(window.location.search).get("studioToken")?.trim() || null;
 }
 
 function initialHostState(): HostStateMessage {
-  const vscode = getVsCodeApi();
-  const standalone = !vscode && hasStandaloneSession();
-  return {
-    protocolVersion: STUDIO_PROTOCOL_VERSION,
-    type: "studio:hostState",
-    host: vscode ? "vscode" : standalone ? "standalone" : "browser",
-    workspaceTrusted: standalone,
-    connection: {
-      status: standalone ? "checking" : "disconnected",
-      message: vscode
-        ? "Checking the Studio connection…"
-        : standalone
-          ? "Connecting to the local Studio host…"
-          : OFFLINE_HOST_MESSAGE
-    }
-  };
+  if (isWebEdition()) return createInitialHostState({ webEdition: true, vscode: false, standalone: false });
+  const vscode = Boolean(getVsCodeApi());
+  return createInitialHostState({ webEdition: false, vscode, standalone: !vscode && hasStandaloneSession() });
 }
 
 let activeTransport: StudioTransport | null = null;
 
 function currentTransport(): StudioTransport {
   if (!activeTransport) {
+    if (isWebEdition()) {
+      activeTransport = createDeferredWebTransport();
+      return activeTransport;
+    }
     const vscodeApi = getVsCodeApi();
     if (vscodeApi) activeTransport = selectStudioTransport({ vscodeApi });
     else if (hasStandaloneSession()) {
@@ -198,9 +195,44 @@ function currentTransport(): StudioTransport {
   return activeTransport;
 }
 
+function createDeferredWebTransport(): StudioTransport {
+  let inner: StudioTransport | null = null;
+  const queued: StudioToHostMessageInput[] = [];
+  const listeners = new Set<(message: HostToStudioMessage) => void>();
+  void import("../web/webHostTransport.js").then((module) => {
+    inner = module.createWebHostTransport();
+    inner.subscribe((message) => {
+      for (const listener of listeners) listener(message);
+    });
+    for (const message of queued.splice(0)) inner.send(message);
+  });
+  return {
+    kind: "web",
+    send(message) {
+      if (inner) inner.send(message);
+      else queued.push(message);
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    }
+  };
+}
+
 function sendToHost(message: StudioToHostMessageInput): void {
   if (currentTransport().kind === "fixture" && !getVsCodeApi()) return;
   currentTransport().send(message);
+}
+
+/** Web chat is connected without a desktop workspace. Other hosts still need a trusted workspace. */
+export function shouldLoadModelCatalog(input: {
+  host: string;
+  workspaceTrusted: boolean;
+  connectionStatus: string;
+}): boolean {
+  if (input.connectionStatus !== "connected") return false;
+  if (input.host === "web") return true;
+  return (input.host === "vscode" || input.host === "standalone") && input.workspaceTrusted;
 }
 
 export function useStudioHost() {
@@ -238,6 +270,18 @@ export function useStudioHost() {
     if (currentTransport().kind === "fixture") return;
     setModelCatalog({ status: "loading", message: "Loading the OpenRouter model catalog.", models: [] });
     sendToHost({ type: "studio:modelCatalogRequest" });
+  }, []);
+
+  useEffect(() => {
+    if (!isWebEdition()) return;
+    const onAction = (event: Event) => {
+      const action = (event as CustomEvent<string>).detail;
+      if (action === "disconnect" || action === "test") {
+        sendToHost({ type: "studio:openRouterConnection", action });
+      }
+    };
+    window.addEventListener("kurva-web-openrouter", onAction);
+    return () => window.removeEventListener("kurva-web-openrouter", onAction);
   }, []);
 
   useEffect(() => {
@@ -515,10 +559,11 @@ export function useStudioHost() {
   }, [hostState.host, hostState.workspaceTrusted]);
 
   useEffect(() => {
-    const connectedAndTrusted =
-      (hostState.host === "vscode" || hostState.host === "standalone") &&
-      hostState.workspaceTrusted &&
-      hostState.connection.status === "connected";
+    const connectedAndTrusted = shouldLoadModelCatalog({
+      host: hostState.host,
+      workspaceTrusted: hostState.workspaceTrusted,
+      connectionStatus: hostState.connection.status
+    });
     if (!connectedAndTrusted) {
       requestedCatalog.current = false;
       if (modelCatalog.status !== "idle")

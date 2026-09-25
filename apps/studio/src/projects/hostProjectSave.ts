@@ -8,9 +8,11 @@ export function studioHostToken(search: string): string | null {
 export function hostSaveTarget(input: {
   vscode: boolean;
   standaloneHost: boolean;
+  browserLibrary?: boolean;
   projectId: string | null;
-}): "vscode" | "host" | "offline" {
+}): "vscode" | "host" | "browser" | "offline" {
   if (input.vscode) return "vscode";
+  if (input.browserLibrary && input.projectId && PROJECT_ID.test(input.projectId)) return "browser";
   if (input.standaloneHost && input.projectId && PROJECT_ID.test(input.projectId)) return "host";
   return "offline";
 }

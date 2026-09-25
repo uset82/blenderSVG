@@ -28,6 +28,23 @@ describe("Studio bridge protocol", () => {
     expect(parseStudioToHostMessage(request).success).toBe(true);
     expect(parseHostToStudioMessage(state).success).toBe(true);
     expect(parseHostToStudioMessage(standaloneState).success).toBe(true);
+    const webState = createHostToStudioMessage({
+      type: "studio:hostState",
+      host: "web",
+      workspaceTrusted: false,
+      connection: { status: "disconnected", message: "Saved in this browser" }
+    });
+    expect(webState.protocolVersion).toBe(STUDIO_PROTOCOL_VERSION);
+    expect(parseHostToStudioMessage(webState).success).toBe(true);
+    expect(
+      parseHostToStudioMessage({
+        protocolVersion: 1,
+        type: "studio:hostState",
+        host: "electron",
+        workspaceTrusted: false,
+        connection: { status: "disconnected", message: "Saved in this browser" }
+      }).success
+    ).toBe(false);
   });
 
   it("rejects versions, unknown actions, oversized content, and credential fields", () => {

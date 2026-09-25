@@ -225,7 +225,7 @@
       <h2 class="display" id="privacy-title">stays on <em>your</em> machine.</h2>
       <ul class="promises">
         <li><span class="num">01</span><strong>Local processing</strong><p>Pictures, SVG and Blender jobs run on your computer by default.</p></li>
-        <li><span class="num">02</span><strong>Keys stay host-side</strong><p>Your provider key is held by the local host and never reaches the browser.</p></li>
+        <li><span class="num">02</span><strong>Your key, your browser</strong><p>The desktop app keeps a provider key on the local host. In the browser app the OpenRouter key stays in that browser and is sent only to OpenRouter. Kurva has no server.</p></li>
         <li><span class="num">03</span><strong>Loopback only</strong><p>The Studio host listens only on your own machine and checks a token on every request.</p></li>
         <li><span class="num">04</span><strong>Safe SVG</strong><p>Every SVG is sanitized, with a built-in fallback when engines are off.</p></li>
       </ul>
@@ -235,9 +235,9 @@
   <section class="try" id="try" aria-labelledby="try-title">
     <div class="wrap">
       <div class="try-intro">
-        <p class="eyebrow eyebrow--accent">Try it now</p>
-        <h2 class="display" id="try-title">run kurva<br><span class="dim">on your machine.</span></h2>
-        <p>No installer yet, so for now you run it from the source code. It takes a few minutes.</p>
+        <p class="eyebrow eyebrow--accent">On your machine</p>
+        <h2 class="display" id="try-title">run kurva<br><span class="dim">from source.</span></h2>
+        <p>No installer yet, so you can also run it from the source code. It takes a few minutes.</p>
         <p>You need <a href="https://git-scm.com/downloads">Git</a> and <a href="https://nodejs.org/en/download">Node.js 22</a>. Blender is optional.</p>
       </div>
       <div class="try-steps">
@@ -309,7 +309,9 @@ pnpm install</code></pre>
     </div>
     <div class="footer-links">
       <ul>
-        <li><a href="#try">Try it</a></li>
+        <li><a href="/app/">Open the app</a></li>
+        <li><a href="/app/privacy.html">Privacy</a></li>
+        <li><a href="#try">Run locally</a></li>
         <li><a href="#studio">Studio</a></li>
         <li><a href="#roadmap">Roadmap</a></li>
       </ul>

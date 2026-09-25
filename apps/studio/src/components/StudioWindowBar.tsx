@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
 import { formatEditorSaveStatus } from "../projects/exportProjectFile.js";
+import { DESKTOP_ONLY_REASON, KURVA_DESKTOP_APP_URL } from "../web/studioCapabilities.js";
 import { BrandMark } from "./BrandMark.js";
 import { type ZoomCommand, zoomMenuItems } from "./zoomMenu.js";
 
@@ -43,9 +44,14 @@ export interface StudioWindowBarProps {
   onZoomCommand: (command: ZoomCommand) => void;
   canZoomSelection: boolean;
   canManageConnection: boolean;
+  browserConnection?: boolean;
+  rememberOpenRouter?: boolean;
+  onRememberOpenRouter?: (remember: boolean) => void;
+  openRouterRevoke?: { settingsUrl: string; activityUrl: string } | null;
   connected: boolean;
   onConnectionAction: (action: "connect" | "replace" | "test" | "disconnect") => void;
   onSaveHostKey?: (key: string) => void;
+  showBlenderActions?: boolean;
   canSendToBlender?: boolean;
   onSendToBlender?: () => string;
   onBlenderAssets?: (result: { sceneFile: string; pngSrc: string; glbSrc: string }) => void;
@@ -79,9 +85,14 @@ export function StudioWindowBar({
   onZoomCommand,
   canZoomSelection,
   canManageConnection,
+  browserConnection = false,
+  rememberOpenRouter = true,
+  onRememberOpenRouter,
+  openRouterRevoke = null,
   connected,
   onConnectionAction,
   onSaveHostKey,
+  showBlenderActions = true,
   canSendToBlender = false,
   onSendToBlender,
   onBlenderAssets,
@@ -215,6 +226,19 @@ export function StudioWindowBar({
                 {displayedSaveStatus.label}
               </span>
             )}
+            {displayedSaveStatus.exportBackup ? (
+              <button
+                className="studio-windowbar__retry"
+                type="button"
+                onClick={() => {
+                  void import("../web/browserBackup.js")
+                    .then((backup) => backup.downloadBrowserBackup())
+                    .catch(() => undefined);
+                }}
+              >
+                Export backup
+              </button>
+            ) : null}
             <details
               className="studio-windowbar__menu"
               open={isMenuOpen}
@@ -304,8 +328,20 @@ export function StudioWindowBar({
             </summary>
             <div className="studio-windowbar__menu-popover">
               <p className="studio-windowbar__menu-note">
-                The key is sent once to this computer and is not kept in the page.
+                {browserConnection
+                  ? "Connect sends you to OpenRouter. The key stays in this browser and is sent only to OpenRouter. Kurva has no server."
+                  : "The key is sent once to this computer and is not kept in the page."}
               </p>
+              {browserConnection ? (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={rememberOpenRouter}
+                    onChange={(event) => onRememberOpenRouter?.(event.target.checked)}
+                  />
+                  Remember on this device
+                </label>
+              ) : null}
               {onSaveHostKey && (
                 <form
                   onSubmit={(event) => {
@@ -356,56 +392,80 @@ export function StudioWindowBar({
               >
                 Disconnect
               </button>
-              <p className="studio-windowbar__menu-status" role="status">
-                {blenderStatus}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  void fetch("/api/blender", { credentials: "same-origin" })
-                    .then((response) => response.json())
-                    .then((body: { message?: string }) =>
-                      setBlenderStatus(body.message ?? "Blender could not be checked.")
-                    )
-                    .catch(() => setBlenderStatus("Blender could not be checked. No scene file was changed."));
-                }}
-              >
-                Check Blender
-              </button>
-              <button
-                type="button"
-                disabled={!canSendToBlender}
-                onClick={() => {
-                  const svg = onSendToBlender?.() ?? "";
-                  void fetch("/api/blender", {
-                    method: "POST",
-                    credentials: "same-origin",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ svg, sourceName: "selection.svg" })
-                  })
-                    .then(async (response) => ({
-                      ok: response.ok,
-                      body: (await response.json()) as {
-                        message?: string;
-                        sent?: boolean;
-                        sceneFile?: string;
-                        pngSrc?: string;
-                        glbSrc?: string;
-                      }
-                    }))
-                    .then(({ ok, body }) => {
-                      setBlenderStatus(
-                        body.message ?? (ok ? "SVG sent to a new Blender copy." : "Send to Blender failed.")
-                      );
-                      if (body.sent && body.sceneFile && body.pngSrc && body.glbSrc) {
-                        onBlenderAssets?.({ sceneFile: body.sceneFile, pngSrc: body.pngSrc, glbSrc: body.glbSrc });
-                      }
-                    })
-                    .catch(() => setBlenderStatus("Send to Blender failed. No scene file was changed."));
-                }}
-              >
-                Send to Blender
-              </button>
+              {openRouterRevoke ? (
+                <p className="studio-windowbar__menu-note">
+                  The key was removed from this browser. Revoke it on OpenRouter if you no longer want it:{" "}
+                  <a href={openRouterRevoke.settingsUrl} rel="noreferrer" target="_blank">
+                    key settings
+                  </a>{" "}
+                  and{" "}
+                  <a href={openRouterRevoke.activityUrl} rel="noreferrer" target="_blank">
+                    activity
+                  </a>
+                  .
+                </p>
+              ) : null}
+              {showBlenderActions ? (
+                <>
+                  <p className="studio-windowbar__menu-status" role="status">
+                    {blenderStatus}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void fetch("/api/blender", { credentials: "same-origin" })
+                        .then((response) => response.json())
+                        .then((body: { message?: string }) =>
+                          setBlenderStatus(body.message ?? "Blender could not be checked.")
+                        )
+                        .catch(() => setBlenderStatus("Blender could not be checked. No scene file was changed."));
+                    }}
+                  >
+                    Check Blender
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canSendToBlender}
+                    onClick={() => {
+                      const svg = onSendToBlender?.() ?? "";
+                      void fetch("/api/blender", {
+                        method: "POST",
+                        credentials: "same-origin",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ svg, sourceName: "selection.svg" })
+                      })
+                        .then(async (response) => ({
+                          ok: response.ok,
+                          body: (await response.json()) as {
+                            message?: string;
+                            sent?: boolean;
+                            sceneFile?: string;
+                            pngSrc?: string;
+                            glbSrc?: string;
+                          }
+                        }))
+                        .then(({ ok, body }) => {
+                          setBlenderStatus(
+                            body.message ?? (ok ? "SVG sent to a new Blender copy." : "Send to Blender failed.")
+                          );
+                          if (body.sent && body.sceneFile && body.pngSrc && body.glbSrc) {
+                            onBlenderAssets?.({ sceneFile: body.sceneFile, pngSrc: body.pngSrc, glbSrc: body.glbSrc });
+                          }
+                        })
+                        .catch(() => setBlenderStatus("Send to Blender failed. No scene file was changed."));
+                    }}
+                  >
+                    Send to Blender
+                  </button>
+                </>
+              ) : (
+                <p className="studio-windowbar__menu-status">
+                  Blender: {DESKTOP_ONLY_REASON}.{" "}
+                  <a href={KURVA_DESKTOP_APP_URL} rel="noreferrer">
+                    Get the desktop app
+                  </a>
+                </p>
+              )}
               <button
                 type="button"
                 onClick={(event) => {
