@@ -531,10 +531,25 @@ describe("studio server", () => {
           document: {
             schema: { schemaVersion: 1 },
             store: {
-              "document:document": { typeName: "document", meta: { studioStyle: "Ink" } },
-              "instance_page_state:page": { typeName: "instance_page_state", selectedShapeIds: ["shape:frame"] },
-              "shape:frame": { typeName: "shape", type: "frame", props: { name: "Artboard", w: 800, h: 600 } },
-              "shape:design": { typeName: "shape", type: "design-frame", props: { html: "<h1>Hi</h1>" } }
+              "document:document": { id: "document:document", typeName: "document", meta: { studioStyle: "Ink" } },
+              "page:page": { id: "page:page", typeName: "page", name: "Page 1", index: "a1", meta: {} },
+              "instance_page_state:page": {
+                id: "instance_page_state:page",
+                typeName: "instance_page_state",
+                selectedShapeIds: ["shape:frame"]
+              },
+              "shape:frame": {
+                id: "shape:frame",
+                typeName: "shape",
+                type: "frame",
+                props: { name: "Artboard", w: 800, h: 600 }
+              },
+              "shape:design": {
+                id: "shape:design",
+                typeName: "shape",
+                type: "design-frame",
+                props: { html: "<h1>Hi</h1>" }
+              }
             }
           }
         })
