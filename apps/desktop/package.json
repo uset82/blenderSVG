@@ -6,9 +6,12 @@
   "main": "src/main.mjs",
   "scripts": {
     "start": "electron src/main.mjs",
-    "test": "pnpm --workspace-root exec vitest run apps/desktop"
+    "test": "pnpm --workspace-root exec vitest run apps/desktop",
+    "package:win": "node scripts/package-installer.mjs"
   },
   "devDependencies": {
-    "electron": "^33.4.11"
+    "electron": "^33.4.11",
+    "electron-builder": "^26.15.3",
+    "esbuild": "0.28.1"
   }
 }

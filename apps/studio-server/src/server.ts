@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type Server, STATUS_CODES } from "n
 import path from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
+import { generateSvgWithQuiver, previewImageToSvg } from "@codex-avatar-studio/asset-pipeline";
 import {
   createHostToStudioMessage,
   type HostToStudioMessageInput,
@@ -11,10 +12,8 @@ import {
   type StudioToHostMessage
 } from "@codex-avatar-studio/avatar-core";
 import { readLibraryAsset, writeLibraryAsset } from "@codex-avatar-studio/studio-host-core/assetStore";
-import { generateSvgWithQuiver } from "@codex-avatar-studio/asset-pipeline";
-import { previewImageToSvg } from "@codex-avatar-studio/asset-pipeline";
 import { probeBlenderExecutable } from "@codex-avatar-studio/studio-host-core/blenderProbe";
-import { runBlenderCommand, type BlenderCommandRunner } from "@codex-avatar-studio/studio-host-core/blenderRunner";
+import { type BlenderCommandRunner, runBlenderCommand } from "@codex-avatar-studio/studio-host-core/blenderRunner";
 import {
   conversationRecord,
   deleteConversation,
@@ -39,8 +38,8 @@ import {
 } from "@codex-avatar-studio/studio-host-core/thumbnailStore";
 import { type Context, Hono } from "hono";
 import { WebSocket, WebSocketServer } from "ws";
-import { readBlenderGlbAsset, sendSvgToBlender } from "./blenderSend.ts";
 import { handleAvatarPackageRoute } from "./avatarPackageRoute.ts";
+import { readBlenderGlbAsset, sendSvgToBlender } from "./blenderSend.ts";
 import { type BlenderSupportState, blenderStatusMessage } from "./blenderStatus.ts";
 import {
   guardStudioRequest,
@@ -408,35 +407,38 @@ async function handleMcpRoute(
           const callArgs = (call.params as { arguments?: { id?: string; name?: string; html?: string } }).arguments;
           try {
             const project = projects ? await projects.open(String(callArgs?.id ?? "")) : null;
-            if (!project) text = JSON.stringify({ error: "Project not found." });
+            const shapeId = `shape:design-${randomBytes(4).toString("hex")}`;
+            const next = project
+              ? createSavedDesignFrame(
+                  project.snapshot,
+                  shapeId,
+                  String(callArgs?.name ?? "Design"),
+                  String(callArgs?.html ?? "")
+                )
+              : { error: "Project not found." };
+            if (!project || typeof next !== "string") text = JSON.stringify(next);
             else {
-              const next = createSavedDesignFrame(
-                project.snapshot,
-                "shape:landing",
-                String(callArgs?.name ?? "Design"),
-                String(callArgs?.html ?? "")
-              );
               await projects?.save(project.id, project.title, next);
-              text = JSON.stringify({ created: "shape:landing", script: next.toLowerCase().includes("<script") });
+              text = JSON.stringify({ created: shapeId, script: next.toLowerCase().includes("<script") });
             }
-          } catch {
-            text = JSON.stringify({ error: "Project not found." });
+          } catch (error) {
+            text = JSON.stringify({ error: mcpSaveErrorMessage(error) });
           }
         } else if (call.params.name === "insert_svg") {
           const callArgs = (call.params as { arguments?: { id?: string; svg?: string } }).arguments;
           try {
             const project = projects ? await projects.open(String(callArgs?.id ?? "")) : null;
+            const shapeId = `shape:svg-${randomBytes(4).toString("hex")}`;
             const next = project
-              ? insertSavedSvg(project.snapshot, "shape:svg", String(callArgs?.svg ?? ""))
+              ? insertSavedSvg(project.snapshot, shapeId, String(callArgs?.svg ?? ""))
               : { error: "Project not found." };
-            if (!project || typeof next !== "string")
-              text = JSON.stringify(typeof next === "string" ? { error: "Project not found." } : next);
+            if (!project || typeof next !== "string") text = JSON.stringify(next);
             else {
               await projects?.save(project.id, project.title, next);
-              text = JSON.stringify({ inserted: "shape:svg", script: next.toLowerCase().includes("<script") });
+              text = JSON.stringify({ inserted: shapeId, script: next.toLowerCase().includes("<script") });
             }
-          } catch {
-            text = JSON.stringify({ error: "Project not found." });
+          } catch (error) {
+            text = JSON.stringify({ error: mcpSaveErrorMessage(error) });
           }
         } else if (call.params.name === "create_shapes") {
           const callArgs = (
@@ -449,13 +451,15 @@ async function handleMcpRoute(
             const shapes = (callArgs?.shapes ?? []).flatMap((shape) =>
               shape.id && shape.name ? [{ id: shape.id, name: shape.name, w: shape.w ?? 10, h: shape.h ?? 10 }] : []
             );
+            const next = project && shapes.length ? createSavedShapes(project.snapshot, shapes) : null;
             if (!project || !shapes.length) text = JSON.stringify({ error: "Shape not found." });
+            else if (typeof next !== "string") text = JSON.stringify(next);
             else {
-              await projects?.save(project.id, project.title, createSavedShapes(project.snapshot, shapes));
+              await projects?.save(project.id, project.title, next);
               text = JSON.stringify({ created: shapes.map((shape) => shape.id) });
             }
-          } catch {
-            text = JSON.stringify({ error: "Project not found." });
+          } catch (error) {
+            text = JSON.stringify({ error: mcpSaveErrorMessage(error) });
           }
         } else if (call.params.name === "delete_shapes") {
           const callArgs = (call.params as { arguments?: { id?: string; shapeIds?: string[] } }).arguments;
@@ -1152,6 +1156,12 @@ export async function handleConversationRoute(
     return c.json({ deleted: true }, 200, headers);
   }
   return c.json({ message: "Unknown conversation route." }, 404, headers);
+}
+
+/** What an MCP agent is told when a saved-project edit fails; missing stays "not found", the rest says why. */
+function mcpSaveErrorMessage(error: unknown): string {
+  if (error instanceof StudioProjectStoreError) return error.code === "missing" ? "Project not found." : error.message;
+  return "The project could not be saved.";
 }
 
 export function studioFilePath(staticRoot: string, pathname: string): string | null {

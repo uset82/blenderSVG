@@ -49,7 +49,8 @@
     "validate:docs": "node scripts/validate-docs.mjs",
     "validate:notices": "node scripts/validate-notices.mjs",
     "validate:vsix": "node scripts/validate-vsix.mjs",
-    "package:vsix:pre": "node scripts/package-vsix.mjs --pre-release"
+    "package:vsix:pre": "node scripts/package-vsix.mjs --pre-release",
+    "package:desktop": "pnpm build && pnpm --filter @codex-avatar-studio/desktop package:win"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.3",

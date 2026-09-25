@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { type Editor, GeoShapeGeoStyle, type TLDefaultColorStyle, type TLPageId, type TLShapeId, Tldraw } from "tldraw";
 import "tldraw/tldraw.css";
 import "./styles/studio.css";
+import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import { type StudioProjectsState, useStudioHost } from "./bridge/studioHost.js";
 import type { AgentConversation, StoredAgentConversation } from "./components/agentConversations.js";
 import { stopRunningReply } from "./components/agentSessions.js";
@@ -56,7 +57,6 @@ import {
   type VariantSession
 } from "./components/variantSessions.js";
 import { type ZoomCommand, zoomScale } from "./components/zoomMenu.js";
-import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import {
   buildStudioProjectExport,
   safeExportFileName,
@@ -79,6 +79,7 @@ import {
   svgTextToFile,
   traceImageFileLocally
 } from "./projects/localAssets.js";
+import { projectOpenFailureMessage } from "./projects/openFailure.js";
 import {
   deleteStandaloneProject,
   duplicateStandaloneProject,
@@ -376,6 +377,8 @@ export function App() {
   const traceInputRef = useRef<HTMLInputElement | null>(null);
   const screenshotInputRef = useRef<HTMLInputElement | null>(null);
   const [importNotice, setImportNotice] = useState<string | undefined>(undefined);
+  // Shown on Home when a saved project exists but its canvas data cannot be loaded.
+  const [openFailureNotice, setOpenFailureNotice] = useState<string | undefined>(undefined);
   const [isAgentSidebarOpen, setAgentSidebarOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth >= 1100 || window.innerWidth <= 700;
@@ -879,6 +882,7 @@ export function App() {
         projectIdRef.current = null;
         setActiveProjectId(null);
         setProjectSaveStatus("Could not open project");
+        setOpenFailureNotice(projectOpenFailureMessage(projectTitleRef.current));
         navigateRoute({ name: "home" });
       }
       pendingSnapshotRef.current = null;
@@ -1660,6 +1664,7 @@ export function App() {
   };
 
   const handleOpenProject = (projectId: string) => {
+    setOpenFailureNotice(undefined);
     if (projectId !== projectIdRef.current) persistProjectNow();
     routedProjectRef.current = null;
     navigateRoute({ name: "project", projectId });
@@ -2406,7 +2411,9 @@ export function App() {
           hostThumbnailVersions={hostThumbnailVersions}
           activeProjectId={activeProjectId}
           projectActionMessage={
-            projectAction?.message ?? (isStandaloneHost ? projectLibraryState.message : importNotice)
+            openFailureNotice ??
+            projectAction?.message ??
+            (isStandaloneHost ? projectLibraryState.message : importNotice)
           }
           onClose={showEditor}
           onOpenCanvas={handleOpenCanvas}

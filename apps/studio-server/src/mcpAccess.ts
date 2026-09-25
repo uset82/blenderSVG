@@ -141,23 +141,73 @@ export function deleteSavedShape(snapshot: string, shapeId: string): string | nu
   return JSON.stringify(parsed);
 }
 
+type SavedRecord = Record<string, unknown>;
+type SavedSnapshot = { document?: { store?: Record<string, SavedRecord> } };
+
+export const NO_PAGE_ERROR = "This project has no page yet. Open it in the Studio once, then ask the agent again.";
+
+function firstPageId(store: Record<string, SavedRecord>): string | undefined {
+  return Object.values(store)
+    .filter((record) => record.typeName === "page" && typeof record.id === "string")
+    .sort((left, right) => String(left.index ?? "").localeCompare(String(right.index ?? "")))[0]?.id as
+    | string
+    | undefined;
+}
+
+/** A fractional index above every sibling; appending a non-zero digit keeps the key valid and larger. */
+function indexAbove(store: Record<string, SavedRecord>, parentId: string): string {
+  const indexes = Object.values(store)
+    .filter((record) => record.typeName === "shape" && record.parentId === parentId && typeof record.index === "string")
+    .map((record) => String(record.index))
+    .sort();
+  const highest = indexes.at(-1);
+  return highest ? `${highest}V` : "a1";
+}
+
+/**
+ * Writes a complete tldraw shape record, as the Studio editor would, so a project an agent edited
+ * while the Studio was closed still opens. Replacing an existing shape keeps its page, order and position.
+ */
+function putSavedShape(
+  store: Record<string, SavedRecord>,
+  requestedId: string,
+  type: string,
+  props: Record<string, unknown>
+): string | null {
+  const pageId = firstPageId(store);
+  if (!pageId) return null;
+  const id = requestedId.startsWith("shape:") ? requestedId : `shape:${requestedId}`;
+  const existing = store[id]?.typeName === "shape" ? store[id] : undefined;
+  const siblings = Object.values(store).filter((record) => record.typeName === "shape" && record.parentId === pageId);
+  const parentId = typeof existing?.parentId === "string" ? existing.parentId : pageId;
+  store[id] = {
+    id,
+    typeName: "shape",
+    type,
+    x: typeof existing?.x === "number" ? existing.x : siblings.length * 40,
+    y: typeof existing?.y === "number" ? existing.y : siblings.length * 40,
+    rotation: 0,
+    index: typeof existing?.index === "string" ? existing.index : indexAbove(store, parentId),
+    parentId,
+    isLocked: false,
+    opacity: 1,
+    meta: {},
+    props
+  };
+  return id;
+}
+
 export function createSavedShapes(
   snapshot: string,
   shapes: readonly { id: string; name: string; w: number; h: number }[]
-): string {
-  const parsed = JSON.parse(snapshot) as {
-    document?: {
-      store?: Record<string, { typeName: string; type: string; props: { name: string; w: number; h: number } }>;
-    };
-  };
-  if (!parsed.document) return snapshot;
+): string | { error: string } {
+  const parsed = JSON.parse(snapshot) as SavedSnapshot;
+  if (!parsed.document) return { error: "Project not found." };
   parsed.document.store ??= {};
   for (const shape of shapes) {
-    parsed.document.store[shape.id] = {
-      typeName: "shape",
-      type: "geo",
-      props: { name: shape.name, w: shape.w, h: shape.h }
-    };
+    // Named boxes are tldraw frames; frame sizes must be non-zero.
+    const props = { w: Math.max(1, shape.w), h: Math.max(1, shape.h), name: shape.name, color: "black" };
+    if (!putSavedShape(parsed.document.store, shape.id, "frame", props)) return { error: NO_PAGE_ERROR };
   }
   return JSON.stringify(parsed);
 }
@@ -166,32 +216,35 @@ export function insertSavedSvg(snapshot: string, shapeId: string, svg: string): 
   if (!svg.includes("<svg")) return { error: "svg must be an SVG document." };
   const clean = svg.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
   if (clean.toLowerCase().includes("<script")) return { error: "SVG was not sanitized." };
-  const parsed = JSON.parse(snapshot) as {
-    document?: { store?: Record<string, { typeName: string; type: string; props: { svg: string } }> };
-  };
+  const parsed = JSON.parse(snapshot) as SavedSnapshot;
   if (!parsed.document) return { error: "Project not found." };
   parsed.document.store ??= {};
-  parsed.document.store[shapeId] = { typeName: "shape", type: "vector-studio", props: { svg: clean } };
+  // The Vector Studio shape keeps its result in lastSvg (see VectorStudioCanvasShape).
+  const props = {
+    w: 440,
+    h: 640,
+    engine: "vtracer",
+    openRouterModel: "",
+    detail: "balanced",
+    lastSvg: clean,
+    isProcessing: false
+  };
+  if (!putSavedShape(parsed.document.store, shapeId, "vector-studio", props)) return { error: NO_PAGE_ERROR };
   return JSON.stringify(parsed);
 }
 
-export function createSavedDesignFrame(snapshot: string, shapeId: string, name: string, html: string): string {
+export function createSavedDesignFrame(
+  snapshot: string,
+  shapeId: string,
+  name: string,
+  html: string
+): string | { error: string } {
   const clean = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
-  const parsed = JSON.parse(snapshot) as {
-    document?: {
-      store?: Record<
-        string,
-        { typeName: string; type: string; props: { name: string; html: string; w: number; h: number } }
-      >;
-    };
-  };
-  if (!parsed.document) return snapshot;
+  const parsed = JSON.parse(snapshot) as SavedSnapshot;
+  if (!parsed.document) return { error: "Project not found." };
   parsed.document.store ??= {};
-  parsed.document.store[shapeId] = {
-    typeName: "shape",
-    type: "design-frame",
-    props: { name, html: clean, w: 800, h: 600 }
-  };
+  const props = { w: 800, h: 600, name, html: clean };
+  if (!putSavedShape(parsed.document.store, shapeId, "design-frame", props)) return { error: NO_PAGE_ERROR };
   return JSON.stringify(parsed);
 }
 

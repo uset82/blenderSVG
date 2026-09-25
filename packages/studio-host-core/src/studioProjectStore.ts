@@ -506,6 +506,23 @@ function validateSnapshot(snapshot: string): void {
   ) {
     throw new StudioProjectStoreError("corrupt", "The canvas snapshot is missing its versioned tldraw schema.");
   }
+  // Every canvas record carries its own id and type, as tldraw writes them. Hand-written
+  // snapshots from other tools often skip these and then cannot be opened in the Studio.
+  for (const [key, record] of Object.entries(data.store as Record<string, unknown>)) {
+    const candidate = record as { id?: unknown; typeName?: unknown } | null;
+    if (
+      !candidate ||
+      typeof candidate !== "object" ||
+      Array.isArray(candidate) ||
+      candidate.id !== key ||
+      typeof candidate.typeName !== "string"
+    ) {
+      throw new StudioProjectStoreError(
+        "corrupt",
+        "The canvas snapshot has a record without a matching id and type, so the Studio could not open it. The project was left unchanged."
+      );
+    }
+  }
 }
 
 function isProjectDocument(value: unknown, expectedId: string): value is StudioProjectDocument {

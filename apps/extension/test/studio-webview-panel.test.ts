@@ -296,7 +296,10 @@ describe("Studio editor panel", () => {
     const secrets = { get: vi.fn(async () => undefined), store: vi.fn(), delete: vi.fn() };
     const projectId = "55b5363d-6cd6-42f7-8c8c-79b8a847d8e6";
     const editedSnapshot = JSON.stringify({
-      document: { schema: { version: 2 }, store: { shape: { id: "shape:qa-roundtrip" } } }
+      document: {
+        schema: { version: 2 },
+        store: { "shape:qa-roundtrip": { id: "shape:qa-roundtrip", typeName: "shape" } }
+      }
     });
 
     const firstPanel = new StudioWebviewPanel(root as never, secrets as never, () => root.fsPath);
