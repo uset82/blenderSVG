@@ -14,7 +14,12 @@ self.addEventListener("fetch", (event) => {
   const appPath = (path) => `${scopePath}${path}`;
   if (url.origin !== self.location.origin) return;
   if (url.hostname === "openrouter.ai") return;
-  if (event.request.mode === "navigate" || url.pathname === appPath("/") || url.pathname === `${scopePath}/` || url.pathname.endsWith(".html")) {
+  if (
+    event.request.mode === "navigate" ||
+    url.pathname === appPath("/") ||
+    url.pathname === `${scopePath}/` ||
+    url.pathname.endsWith(".html")
+  ) {
     event.respondWith(fetch(event.request).catch(() => caches.match(appPath("/index.html"))));
     return;
   }
@@ -24,7 +29,10 @@ self.addEventListener("fetch", (event) => {
         const cached = await cache.match(event.request);
         if (cached) return cached;
         const response = await fetch(event.request);
-        if (response.ok) await cache.put(event.request, response.clone());
+        // Cache real assets only. A host that answers a missing asset with the HTML shell
+        // would otherwise poison this cache with a page where a script belongs.
+        const type = response.headers.get("content-type") ?? "";
+        if (response.ok && !type.includes("text/html")) await cache.put(event.request, response.clone());
         return response;
       })
     );

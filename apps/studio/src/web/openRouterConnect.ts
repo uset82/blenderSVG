@@ -11,6 +11,7 @@ import {
   readPkcePending,
   writePkcePending
 } from "@codex-avatar-studio/studio-host-core/openRouterPkce";
+import { appPath } from "./appBase.js";
 import { browserOpenRouterSecretStore, setRememberOpenRouterKey, type WebSecretStore } from "./webSecretStore.js";
 
 export async function beginWebOpenRouterConnect(input: {
@@ -28,7 +29,7 @@ export async function beginWebOpenRouterConnect(input: {
     remember: input.remember
   });
   const url = buildOpenRouterAuthUrl({
-    callbackUrl: `${input.origin}${OPENROUTER_CALLBACK_PATH}?state=${encodeURIComponent(material.state)}`,
+    callbackUrl: `${input.origin}${appPath(OPENROUTER_CALLBACK_PATH)}?state=${encodeURIComponent(material.state)}`,
     challenge,
     keyLabel: "Kurva web"
   });

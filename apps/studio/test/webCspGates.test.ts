@@ -161,7 +161,8 @@ describe("web CSP gates", () => {
     const source = readFileSync(new URL("../src/web/browserSupport.ts", import.meta.url), "utf8");
     const probe = readFileSync(new URL("../public/module-worker-probe.js", import.meta.url), "utf8");
     expect(source).not.toContain("createObjectURL");
-    expect(source).toContain("/module-worker-probe.js");
+    // The probe is loaded from the app base ("/" or "/app/"), always on this origin.
+    expect(source).toMatch(/import.meta.env.BASE_URL}module-worker-probe.js/);
     expect(probe).toContain("export");
   });
 });
