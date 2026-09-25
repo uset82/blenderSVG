@@ -1,15 +1,19 @@
+export const WEB_DIRECT_REQUEST = "Requests go directly from this browser to OpenRouter. Kurva has no server.";
+
 export function sendContextLines(input: {
   modelName: string | null;
   draftCharacters: number;
   historyCount: number;
   attachmentName: string | null;
+  direct?: boolean;
 }): string[] {
   return [
     input.modelName ? `Model: ${input.modelName}` : "No model selected.",
     `Draft: ${input.draftCharacters} characters.`,
     `Earlier messages included: ${input.historyCount}.`,
     input.attachmentName ? `Image: ${input.attachmentName}.` : "No image attached.",
-    "The OpenRouter key is not included."
+    "The OpenRouter key is not included.",
+    ...(input.direct ? [WEB_DIRECT_REQUEST] : [])
   ];
 }
 

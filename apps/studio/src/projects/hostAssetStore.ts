@@ -28,6 +28,35 @@ export function createHostAssetStore(): TLAssetStore {
   };
 }
 
+/** Copy host asset files into the downloaded project so it opens without this server. */
+export async function inlineStandaloneAssetSources(snapshot: string): Promise<string> {
+  const ids = new Set(
+    [...snapshot.matchAll(/\/assets\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi)].map(
+      (match) => match[1] ?? ""
+    )
+  );
+  let next = snapshot;
+  for (const id of ids) {
+    if (!id) continue;
+    const response = await fetch(`/assets/${id}`, { credentials: "same-origin" });
+    if (!response.ok) continue;
+    const blob = await response.blob();
+    const dataUrl = await blobToDataUrl(blob);
+    next = next.replaceAll(`/assets/${id}`, dataUrl);
+  }
+  return next;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return blob.arrayBuffer().then((buffer) => {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    const type = blob.type || "application/octet-stream";
+    return `data:${type};base64,${btoa(binary)}`;
+  });
+}
+
 function hostAssetContentType(file: File): string | null {
   const declaredType = file.type.split(";")[0]?.trim().toLowerCase();
   if (declaredType) return HOST_ASSET_TYPES.has(declaredType) ? declaredType : null;

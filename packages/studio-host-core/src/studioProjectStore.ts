@@ -1,50 +1,34 @@
 import { randomUUID } from "node:crypto";
 import { link, lstat, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  FORMAT_VERSION,
+  isImportDocument,
+  isProjectDocument,
+  MAX_PROJECT_BYTES,
+  MAX_PROJECTS,
+  normalizeTitle,
+  SCRATCHPAD_PROJECT_ID,
+  type StudioProjectDocument,
+  type StudioProjectMeta,
+  StudioProjectStoreError,
+  toProjectMeta,
+  utf8ByteLength,
+  validateProjectId,
+  validateRenameTitle,
+  validateSnapshot
+} from "./projectEnvelope.js";
 
-export interface StudioProjectMeta {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface StudioProjectDocument extends StudioProjectMeta {
-  formatVersion: 1;
-  snapshot: string;
-}
-
-export type StudioProjectStoreErrorCode = "workspace" | "missing" | "corrupt" | "too-large" | "invalid-title" | "io";
-
-export class StudioProjectStoreError extends Error {
-  public constructor(
-    public readonly code: StudioProjectStoreErrorCode,
-    message: string
-  ) {
-    super(message);
-    this.name = "StudioProjectStoreError";
-  }
-}
-
-const FORMAT_VERSION = 1 as const;
-const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MAX_SNAPSHOT_CHARS = 20_000_000;
-const MAX_PROJECT_BYTES = 24_000_000;
-const MAX_PROJECTS = 2_000;
-export const SCRATCHPAD_PROJECT_ID = "00000000-0000-4000-8000-000000000001";
+export {
+  formatCorruptProjectMessage,
+  SCRATCHPAD_PROJECT_ID,
+  type StudioProjectDocument,
+  type StudioProjectMeta,
+  StudioProjectStoreError,
+  type StudioProjectStoreErrorCode
+} from "./projectEnvelope.js";
 
 /** Local, workspace-trusted project storage with a versioned envelope and atomic replacement. */
-const CORRUPT_PROJECT_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/i;
-
-/** Host message for damaged project files. Names are basenames only, and the text stays inside the protocol limit. */
-export function formatCorruptProjectMessage(count: number, names: readonly string[]): string {
-  const summary = `${count} damaged project file${count === 1 ? " was" : "s were"} left in place for recovery.`;
-  const safe = names.filter((name) => CORRUPT_PROJECT_NAME.test(name)).slice(0, 6);
-  if (!safe.length) return summary;
-  const extra = names.length > safe.length ? ` and ${names.length - safe.length} more` : "";
-  const detailed = `${summary} ${safe.join(", ")}${extra}.`;
-  return detailed.length <= 500 ? detailed : summary;
-}
 
 export class StudioProjectStore {
   public constructor(
@@ -69,7 +53,7 @@ export class StudioProjectStore {
       }
       try {
         const project = await this.read(id);
-        projects.push(toMeta(project));
+        projects.push(toProjectMeta(project));
       } catch {
         corruptNames.push(entry.name);
       }
@@ -89,12 +73,12 @@ export class StudioProjectStore {
   }
 
   public async open(id: string): Promise<StudioProjectDocument> {
-    const safeId = validateId(id);
+    const safeId = validateProjectId(id);
     return this.read(safeId);
   }
 
   public async save(id: string, title: string, snapshot: string): Promise<StudioProjectMeta> {
-    const safeId = validateId(id);
+    const safeId = validateProjectId(id);
     const safeTitle = normalizeTitle(title);
     validateSnapshot(snapshot);
     const directory = await this.getDirectory(true);
@@ -116,7 +100,7 @@ export class StudioProjectStore {
       snapshot
     };
     const serialized = JSON.stringify(document);
-    if (Buffer.byteLength(serialized, "utf8") > MAX_PROJECT_BYTES) {
+    if (utf8ByteLength(serialized) > MAX_PROJECT_BYTES) {
       throw new StudioProjectStoreError(
         "too-large",
         "This canvas is too large to save. Remove large embedded assets and try again."
@@ -134,15 +118,15 @@ export class StudioProjectStore {
         "Studio could not save this project. Check workspace permissions and available disk space."
       );
     }
-    return toMeta(document);
+    return toProjectMeta(document);
   }
 
   /** Rename only a verified existing project while preserving its canvas and creation date. */
   public async rename(id: string, title: string): Promise<StudioProjectMeta> {
-    const safeId = validateId(id);
+    const safeId = validateProjectId(id);
     const safeTitle = validateRenameTitle(title);
     const original = await this.read(safeId);
-    if (original.title === safeTitle) return toMeta(original);
+    if (original.title === safeTitle) return toProjectMeta(original);
 
     const directory = await this.getDirectory(false);
     const updated: StudioProjectDocument = {
@@ -154,7 +138,7 @@ export class StudioProjectStore {
       snapshot: original.snapshot
     };
     const serialized = JSON.stringify(updated);
-    if (Buffer.byteLength(serialized, "utf8") > MAX_PROJECT_BYTES) {
+    if (utf8ByteLength(serialized) > MAX_PROJECT_BYTES) {
       throw new StudioProjectStoreError("too-large", "This Studio project exceeds the supported local file size.");
     }
 
@@ -163,7 +147,7 @@ export class StudioProjectStore {
       await writeFile(temporaryPath, serialized, { encoding: "utf8", flag: "wx", mode: 0o600 });
       const target = await this.getSafeProjectPath(directory, safeId, false);
       await rename(temporaryPath, target.path);
-      return toMeta(updated);
+      return toProjectMeta(updated);
     } catch (error) {
       if (error instanceof StudioProjectStoreError) throw error;
       throw new StudioProjectStoreError("io", "Studio could not rename this project. Check workspace permissions.");
@@ -174,7 +158,7 @@ export class StudioProjectStore {
 
   /** Resolve only a readable stored project for the host's native reveal action. */
   public async revealPath(id: string): Promise<string> {
-    const safeId = validateId(id);
+    const safeId = validateProjectId(id);
     await this.read(safeId);
     const directory = await this.getDirectory(false);
     return (await this.getSafeProjectPath(directory, safeId, false)).path;
@@ -185,7 +169,7 @@ export class StudioProjectStore {
     validateSnapshot(snapshot);
     const directory = await this.getDirectory(true);
     const target = await this.getSafeProjectPath(directory, SCRATCHPAD_PROJECT_ID, true);
-    if (target.exists) return toMeta(await this.read(SCRATCHPAD_PROJECT_ID));
+    if (target.exists) return toProjectMeta(await this.read(SCRATCHPAD_PROJECT_ID));
 
     const now = new Date().toISOString();
     const document: StudioProjectDocument = {
@@ -197,7 +181,7 @@ export class StudioProjectStore {
       snapshot
     };
     const serialized = JSON.stringify(document);
-    if (Buffer.byteLength(serialized, "utf8") > MAX_PROJECT_BYTES) {
+    if (utf8ByteLength(serialized) > MAX_PROJECT_BYTES) {
       throw new StudioProjectStoreError("too-large", "The Scratchpad canvas exceeds the supported local file size.");
     }
 
@@ -208,10 +192,10 @@ export class StudioProjectStore {
         // Exclusive link makes concurrent provisioning safe without replacing an existing draft.
         await link(temporaryPath, target.path);
       } catch (error) {
-        if (isAlreadyExists(error)) return toMeta(await this.read(SCRATCHPAD_PROJECT_ID));
+        if (isAlreadyExists(error)) return toProjectMeta(await this.read(SCRATCHPAD_PROJECT_ID));
         throw error;
       }
-      return toMeta(document);
+      return toProjectMeta(document);
     } catch (error) {
       if (error instanceof StudioProjectStoreError) throw error;
       throw new StudioProjectStoreError("io", "Studio could not create the local Scratchpad project.");
@@ -221,7 +205,7 @@ export class StudioProjectStore {
   }
 
   public async duplicate(id: string): Promise<StudioProjectMeta> {
-    const original = await this.read(validateId(id));
+    const original = await this.read(validateProjectId(id));
     const title = normalizeTitle(`${original.title} copy`);
     return this.save(randomUUID(), title, original.snapshot);
   }
@@ -251,7 +235,7 @@ export class StudioProjectStore {
     } catch {
       throw new StudioProjectStoreError("io", "Studio could not read the selected project file.");
     }
-    if (Buffer.byteLength(sourceText, "utf8") > MAX_PROJECT_BYTES) {
+    if (utf8ByteLength(sourceText) > MAX_PROJECT_BYTES) {
       throw new StudioProjectStoreError("too-large", "The selected Studio project exceeds the supported file size.");
     }
 
@@ -279,7 +263,7 @@ export class StudioProjectStore {
         snapshot: source.snapshot
       };
       const serialized = JSON.stringify(document);
-      if (Buffer.byteLength(serialized, "utf8") > MAX_PROJECT_BYTES) {
+      if (utf8ByteLength(serialized) > MAX_PROJECT_BYTES) {
         throw new StudioProjectStoreError("too-large", "The selected Studio project exceeds the supported file size.");
       }
 
@@ -300,7 +284,7 @@ export class StudioProjectStore {
   }
 
   public async delete(id: string): Promise<void> {
-    const safeId = validateId(id);
+    const safeId = validateProjectId(id);
     if (safeId === SCRATCHPAD_PROJECT_ID) {
       throw new StudioProjectStoreError("workspace", "Scratchpad is permanent and cannot be deleted.");
     }
@@ -444,97 +428,6 @@ export class StudioProjectStore {
       throw new StudioProjectStoreError("io", "Studio could not access this project file.");
     }
   }
-}
-
-function validateId(id: string): string {
-  if (!PROJECT_ID.test(id)) throw new StudioProjectStoreError("corrupt", "The Studio project identifier is invalid.");
-  return id.toLowerCase();
-}
-
-function normalizeTitle(title: string): string {
-  const normalized = title
-    .replace(/\p{Cc}/gu, "")
-    .trim()
-    .slice(0, 120);
-  return normalized || "Untitled";
-}
-
-function validateRenameTitle(title: string): string {
-  const trimmed = title.trim();
-  if (!trimmed || trimmed.length > 120 || /\p{Cc}/u.test(trimmed)) {
-    throw new StudioProjectStoreError(
-      "invalid-title",
-      "Use a project title of 1–120 characters without control characters."
-    );
-  }
-  return trimmed;
-}
-
-function validateSnapshot(snapshot: string): void {
-  if (Buffer.byteLength(snapshot, "utf8") > MAX_SNAPSHOT_CHARS) {
-    throw new StudioProjectStoreError(
-      "too-large",
-      "This canvas is too large to save. Remove large embedded assets and try again."
-    );
-  }
-  let value: unknown;
-  try {
-    value = JSON.parse(snapshot) as unknown;
-  } catch {
-    throw new StudioProjectStoreError(
-      "corrupt",
-      "Studio could not read the canvas data. The project was left unchanged."
-    );
-  }
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new StudioProjectStoreError(
-      "corrupt",
-      "Studio could not read the canvas data. The project was left unchanged."
-    );
-  }
-  const document = (value as { document?: unknown }).document;
-  if (!document || typeof document !== "object" || Array.isArray(document)) {
-    throw new StudioProjectStoreError("corrupt", "The canvas snapshot is missing its document data.");
-  }
-  const data = document as { schema?: unknown; store?: unknown };
-  if (
-    !data.schema ||
-    typeof data.schema !== "object" ||
-    !data.store ||
-    typeof data.store !== "object" ||
-    Array.isArray(data.store)
-  ) {
-    throw new StudioProjectStoreError("corrupt", "The canvas snapshot is missing its versioned tldraw schema.");
-  }
-}
-
-function isProjectDocument(value: unknown, expectedId: string): value is StudioProjectDocument {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const document = value as Partial<StudioProjectDocument>;
-  return (
-    document.formatVersion === FORMAT_VERSION &&
-    document.id === expectedId &&
-    typeof document.title === "string" &&
-    document.title.trim().length > 0 &&
-    document.title.length <= 120 &&
-    typeof document.createdAt === "string" &&
-    Number.isFinite(Date.parse(document.createdAt)) &&
-    typeof document.updatedAt === "string" &&
-    Number.isFinite(Date.parse(document.updatedAt)) &&
-    typeof document.snapshot === "string"
-  );
-}
-
-function isImportDocument(value: unknown): value is StudioProjectDocument {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const keys = Object.keys(value).sort();
-  if (keys.join(",") !== "createdAt,formatVersion,id,snapshot,title,updatedAt") return false;
-  const id = (value as { id?: unknown }).id;
-  return typeof id === "string" && PROJECT_ID.test(id) && isProjectDocument(value, id);
-}
-
-function toMeta(project: StudioProjectDocument): StudioProjectMeta {
-  return { id: project.id, title: project.title, createdAt: project.createdAt, updatedAt: project.updatedAt };
 }
 
 function isNotFound(error: unknown): boolean {

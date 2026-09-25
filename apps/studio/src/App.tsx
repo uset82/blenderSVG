@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { type Editor, GeoShapeGeoStyle, type TLDefaultColorStyle, type TLPageId, type TLShapeId, Tldraw } from "tldraw";
-import "tldraw/tldraw.css";
+import type { Editor, TLDefaultColorStyle, TLPageId, TLShapeId } from "tldraw";
 import "./styles/studio.css";
 import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import { type StudioProjectsState, useStudioHost } from "./bridge/studioHost.js";
@@ -11,7 +10,6 @@ import { CanvasLicenseNotice } from "./components/CanvasLicenseNotice.js";
 import { decodeAssetDrag, placeCanvasAsset } from "./components/canvasAssets.js";
 import { applyProposal, type CanvasProposal, proposalFromTool } from "./components/canvasProposal.js";
 import type { PaletteCommand } from "./components/commandPalette.js";
-import { CONNECTOR_SNIPPETS, connectorSnippetsForLaunch } from "./components/connectorSnippets.js";
 import { capCanvasSummary } from "./components/contextBudget.js";
 import { executeCanvasTool } from "./components/executeCanvasTool.js";
 import { summarizeShapeSelection } from "./components/inspectorSelection.js";
@@ -44,8 +42,6 @@ import {
   type PageProperties,
   StudioInspector
 } from "./components/StudioInspector.js";
-import { StudioLeftPanel } from "./components/StudioLeftPanel.js";
-import { StudioToolbar } from "./components/StudioToolbar.js";
 import { StudioWindowBar } from "./components/StudioWindowBar.js";
 import { ensureSessionScratchpad, isSessionScratchpad } from "./components/sessionScratchpad.js";
 import {
@@ -58,7 +54,6 @@ import {
   type StudioTheme
 } from "./components/studioTheme.js";
 import { setRichTextWeight } from "./components/textWeight.js";
-import { VectorAssetDialog } from "./components/VectorAssetDialog.js";
 import {
   keepVariantFrame,
   placeVariantFrames,
@@ -72,7 +67,7 @@ import {
   stableExportSvgIds,
   studioExportFileName
 } from "./projects/exportProjectFile.js";
-import { createHostAssetStore } from "./projects/hostAssetStore.js";
+import { createHostAssetStore, inlineStandaloneAssetSources } from "./projects/hostAssetStore.js";
 import {
   hostProjectSaveRequest,
   hostSaveTarget,
@@ -88,31 +83,51 @@ import {
   svgTextToFile,
   traceImageFileLocally
 } from "./projects/localAssets.js";
+import { browserProjectBackend, projectLibraryKind, standaloneProjectBackend } from "./projects/projectBackend.js";
+import { listStandaloneProjects, openStandaloneProject } from "./projects/standaloneProjects.js";
+import { useStudioRoute } from "./router/studioRoute.js";
+import { canRenderTldrawCanvas, canvasLicenseRequired, readTldrawLicenseKey } from "./tldrawLicense.js";
+import { rememberPersistentStorage } from "./web/BrowserStoragePanel.js";
+import { createBrowserAssetStore } from "./web/browserAssets.js";
+import { inlineAssetSources, storeInlinedAssets } from "./web/browserBackup.js";
+import { assertPortableAssetSources } from "./web/portableAssets.js";
 import {
-  deleteStandaloneProject,
-  duplicateStandaloneProject,
-  listStandaloneProjects,
-  openStandaloneProject,
-  renameStandaloneProject
-} from "./projects/standaloneProjects.js";
-import { type StudioRoute, useStudioRoute } from "./router/studioRoute.js";
-import { AvatarShapeUtil } from "./shapes/AvatarCanvasShape.js";
-import { BlenderConnectorShapeUtil } from "./shapes/BlenderConnectorCanvasShape.js";
-import { DesignFrameShapeUtil } from "./shapes/DesignFrameShape.js";
-import { StudioFrameShapeUtil } from "./shapes/StudioFrameShapeUtil.js";
-import { StudioGeoShapeUtil } from "./shapes/StudioGeoShapeUtil.js";
-import { VectorStudioShapeUtil } from "./shapes/VectorStudioCanvasShape.js";
-import { tldrawAssetUrls } from "./tldrawAssets.js";
-import { canRenderTldrawCanvas, readTldrawLicenseKey } from "./tldrawLicense.js";
+  deleteBrowserConversation,
+  ensureBrowserScratchpad,
+  listBrowserConversations,
+  listBrowserProjects,
+  putBrowserThumbnail,
+  readBrowserConversation,
+  renameBrowserConversation,
+  writeBrowserConversation
+} from "./web/browserProjects.js";
+import { isWebEdition, WEB_LIBRARY_STATUS } from "./web/kurvaTarget.js";
+import { beginWebOpenRouterConnect, disconnectWebOpenRouter } from "./web/openRouterConnect.js";
+import { shouldOfferAppUpdate, webChatAvailability } from "./web/webShell.js";
+import {
+  acquireProjectLock,
+  listenForLockRelease,
+  publishLibraryChange,
+  requestProjectLockRelease,
+  subscribeLibraryChanges
+} from "./web/projectLock.js";
+import { shouldPollMcpApi, showDesktopOnlyNotice, studioCapabilities } from "./web/studioCapabilities.js";
 
-const customShapeUtils = [
-  AvatarShapeUtil,
-  VectorStudioShapeUtil,
-  BlenderConnectorShapeUtil,
-  StudioGeoShapeUtil,
-  StudioFrameShapeUtil,
-  DesignFrameShapeUtil
-];
+const StudioCanvas = React.lazy(() =>
+  import("./editor/StudioCanvas.js").then((module) => ({ default: module.StudioCanvas }))
+);
+const StudioLeftPanel = React.lazy(() =>
+  import("./components/StudioLeftPanel.js").then((module) => ({ default: module.StudioLeftPanel }))
+);
+const StudioToolbar = React.lazy(() =>
+  import("./components/StudioToolbar.js").then((module) => ({ default: module.StudioToolbar }))
+);
+const VectorAssetDialog = React.lazy(() =>
+  import("./components/VectorAssetDialog.js").then((module) => ({ default: module.VectorAssetDialog }))
+);
+const StudioRouteNotice = React.lazy(() =>
+  import("./routes/StudioRoutePages.js").then((module) => ({ default: module.StudioRouteNotice }))
+);
 const DevGallery = import.meta.env.DEV ? React.lazy(() => import("./components/ComponentGallery.js")) : null;
 interface ActivePanelResize {
   panel: ResizablePanel;
@@ -287,10 +302,11 @@ export function App() {
     deleteProject,
     clearProjectAction
   } = useStudioHost();
+  const webEdition = isWebEdition();
   const [launchToken] = useState(() =>
-    typeof window === "undefined" ? null : studioHostToken(window.location.search)
+    webEdition || typeof window === "undefined" ? null : studioHostToken(window.location.search)
   );
-  const [isStandaloneHost] = useState(() => Boolean(launchToken) || readStandaloneHostMode());
+  const [isStandaloneHost] = useState(() => !webEdition && (Boolean(launchToken) || readStandaloneHostMode()));
   const [hostKeyConfigured, setHostKeyConfigured] = useState(false);
   useEffect(() => {
     if (!launchToken) return;
@@ -308,12 +324,38 @@ export function App() {
     status: isStandaloneHost ? "loading" : "idle",
     message: isStandaloneHost
       ? "Loading Studio projects…"
-      : "Projects are available in a trusted local VS Code workspace.",
+      : webEdition
+        ? WEB_LIBRARY_STATUS
+        : "Projects are available in a trusted local VS Code workspace.",
     projects: [],
     corruptCount: 0
   });
-  const projectLibraryState = isStandaloneHost ? standaloneProjects : projects;
+  const projectLibraryState = webEdition || isStandaloneHost ? standaloneProjects : projects;
   const refreshProjectLibrary = React.useCallback(() => {
+    if (webEdition) {
+      setStandaloneProjects((current) => ({
+        ...current,
+        status: "loading",
+        message: "Loading projects in this browser…"
+      }));
+      void listBrowserProjects()
+        .then((result) =>
+          setStandaloneProjects({
+            status: "ready",
+            message: WEB_LIBRARY_STATUS,
+            projects: result.projects,
+            corruptCount: result.corruptCount
+          })
+        )
+        .catch((error: unknown) =>
+          setStandaloneProjects((current) => ({
+            ...current,
+            status: "error",
+            message: error instanceof Error ? error.message : "Projects in this browser could not be loaded."
+          }))
+        );
+      return;
+    }
     if (!isStandaloneHost) {
       requestProjects();
       return;
@@ -333,10 +375,32 @@ export function App() {
           message: error instanceof Error ? error.message : "Studio could not load its local projects."
         }));
       });
-  }, [isStandaloneHost, requestProjects]);
+  }, [isStandaloneHost, requestProjects, webEdition]);
   useEffect(() => {
-    if (isStandaloneHost) refreshProjectLibrary();
-  }, [isStandaloneHost, refreshProjectLibrary]);
+    if (webEdition || isStandaloneHost) refreshProjectLibrary();
+  }, [isStandaloneHost, refreshProjectLibrary, webEdition]);
+  useEffect(() => {
+    if (!webEdition) return;
+    void ensureBrowserScratchpad().then(() => {
+      refreshProjectLibrary();
+      void rememberPersistentStorage();
+    });
+    return subscribeLibraryChanges(() => refreshProjectLibrary());
+  }, [refreshProjectLibrary, webEdition]);
+  useEffect(() => {
+    if (!webEdition || !("serviceWorker" in navigator)) return;
+    const watch = (registration: ServiceWorkerRegistration) => {
+      if (registration.waiting) setAppUpdateWaiting(true);
+      registration.addEventListener("updatefound", () => {
+        registration.installing?.addEventListener("statechange", () => {
+          if (registration.waiting) setAppUpdateWaiting(true);
+        });
+      });
+    };
+    void navigator.serviceWorker.getRegistration().then((registration) => {
+      if (registration) watch(registration);
+    });
+  }, [webEdition]);
   const editorRef = useRef<Editor | null>(null);
   const mountedEditorRef = useRef<Editor | null>(null);
   const mountingRef = useRef(false);
@@ -346,6 +410,8 @@ export function App() {
   const projectIdRef = useRef<string | null>(null);
   const projectTitleRef = useRef("Untitled");
   const projectWritableRef = useRef(false);
+  const heldLockRef = useRef<{ release(): void } | null>(null);
+  const lockListenerRef = useRef<(() => void) | null>(null);
   const pendingSnapshotRef = useRef<unknown>(null);
   const initialBlankSnapshotRef = useRef<string | null>(null);
   const scratchpadRequestedRef = useRef(false);
@@ -358,7 +424,11 @@ export function App() {
   const stopInspectorListenerRef = useRef<(() => void) | null>(null);
   const [projectTitle, setProjectTitle] = useState("Untitled");
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [projectSaveStatus, setProjectSaveStatus] = useState("Browser session only");
+  const [projectReadOnly, setProjectReadOnly] = useState<string | null>(null);
+  const [rememberOpenRouter, setRememberOpenRouter] = useState(true);
+  const [openRouterRevoke, setOpenRouterRevoke] = useState<{ settingsUrl: string; activityUrl: string } | null>(null);
+  const [appUpdateWaiting, setAppUpdateWaiting] = useState(false);
+  const [projectSaveStatus, setProjectSaveStatus] = useState(webEdition ? WEB_LIBRARY_STATUS : "Browser session only");
   const [canvasProposal, setCanvasProposal] = useState<CanvasProposal | null>(null);
   const [agentSessions, setAgentSessions] = useState<
     Array<{ id: string; title: string; status: "running" | "finished" | "idle" }>
@@ -368,6 +438,10 @@ export function App() {
   const [editorReady, setEditorReady] = useState(false);
   const [editorGeneration, setEditorGeneration] = useState(0);
   const [route, navigateRoute] = useStudioRoute();
+  const [keepEditorMounted, setKeepEditorMounted] = useState(() => route.name === "project");
+  useEffect(() => {
+    if (route.name === "project") setKeepEditorMounted(true);
+  }, [route.name]);
   const routedProjectRef = useRef<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const assetInputRef = useRef<HTMLInputElement | null>(null);
@@ -453,78 +527,96 @@ export function App() {
     window.addEventListener("kurva-start-variants", onVariants);
     window.addEventListener("kurva-keep-variant", onKeep);
     let lastCameraKey = "";
-    const proposalTimer = window.setInterval(() => {
-      const editor = editorRef.current;
-      if (!editor) return;
-      const camera = editor.getCamera();
-      const cameraKey = `${camera.x}:${camera.y}:${camera.z}`;
-      if (cameraKey !== lastCameraKey) {
-        lastCameraKey = cameraKey;
-        return;
-      }
-      void fetch("/api/mcp-proposal", { credentials: "same-origin" })
-        .then((response) => response.json())
-        .then((body: { proposal?: { badge?: string; name?: string; arguments?: string } | null }) => {
-          const staged = body.proposal;
-          if (!staged?.name || !staged.arguments) return;
-          const proposal = proposalFromTool(staged.name, staged.arguments, editor.getViewportPageBounds().center);
-          if (!proposal) return;
-          setCanvasProposal({ ...proposal, summary: `${staged.badge ?? "MCP"}: ${proposal.summary}` });
-        })
-        .catch(() => undefined);
-      void fetch("/api/mcp-screenshot", { credentials: "same-origin" })
-        .then((response) => response.json())
-        .then(async (body: { request?: { id?: string; frameId?: string } | null }) => {
-          const request = body.request;
-          if (!request?.id || !request.frameId) return;
-          const frame = editor.getShape(request.frameId as Parameters<typeof editor.getShape>[0]);
-          if (frame?.type !== "frame") {
-            await fetch("/api/mcp-screenshot", {
-              method: "POST",
-              credentials: "same-origin",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ requestId: request.id, error: "Choose a frame on the current page." })
-            });
+    const proposalTimer = shouldPollMcpApi(isStandaloneHost ? "standalone" : hostState.host)
+      ? window.setInterval(() => {
+          const editor = editorRef.current;
+          if (!editor) return;
+          const camera = editor.getCamera();
+          const cameraKey = `${camera.x}:${camera.y}:${camera.z}`;
+          if (cameraKey !== lastCameraKey) {
+            lastCameraKey = cameraKey;
             return;
           }
-          const image = await editor.toImage([frame.id], {
-            format: "png",
-            pixelRatio: 1,
-            background: true,
-            padding: 0
-          });
-          const pngDataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(image.blob);
-          });
-          await fetch("/api/mcp-screenshot", {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ requestId: request.id, pngDataUrl })
-          });
-        })
-        .catch(() => undefined);
-      void fetch("/api/mcp-live-edit", { credentials: "same-origin" })
-        .then((response) => response.json())
-        .then(async (body: { edit?: { name?: string; arguments?: string } | null }) => {
-          if (!body.edit?.name || !body.edit.arguments) return;
-          await executeCanvasTool(editor, body.edit.name, body.edit.arguments);
-        })
-        .catch(() => undefined);
-    }, 1000);
+          void fetch("/api/mcp-proposal", { credentials: "same-origin" })
+            .then((response) => response.json())
+            .then((body: { proposal?: { badge?: string; name?: string; arguments?: string } | null }) => {
+              const staged = body.proposal;
+              if (!staged?.name || !staged.arguments) return;
+              const proposal = proposalFromTool(staged.name, staged.arguments, editor.getViewportPageBounds().center);
+              if (!proposal) return;
+              setCanvasProposal({ ...proposal, summary: `${staged.badge ?? "MCP"}: ${proposal.summary}` });
+            })
+            .catch(() => undefined);
+          void fetch("/api/mcp-screenshot", { credentials: "same-origin" })
+            .then((response) => response.json())
+            .then(async (body: { request?: { id?: string; frameId?: string } | null }) => {
+              const request = body.request;
+              if (!request?.id || !request.frameId) return;
+              const frame = editor.getShape(request.frameId as Parameters<typeof editor.getShape>[0]);
+              if (frame?.type !== "frame") {
+                await fetch("/api/mcp-screenshot", {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ requestId: request.id, error: "Choose a frame on the current page." })
+                });
+                return;
+              }
+              const image = await editor.toImage([frame.id], {
+                format: "png",
+                pixelRatio: 1,
+                background: true,
+                padding: 0
+              });
+              const pngDataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result));
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(image.blob);
+              });
+              await fetch("/api/mcp-screenshot", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ requestId: request.id, pngDataUrl })
+              });
+            })
+            .catch(() => undefined);
+          void fetch("/api/mcp-live-edit", { credentials: "same-origin" })
+            .then((response) => response.json())
+            .then(async (body: { edit?: { name?: string; arguments?: string } | null }) => {
+              if (!body.edit?.name || !body.edit.arguments) return;
+              await executeCanvasTool(editor, body.edit.name, body.edit.arguments);
+            })
+            .catch(() => undefined);
+        }, 1000)
+      : undefined;
     return () => {
-      window.clearInterval(proposalTimer);
+      if (proposalTimer !== undefined) window.clearInterval(proposalTimer);
       window.removeEventListener("kurva-preview-tool", onPreview);
       window.removeEventListener("kurva-start-variants", onVariants);
       window.removeEventListener("kurva-keep-variant", onKeep);
     };
-  }, []);
+  }, [hostState.host, isStandaloneHost]);
   const tldrawLicenseKey = readTldrawLicenseKey(import.meta.env.VITE_TLDRAW_LICENSE_KEY);
-  const hostAssets = React.useMemo(() => (isStandaloneHost ? createHostAssetStore() : undefined), [isStandaloneHost]);
-  const canRenderCanvas = canRenderTldrawCanvas(tldrawLicenseKey, import.meta.env.PROD && !isStandaloneHost);
+  const hostAssets = React.useMemo(
+    () => (webEdition ? createBrowserAssetStore() : isStandaloneHost ? createHostAssetStore() : undefined),
+    [isStandaloneHost, webEdition]
+  );
+  const capabilities = studioCapabilities(hostState.host);
+  const desktopOnly = showDesktopOnlyNotice(capabilities);
+  const libraryKind = projectLibraryKind({
+    webEdition,
+    standaloneHost: isStandaloneHost,
+    vscodeTrusted: hostState.host === "vscode" && hostState.workspaceTrusted
+  });
+  const projectBackend =
+    libraryKind === "browser" ? browserProjectBackend : libraryKind === "standalone" ? standaloneProjectBackend : null;
+  const hasDurableLibrary = libraryKind !== "session";
+  const canRenderCanvas = canRenderTldrawCanvas(
+    tldrawLicenseKey,
+    canvasLicenseRequired({ webEdition, production: import.meta.env.PROD, standaloneHost: isStandaloneHost })
+  );
   const [chatPanelWidth, setChatPanelWidth] = useState(() => readPanelSize("chat", "width"));
   const [chatPanelHeight, setChatPanelHeight] = useState(() => readPanelSize("chat", "height"));
   const [inspectorPanelWidth, setInspectorPanelWidth] = useState(() => readPanelSize("inspector", "width"));
@@ -606,6 +698,7 @@ export function App() {
     const target = hostSaveTarget({
       vscode: hostState.host === "vscode" && hostState.workspaceTrusted,
       standaloneHost: isStandaloneHost,
+      browserLibrary: webEdition,
       projectId
     });
     if (target === "offline") return;
@@ -613,6 +706,31 @@ export function App() {
       const snapshot = JSON.stringify(editor.getSnapshot());
       if (!snapshot) throw new Error("Snapshot serialization failed.");
       setProjectSaveStatus("Saving…");
+      if (target === "browser") {
+        void browserProjectBackend
+          .save(projectId, projectTitleRef.current, snapshot)
+          .then(async () => {
+            setProjectSaveStatus(WEB_LIBRARY_STATUS);
+            publishLibraryChange();
+            refreshProjectLibrary();
+            void rememberPersistentStorage();
+            const frame = editor.getCurrentPageShapes().find((shape) => shape.type === "frame");
+            if (!frame) return;
+            const image = await editor.toImage([frame.id], {
+              format: "png",
+              pixelRatio: 1,
+              background: true,
+              padding: 0
+            });
+            await putBrowserThumbnail(projectId, image.blob);
+            const url = URL.createObjectURL(image.blob);
+            setThumbnailUrls((current) => ({ ...current, [projectId]: url }));
+          })
+          .catch((error: unknown) =>
+            setProjectSaveStatus(error instanceof Error ? error.message : "Save failed – Retry")
+          );
+        return;
+      }
       if (target === "vscode") {
         saveProject(projectId, projectTitleRef.current, snapshot);
         return;
@@ -644,24 +762,57 @@ export function App() {
     } catch {
       setProjectSaveStatus("Save failed");
     }
-  }, [hostState.host, hostState.workspaceTrusted, saveProject, refreshProjectLibrary, isStandaloneHost]);
+  }, [hostState.host, hostState.workspaceTrusted, saveProject, refreshProjectLibrary, isStandaloneHost, webEdition]);
 
   const scheduleProjectSaveRef = useRef<() => void>(() => undefined);
   const scheduleProjectSave = React.useCallback(() => {
     const target = hostSaveTarget({
       vscode: hostState.host === "vscode" && hostState.workspaceTrusted,
       standaloneHost: isStandaloneHost,
+      browserLibrary: webEdition,
       projectId: projectIdRef.current
     });
     if (target === "offline" || !projectWritableRef.current) return;
     window.clearTimeout(saveTimerRef.current);
     setProjectSaveStatus("Saving…");
     saveTimerRef.current = window.setTimeout(persistProjectNow, 650);
-  }, [hostState.host, hostState.workspaceTrusted, persistProjectNow, isStandaloneHost]);
+  }, [hostState.host, hostState.workspaceTrusted, persistProjectNow, isStandaloneHost, webEdition]);
 
   React.useEffect(() => {
     scheduleProjectSaveRef.current = scheduleProjectSave;
   }, [scheduleProjectSave]);
+
+  const claimProjectLock = React.useCallback(
+    (projectId: string, saveAfter = false) => {
+      lockListenerRef.current?.();
+      lockListenerRef.current = null;
+      heldLockRef.current?.release();
+      heldLockRef.current = null;
+      if (libraryKind !== "browser") {
+        projectWritableRef.current = true;
+        setProjectReadOnly(null);
+        return;
+      }
+      projectWritableRef.current = false;
+      void acquireProjectLock(projectId).then((lock) => {
+        if (projectIdRef.current !== projectId) {
+          lock.release();
+          return;
+        }
+        heldLockRef.current = lock;
+        projectWritableRef.current = !lock.readonly;
+        setProjectReadOnly(lock.readonly ? projectId : null);
+        if (!lock.readonly) {
+          lockListenerRef.current = listenForLockRelease(projectId, () => {
+            lock.release();
+            if (heldLockRef.current === lock) heldLockRef.current = null;
+          });
+          if (saveAfter) scheduleProjectSaveRef.current();
+        }
+      });
+    },
+    [libraryKind]
+  );
 
   React.useEffect(
     () => () => {
@@ -878,7 +1029,7 @@ export function App() {
     if (pendingSnapshot) {
       try {
         editor.loadSnapshot(pendingSnapshot as Parameters<Editor["loadSnapshot"]>[0]);
-        projectWritableRef.current = true;
+        if (!webEdition) projectWritableRef.current = true;
       } catch {
         projectIdRef.current = null;
         setActiveProjectId(null);
@@ -963,7 +1114,7 @@ export function App() {
       })
     );
     if (hostState.host !== "vscode" || isStandaloneHost) {
-      if (!isStandaloneHost) ensureSessionScratchpad(editor);
+      if (!isStandaloneHost && !webEdition) ensureSessionScratchpad(editor);
       const routedHostProject = route.name === "project" && isProjectUuid(route.projectId);
       if (
         shouldBootstrapStandaloneProject({
@@ -985,7 +1136,6 @@ export function App() {
       const categoryId = pendingNewCanvasRef.current;
       pendingNewCanvasRef.current = null;
       if (projectIdRef.current && isProjectUuid(projectIdRef.current)) {
-        projectWritableRef.current = true;
         scheduleProjectSaveRef.current();
       } else {
         window.setTimeout(() => handleNewCanvas(categoryId || undefined), 0);
@@ -1050,13 +1200,23 @@ export function App() {
       storedId && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(storedId)
         ? storedId
         : crypto.randomUUID();
-    const json = buildStudioProjectExport({ id, title, snapshot: JSON.stringify(editor.getSnapshot()) });
-    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = studioExportFileName(title);
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    const rawSnapshot = JSON.stringify(editor.getSnapshot());
+    const portableSnapshot = webEdition
+      ? inlineAssetSources(rawSnapshot)
+      : isStandaloneHost
+        ? inlineStandaloneAssetSources(rawSnapshot)
+        : Promise.resolve(rawSnapshot);
+    void portableSnapshot
+      .then((snapshot) => {
+        const json = buildStudioProjectExport({ id, title, snapshot });
+        const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = studioExportFileName(title);
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      })
+      .catch(() => setProjectSaveStatus("The page could not be exported."));
   };
 
   const handleExportPage = (format: "png" | "svg" | "json", scale: 1 | 2) => {
@@ -1130,7 +1290,7 @@ export function App() {
   };
 
   const handleDuplicateCurrent = () => {
-    if (((hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost) && activeProjectId) {
+    if (hasDurableLibrary && activeProjectId) {
       handleDuplicateProject(activeProjectId);
       return;
     }
@@ -1138,7 +1298,7 @@ export function App() {
   };
 
   const handleDeleteCurrent = () => {
-    if (((hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost) && activeProjectId) {
+    if (hasDurableLibrary && activeProjectId) {
       handleDeleteProject(activeProjectId);
       return;
     }
@@ -1152,8 +1312,7 @@ export function App() {
   };
 
   const canDeleteCurrent = (() => {
-    if ((hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost)
-      return Boolean(activeProjectId && activeProjectId !== SCRATCHPAD_PROJECT_ID);
+    if (hasDurableLibrary) return Boolean(activeProjectId && activeProjectId !== SCRATCHPAD_PROJECT_ID);
     const editor = editorRef.current;
     const page = editor?.getCurrentPage();
     return Boolean(editor && editor.getPages().length > 1 && page && !isSessionScratchpad(page));
@@ -1168,7 +1327,8 @@ export function App() {
     setZoomLevel(fitCurrentFrame(editor));
     projectTitleRef.current = page.name;
     setProjectTitle(page.name);
-    if (hostState.host !== "vscode") setProjectSaveStatus("Browser session only");
+    if (hostState.host === "web") setProjectSaveStatus(WEB_LIBRARY_STATUS);
+    else if (hostState.host !== "vscode") setProjectSaveStatus("Browser session only");
     refreshCanvases(editor);
     scheduleProjectSave();
     routedProjectRef.current = canvasId;
@@ -1180,14 +1340,14 @@ export function App() {
     const editor = editorRef.current;
     if (!editor) {
       pendingNewCanvasRef.current = categoryId ?? "";
-      if ((hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost) {
+      if (hasDurableLibrary) {
         const nextProjectId = crypto.randomUUID();
         projectIdRef.current = nextProjectId;
-        projectWritableRef.current = true;
         projectTitleRef.current = "Untitled";
         setActiveProjectId(nextProjectId);
         setProjectTitle("Untitled");
         routedProjectRef.current = nextProjectId;
+        claimProjectLock(nextProjectId, true);
         navigateRoute({ name: "project", projectId: nextProjectId });
       }
       return;
@@ -1204,16 +1364,16 @@ export function App() {
       });
     }
     shouldAutoFitRef.current = false;
-    if ((hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost) {
+    if (hasDurableLibrary) {
       persistProjectNow();
       const title = "Untitled";
       const nextProjectId = crypto.randomUUID();
       projectIdRef.current = nextProjectId;
-      projectWritableRef.current = true;
       projectTitleRef.current = title;
       setActiveProjectId(nextProjectId);
       setProjectTitle(title);
       routedProjectRef.current = nextProjectId;
+      claimProjectLock(nextProjectId, true);
       navigateRoute({ name: "project", projectId: nextProjectId });
       // The canvas is hidden on Home. tldraw cannot change pages until it has a camera.
       const startBlankProject = (attempt = 0) => {
@@ -1348,8 +1508,7 @@ export function App() {
   };
 
   const handleToggleAgentSidebar = () => setAgentSidebarOpen((current) => !current);
-  const canUseProjectConversationStore =
-    isStandaloneHost || (hostState.host === "vscode" && hostState.workspaceTrusted);
+  const canUseProjectConversationStore = hasDurableLibrary;
   const conversationHostTarget = useCallback(
     (conversationId: string) => {
       const projectId = projectIdRef.current;
@@ -1361,6 +1520,15 @@ export function App() {
   );
   const loadProjectConversations = useCallback(
     async (projectId: string): Promise<AgentConversation[]> => {
+      if (libraryKind === "browser") {
+        const records = await listBrowserConversations(projectId);
+        return records.map((record) => ({
+          id: record.id,
+          title: record.title,
+          modelId: record.modelId,
+          updatedAt: record.updatedAt
+        }));
+      }
       if (isStandaloneHost) {
         const url = projectConversationUrl(projectId);
         if (!url) return [];
@@ -1373,10 +1541,11 @@ export function App() {
       if (hostState.host === "vscode" && hostState.workspaceTrusted) return listConversations(projectId);
       return [];
     },
-    [hostState.host, hostState.workspaceTrusted, isStandaloneHost, listConversations]
+    [hostState.host, hostState.workspaceTrusted, isStandaloneHost, libraryKind, listConversations]
   );
   const loadProjectConversation = useCallback(
     async (projectId: string, conversationId: string): Promise<StoredAgentConversation | null> => {
+      if (libraryKind === "browser") return readBrowserConversation(projectId, conversationId);
       if (isStandaloneHost) {
         const url = projectConversationUrl(projectId, conversationId);
         if (!url) return null;
@@ -1388,7 +1557,7 @@ export function App() {
       if (hostState.host === "vscode" && hostState.workspaceTrusted) return readConversation(projectId, conversationId);
       return null;
     },
-    [hostState.host, hostState.workspaceTrusted, isStandaloneHost, readConversation]
+    [hostState.host, hostState.workspaceTrusted, isStandaloneHost, libraryKind, readConversation]
   );
   const persistProjectConversation = useCallback(
     async (conversation: {
@@ -1401,6 +1570,10 @@ export function App() {
       const projectId = projectIdRef.current;
       const url = projectId ? projectConversationUrl(projectId) : null;
       if (!projectId || !projectConversationUrl(projectId, conversation.id)) return;
+      if (libraryKind === "browser") {
+        await writeBrowserConversation({ ...conversation, projectId });
+        return;
+      }
       if (isStandaloneHost && url) {
         const response = await fetch(url, {
           method: "POST",
@@ -1415,10 +1588,14 @@ export function App() {
         await saveConversation(projectId, conversation);
       }
     },
-    [hostState.host, hostState.workspaceTrusted, isStandaloneHost, saveConversation]
+    [hostState.host, hostState.workspaceTrusted, isStandaloneHost, libraryKind, saveConversation]
   );
   const renameProjectConversation = useCallback(
     async (id: string, title: string) => {
+      if (libraryKind === "browser" && projectIdRef.current) {
+        await renameBrowserConversation(projectIdRef.current, id, title);
+        return;
+      }
       const target = conversationHostTarget(id);
       if (target) {
         const response = await fetch(`${target.url}/rename`, {
@@ -1433,10 +1610,14 @@ export function App() {
         if (projectId) await renameConversation(projectId, id, title);
       }
     },
-    [conversationHostTarget, hostState.host, hostState.workspaceTrusted, renameConversation]
+    [conversationHostTarget, hostState.host, hostState.workspaceTrusted, libraryKind, renameConversation]
   );
   const deleteProjectConversation = useCallback(
     async (id: string) => {
+      if (libraryKind === "browser" && projectIdRef.current) {
+        await deleteBrowserConversation(projectIdRef.current, id);
+        return;
+      }
       const target = conversationHostTarget(id);
       if (target) {
         const response = await fetch(`${target.url}/delete`, {
@@ -1451,7 +1632,7 @@ export function App() {
         if (projectId) await deleteConversation(projectId, id);
       }
     },
-    [conversationHostTarget, deleteConversation, hostState.host, hostState.workspaceTrusted]
+    [conversationHostTarget, deleteConversation, hostState.host, hostState.workspaceTrusted, libraryKind]
   );
   const handleToggleInspector = () => setInspectorOpen((current) => !current);
   useEffect(() => {
@@ -1670,7 +1851,24 @@ export function App() {
     }
     try {
       const imported = parseImportedStudioProject(await file.text());
-      editor.loadSnapshot(JSON.parse(imported.snapshot) as Parameters<Editor["loadSnapshot"]>[0]);
+      const snapshot = webEdition ? await storeInlinedAssets(imported.snapshot) : imported.snapshot;
+      if (webEdition) assertPortableAssetSources(snapshot);
+      editor.loadSnapshot(JSON.parse(snapshot) as Parameters<Editor["loadSnapshot"]>[0]);
+      if (webEdition) {
+        const saved = await browserProjectBackend.save(crypto.randomUUID(), imported.title, snapshot);
+        projectIdRef.current = saved.id;
+        setActiveProjectId(saved.id);
+        projectTitleRef.current = saved.title;
+        setProjectTitle(saved.title);
+        setProjectSaveStatus(WEB_LIBRARY_STATUS);
+        claimProjectLock(saved.id);
+        publishLibraryChange();
+        refreshProjectLibrary();
+        routedProjectRef.current = saved.id;
+        navigateRoute({ name: "project", projectId: saved.id });
+        setImportNotice(undefined);
+        return;
+      }
       projectIdRef.current = null;
       projectWritableRef.current = false;
       setActiveProjectId(null);
@@ -1695,7 +1893,7 @@ export function App() {
   };
 
   const showEditor = () => {
-    const projectId = hostState.host === "vscode" || isStandaloneHost ? projectIdRef.current : currentCanvasId;
+    const projectId = hasDurableLibrary ? projectIdRef.current : currentCanvasId;
     if (!projectId) return;
     routedProjectRef.current = projectId;
     navigateRoute({ name: "project", projectId });
@@ -1715,7 +1913,7 @@ export function App() {
     const editor = editorRef.current;
     if (!editor) return;
     let cancelled = false;
-    const projectId = hostState.host === "vscode" || isStandaloneHost ? projectIdRef.current : null;
+    const projectId = hasDurableLibrary ? projectIdRef.current : null;
     const originalPageId = editor.getCurrentPageId();
     const capture = async () => {
       if (projectId) {
@@ -1756,21 +1954,22 @@ export function App() {
       openProject(route.projectId);
       return;
     }
-    if (isStandaloneHost && isProjectUuid(route.projectId)) {
+    if ((libraryKind === "browser" || isStandaloneHost) && isProjectUuid(route.projectId)) {
       if (!editorReady) return;
       routedProjectRef.current = route.projectId;
       if (projectIdRef.current && projectIdRef.current !== route.projectId) persistProjectNow();
       setProjectSaveStatus("Opening…");
-      void openStandaloneProject(route.projectId)
+      const openProjectFile = libraryKind === "browser" ? browserProjectBackend.open : openStandaloneProject;
+      void openProjectFile(route.projectId)
         .then((project) => {
           if (routedProjectRef.current !== project.id || projectIdRef.current === project.id) return;
           projectIdRef.current = project.id;
-          projectWritableRef.current = false;
+          claimProjectLock(project.id);
           setActiveProjectId(project.id);
           projectTitleRef.current = project.title;
           pendingSnapshotRef.current = JSON.parse(project.snapshot) as unknown;
           setProjectTitle(project.title);
-          setProjectSaveStatus("Saved");
+          setProjectSaveStatus(libraryKind === "browser" ? WEB_LIBRARY_STATUS : "Saved");
           mountingRef.current = false;
           mountedEditorRef.current = null;
           setEditorGeneration((generation) => generation + 1);
@@ -1794,7 +1993,7 @@ export function App() {
     editor.setCurrentPage(page);
     projectTitleRef.current = page.name;
     setProjectTitle(page.name);
-    setProjectSaveStatus("Browser session only");
+    setProjectSaveStatus(hostState.host === "web" ? WEB_LIBRARY_STATUS : "Browser session only");
     setZoomLevel(fitCurrentFrame(editor));
     refreshCanvases(editor);
   }, [
@@ -1805,7 +2004,9 @@ export function App() {
     openProject,
     persistProjectNow,
     isStandaloneHost,
-    refreshProjectLibrary
+    refreshProjectLibrary,
+    claimProjectLock,
+    libraryKind
   ]);
 
   const handleRenameCanvas = (canvasId: string, title: string) => {
@@ -1860,9 +2061,11 @@ export function App() {
   };
 
   const handleDuplicateProject = (projectId: string) => {
-    if (isStandaloneHost) {
-      void duplicateStandaloneProject(projectId)
+    if (projectBackend) {
+      void projectBackend
+        .duplicate(projectId)
         .then((project) => {
+          publishLibraryChange();
           refreshProjectLibrary();
           handleOpenProject(project.id);
         })
@@ -1875,14 +2078,16 @@ export function App() {
   };
 
   const handleDeleteProject = (projectId: string) => {
-    if (isStandaloneHost) {
+    if (projectBackend) {
       const project = projectLibraryState.projects.find((candidate) => candidate.id === projectId);
       const title = project?.title ?? "this project";
       if (!window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
       if (projectId === projectIdRef.current) persistProjectNow();
-      void deleteStandaloneProject(projectId)
+      void projectBackend
+        .delete(projectId)
         .then(() => {
           cancelFrameThumbnail(projectId);
+          publishLibraryChange();
           refreshProjectLibrary();
           removeProjectThumbnail(projectId);
           setThumbnailUrls(readProjectThumbnails());
@@ -1911,9 +2116,13 @@ export function App() {
       editorRef.current?.renamePage(editorRef.current.getCurrentPageId(), title.trim());
       window.clearTimeout(saveTimerRef.current);
     }
-    if (isStandaloneHost) {
-      void renameStandaloneProject(projectId, title.trim())
-        .then(() => refreshProjectLibrary())
+    if (projectBackend) {
+      void projectBackend
+        .rename(projectId, title.trim())
+        .then(() => {
+          publishLibraryChange();
+          refreshProjectLibrary();
+        })
         .catch((error: unknown) =>
           setProjectSaveStatus(error instanceof Error ? error.message : "Project could not be renamed.")
         );
@@ -1990,8 +2199,7 @@ export function App() {
     if (id.startsWith("tool:") && editor) {
       const tool = id.slice("tool:".length);
       if (tool === "rectangle" || tool === "ellipse") {
-        editor.setStyleForNextShapes(GeoShapeGeoStyle, tool === "rectangle" ? "rectangle" : "ellipse");
-        editor.setCurrentTool("geo");
+        void import("./editor/setGeoTool.js").then(({ setGeoTool }) => setGeoTool(editor, tool));
       } else {
         editor.setCurrentTool(tool);
       }
@@ -2008,340 +2216,410 @@ export function App() {
   };
 
   return (
-    <div className="studio-app" data-theme={theme}>
-      {/* Keep the canvas mounted across routes, but remove it from interaction outside a project. */}
-      <div
-        ref={workspaceRef}
-        className={`studio-workspace${isAgentSidebarOpen && !isCompactViewport ? " studio-workspace--docked" : ""}${compactPanelOpen ? " studio-workspace--compact-panel-open" : ""}`}
-        style={
-          {
-            "--studio-panel-width": `${isAgentPanelCollapsed ? 56 : chatPanelWidth}px`,
-            "--studio-mobile-panel-height": `${compactPanelOpen ? compactPanelHeight : 0}px`
-          } as React.CSSProperties
-        }
-        hidden={route.name !== "project"}
-        inert={route.name !== "project"}
-        aria-hidden={route.name !== "project"}
-      >
-        {/* Conversation and canvas utility tabs share one resizable left panel. */}
-        {isAgentSidebarOpen && (
-          <StudioLeftPanel
-            panelCollapsed={isAgentPanelCollapsed}
-            onPanelCollapsedChange={setAgentPanelCollapsed}
-            onOpenPage={handleOpenCanvas}
-            onDeletePage={handleDeleteCanvas}
-            draftPrefill={draftPrefill}
-            draftImagePrefill={draftImagePrefill}
-            onClose={() => setAgentSidebarOpen(false)}
-            connectionHost={hostState.host}
-            connection={hostState.connection}
-            workspaceTrusted={hostState.workspaceTrusted}
-            modelCatalog={modelCatalog}
-            chatRun={chatRun}
-            toolCalls={toolCalls}
-            panelWidth={chatPanelWidth}
-            panelHeight={effectiveChatPanelHeight}
-            editor={editorReady ? editorRef.current : null}
-            onRefreshModels={requestModelCatalog}
-            onSendChat={sendChat}
-            onCancelChat={cancelChat}
-            onClearChatRun={clearChatRun}
-            onApproveToolCall={approveToolCall}
-            onRejectToolCall={rejectToolCall}
-            onUndoToolCall={() => editorRef.current?.undo()}
-            {...(canUseProjectConversationStore
-              ? {
-                  onPersistConversation: persistProjectConversation,
-                  onLoadConversations: loadProjectConversations,
-                  onLoadConversation: loadProjectConversation,
-                  onRenameConversation: renameProjectConversation,
-                  onDeleteConversation: deleteProjectConversation
-                }
-              : {})}
-            projectId={activeProjectId}
-            onSessionsChange={setAgentSessions}
-            onOpenVectorDialog={() => setVectorDialogOpen(true)}
-          />
-        )}
-        {isAgentSidebarOpen && !isAgentPanelCollapsed && (
-          <PanelResizer
-            panel="chat"
-            compact={isCompactViewport}
-            size={isCompactViewport ? effectiveChatPanelHeight : chatPanelWidth}
-            maximum={getPanelSizeRange("chat", isCompactViewport ? "height" : "width", workspaceHeight).maximum}
-            onPointerDown={(event) => beginPanelResize("chat", event)}
-            onKeyDown={(event) => handlePanelResizeKey("chat", event)}
-          />
-        )}
-
-        {/* Central Infinite Canvas Container */}
-        <div
-          className="studio-canvas"
-          onDragOver={(event) => {
-            if (event.dataTransfer.types.includes("text/plain")) event.preventDefault();
-          }}
-          onPaste={(event) => {
-            const file = [...event.clipboardData.files].find(
-              (item) =>
-                /^(image\/(?:png|jpeg)|image\/svg\+xml)$/.test(item.type) || /\.(png|jpe?g|svg)$/i.test(item.name)
-            );
-            if (!file || !editorRef.current) return;
-            event.preventDefault();
-            void placeFileOnCanvas(editorRef.current, file).catch((error: unknown) => {
-              setImportNotice(error instanceof Error ? error.message : "The file could not be placed.");
-            });
-          }}
-          onDrop={(event) => {
-            const file = [...event.dataTransfer.files].find(
-              (item) =>
-                /^(image\/(?:png|jpeg)|image\/svg\+xml)$/.test(item.type) || /\.(png|jpe?g|svg)$/i.test(item.name)
-            );
-            if (file && editorRef.current) {
-              event.preventDefault();
-              void placeFileOnCanvas(editorRef.current, file).catch((error: unknown) => {
-                setImportNotice(error instanceof Error ? error.message : "The file could not be placed.");
-              });
-              return;
+    <div className="studio-app" data-kurva-target={webEdition ? "web" : "desktop"} data-theme={theme}>
+      {shouldOfferAppUpdate({
+        waiting: appUpdateWaiting,
+        editing: route.name === "project",
+        streaming: chatRun?.status === "streaming"
+      }) ? (
+        <p role="status">
+          A new version of Kurva is ready —{" "}
+          <button
+            type="button"
+            onClick={() => {
+              navigator.serviceWorker.controller?.postMessage("kurva-reload");
+              window.location.reload();
+            }}
+          >
+            Reload
+          </button>
+        </p>
+      ) : null}
+      {webEdition && webChatAvailability(typeof navigator === "undefined" ? true : navigator.onLine) ? (
+        <p role="status">{webChatAvailability(navigator.onLine)}</p>
+      ) : null}
+      {/* Keep the canvas mounted after the first project visit, and hide it on other routes. */}
+      {keepEditorMounted && (
+        <React.Suspense fallback={<div role="status">Opening the canvas…</div>}>
+          <div
+            ref={workspaceRef}
+            className={`studio-workspace${isAgentSidebarOpen && !isCompactViewport ? " studio-workspace--docked" : ""}${compactPanelOpen ? " studio-workspace--compact-panel-open" : ""}`}
+            style={
+              {
+                "--studio-panel-width": `${isAgentPanelCollapsed ? 56 : chatPanelWidth}px`,
+                "--studio-mobile-panel-height": `${compactPanelOpen ? compactPanelHeight : 0}px`
+              } as React.CSSProperties
             }
-            const payload = decodeAssetDrag(event.dataTransfer.getData("text/plain"));
-            const editor = editorRef.current;
-            if (!payload || !editor) return;
-            event.preventDefault();
-            const point = editor.screenToPage({ x: event.clientX, y: event.clientY });
-            placeCanvasAsset(editor, payload, point);
-          }}
-        >
-          <StudioWindowBar
-            projectTitle={projectTitle}
-            saveStatus={projectSaveStatus}
-            theme={theme}
-            onCycleTheme={handleCycleTheme}
-            onTitleChange={handleTitleChange}
-            onOpenFile={handleOpenFile}
-            onDuplicate={handleDuplicateCurrent}
-            onExport={handleExportProject}
-            onDelete={handleDeleteCurrent}
-            canDelete={canDeleteCurrent}
-            onRetrySave={persistProjectNow}
-            isHome={false}
-            onShowHome={() => navigateRoute({ name: "home" })}
-            isAgentSidebarOpen={isAgentSidebarOpen}
-            onToggleAgentSidebar={handleToggleAgentSidebar}
-            isInspectorOpen={isInspectorOpen}
-            onToggleInspector={handleToggleInspector}
-            canPresent={selectedShape?.type === "frame" && selectedShape.count === 1}
-            onPresent={handlePresentFrame}
-            zoomLevel={zoomLevel}
-            onZoomIn={handleZoomIn}
-            onZoomOut={handleZoomOut}
-            onZoomCommand={handleZoomCommand}
-            canZoomSelection={(selectedShape?.count ?? 0) > 0}
-            canManageConnection={(hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost}
-            connected={hostState.connection.status === "connected" || hostKeyConfigured}
-            onConnectionAction={(action) => {
-              if (!isStandaloneHost) {
-                onConnectionAction(action);
-                return;
-              }
-              if (action === "connect" || action === "replace") {
-                document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus();
-                return;
-              }
-              onConnectionAction(action);
-            }}
-            {...(isStandaloneHost
-              ? {
-                  onSaveHostKey: (key: string) => {
-                    void fetch("/api/openrouter-key", {
-                      method: "POST",
-                      credentials: "same-origin",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ key })
-                    })
-                      .then(async (response) => {
-                        const status = (await response.json()) as { configured?: boolean };
-                        if (!response.ok || !status.configured) throw new Error("Could not save the OpenRouter key.");
-                        setHostKeyConfigured(true);
-                        onConnectionAction("test");
-                      })
-                      .catch(() => setHostKeyConfigured(false));
-                  }
-                }
-              : {})}
-            canSendToBlender={selectedShape?.type === "vector-studio" && selectedShape.count === 1}
-            onSendToBlender={() => {
-              const shape = editorRef.current?.getSelectedShapes().find((item) => item.type === "vector-studio");
-              const svg = (shape?.props as { lastSvg?: unknown } | undefined)?.lastSvg;
-              return typeof svg === "string" ? svg : "";
-            }}
-            onBlenderAssets={(result) => {
-              const editor = editorRef.current;
-              if (!editor) return;
-              const shape = editor.getSelectedShapes().find((item) => item.type === "vector-studio");
-              editor.markHistoryStoppingPoint("send to blender");
-              editor.createShape({
-                type: "blender-connector",
-                x: (shape?.x ?? 0) + 480,
-                y: shape?.y ?? 0,
-                props: {
-                  w: 360,
-                  h: 280,
-                  blenderVersion: "",
-                  isConnected: true,
-                  activeScene: result.sceneFile,
-                  lastExport: `${result.pngSrc}\n${result.glbSrc}`
-                }
-              });
-            }}
-            agentSessions={agentSessions}
-            onStopAgent={() => {
-              if (!chatRun) return;
-              stopRunningReply(chatRun.status, cancelChat, chatRun.requestId);
-            }}
-          />
-          <StudioToolbar
-            editor={editorReady ? editorRef.current : null}
-            onImportAsset={() => assetInputRef.current?.click()}
-            onTraceAsset={() => setVectorDialogOpen(true)}
-          />
-          {vectorDialogOpen &&
-            createPortal(
-              <VectorAssetDialog
-                onClose={() => setVectorDialogOpen(false)}
-                onTrace={(file, preset, signal, tuning) => traceImageFileLocally(file, preset, signal, tuning)}
-                onInsert={async (svg, name) => {
-                  const editor = editorRef.current;
-                  if (!editor) throw new Error("The editor is still starting. Try again.");
-                  await placeFileOnCanvas(editor, svgTextToFile(svg, name));
-                }}
-              />,
-              document.querySelector(".studio-app") ?? document.body
+            hidden={route.name !== "project"}
+            inert={route.name !== "project"}
+            aria-hidden={route.name !== "project"}
+          >
+            {/* Conversation and canvas utility tabs share one resizable left panel. */}
+            {isAgentSidebarOpen && (
+              <StudioLeftPanel
+                panelCollapsed={isAgentPanelCollapsed}
+                onPanelCollapsedChange={setAgentPanelCollapsed}
+                onOpenPage={handleOpenCanvas}
+                onDeletePage={handleDeleteCanvas}
+                draftPrefill={draftPrefill}
+                draftImagePrefill={draftImagePrefill}
+                onClose={() => setAgentSidebarOpen(false)}
+                connectionHost={hostState.host}
+                connection={hostState.connection}
+                workspaceTrusted={hostState.workspaceTrusted}
+                modelCatalog={modelCatalog}
+                chatRun={chatRun}
+                toolCalls={toolCalls}
+                panelWidth={chatPanelWidth}
+                panelHeight={effectiveChatPanelHeight}
+                editor={editorReady ? editorRef.current : null}
+                onRefreshModels={requestModelCatalog}
+                onSendChat={sendChat}
+                onCancelChat={cancelChat}
+                onClearChatRun={clearChatRun}
+                onApproveToolCall={approveToolCall}
+                onRejectToolCall={rejectToolCall}
+                onUndoToolCall={() => editorRef.current?.undo()}
+                {...(canUseProjectConversationStore
+                  ? {
+                      onPersistConversation: persistProjectConversation,
+                      onLoadConversations: loadProjectConversations,
+                      onLoadConversation: loadProjectConversation,
+                      onRenameConversation: renameProjectConversation,
+                      onDeleteConversation: deleteProjectConversation
+                    }
+                  : {})}
+                projectId={activeProjectId}
+                onSessionsChange={setAgentSessions}
+                onOpenVectorDialog={() => setVectorDialogOpen(true)}
+              />
             )}
-          {canvasProposal && editorRef.current && (
-            <ProposalGhost editor={editorRef.current} proposal={canvasProposal} />
-          )}
-          {canvasProposal && (
-            <ProposalBar
-              proposal={canvasProposal}
-              onApply={() => {
+            {isAgentSidebarOpen && !isAgentPanelCollapsed && (
+              <PanelResizer
+                panel="chat"
+                compact={isCompactViewport}
+                size={isCompactViewport ? effectiveChatPanelHeight : chatPanelWidth}
+                maximum={getPanelSizeRange("chat", isCompactViewport ? "height" : "width", workspaceHeight).maximum}
+                onPointerDown={(event) => beginPanelResize("chat", event)}
+                onKeyDown={(event) => handlePanelResizeKey("chat", event)}
+              />
+            )}
+
+            {/* Central Infinite Canvas Container */}
+            <div
+              className="studio-canvas"
+              onDragOver={(event) => {
+                if (event.dataTransfer.types.includes("text/plain")) event.preventDefault();
+              }}
+              onPaste={(event) => {
+                const file = [...event.clipboardData.files].find(
+                  (item) =>
+                    /^(image\/(?:png|jpeg)|image\/svg\+xml)$/.test(item.type) || /\.(png|jpe?g|svg)$/i.test(item.name)
+                );
+                if (!file || !editorRef.current) return;
+                event.preventDefault();
+                void placeFileOnCanvas(editorRef.current, file).catch((error: unknown) => {
+                  setImportNotice(error instanceof Error ? error.message : "The file could not be placed.");
+                });
+              }}
+              onDrop={(event) => {
+                const file = [...event.dataTransfer.files].find(
+                  (item) =>
+                    /^(image\/(?:png|jpeg)|image\/svg\+xml)$/.test(item.type) || /\.(png|jpe?g|svg)$/i.test(item.name)
+                );
+                if (file && editorRef.current) {
+                  event.preventDefault();
+                  void placeFileOnCanvas(editorRef.current, file).catch((error: unknown) => {
+                    setImportNotice(error instanceof Error ? error.message : "The file could not be placed.");
+                  });
+                  return;
+                }
+                const payload = decodeAssetDrag(event.dataTransfer.getData("text/plain"));
                 const editor = editorRef.current;
-                if (!editor) return;
-                applyProposal(editor as unknown as Parameters<typeof applyProposal>[0], canvasProposal);
-                const staged = stagedExecutionRef.current;
-                if (staged) {
-                  completeToolExecution(staged.requestId, staged.callId, {
-                    ok: true,
-                    content: `Applied ${canvasProposal.shapes.length} previewed shapes.`
-                  });
-                  stagedExecutionRef.current = null;
-                }
-                setCanvasProposal(null);
+                if (!payload || !editor) return;
+                event.preventDefault();
+                const point = editor.screenToPage({ x: event.clientX, y: event.clientY });
+                placeCanvasAsset(editor, payload, point);
               }}
-              onReject={() => {
-                const staged = stagedExecutionRef.current;
-                if (staged) {
-                  completeToolExecution(staged.requestId, staged.callId, {
-                    ok: false,
-                    content: "Rejected. No canvas changes were made."
-                  });
-                  stagedExecutionRef.current = null;
-                }
-                setCanvasProposal(null);
-              }}
-            />
-          )}
-
-          {/* Tldraw Canvas with default UI disabled */}
-          <div className="studio-canvas-content">
-            <StudioCanvasMenu
-              editor={editorReady ? editorRef.current : null}
-              onAskAboutSelection={(summary: string) => {
-                setDraftPrefill({ id: crypto.randomUUID(), text: capCanvasSummary(summary) });
-                setAgentSidebarOpen(true);
-              }}
-              onNotice={setImportNotice}
             >
-              <div
-                className="studio-canvas-editor"
-                role="region"
-                aria-label="Canvas"
-                onPointerDownCapture={(event) => {
-                  // Selecting or editing a shape does not change the user's viewport.
-                  // Keep the artboard fitted when a dock opens after an ordinary click.
-                  if (editorRef.current?.getCurrentToolId() === "hand" || event.button === 1)
-                    shouldAutoFitRef.current = false;
+              {projectReadOnly ? (
+                <p className="studio-desktop-only" role="status">
+                  This project is open in another tab.{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const projectId = projectReadOnly;
+                      requestProjectLockRelease(projectId);
+                      window.setTimeout(() => claimProjectLock(projectId), 150);
+                    }}
+                  >
+                    Open here instead
+                  </button>
+                </p>
+              ) : null}
+              <StudioWindowBar
+                projectTitle={projectTitle}
+                saveStatus={projectSaveStatus}
+                theme={theme}
+                onCycleTheme={handleCycleTheme}
+                onTitleChange={handleTitleChange}
+                onOpenFile={handleOpenFile}
+                onDuplicate={handleDuplicateCurrent}
+                onExport={handleExportProject}
+                onDelete={handleDeleteCurrent}
+                canDelete={canDeleteCurrent}
+                onRetrySave={persistProjectNow}
+                isHome={false}
+                onShowHome={() => navigateRoute({ name: "home" })}
+                isAgentSidebarOpen={isAgentSidebarOpen}
+                onToggleAgentSidebar={handleToggleAgentSidebar}
+                isInspectorOpen={isInspectorOpen}
+                onToggleInspector={handleToggleInspector}
+                canPresent={selectedShape?.type === "frame" && selectedShape.count === 1}
+                onPresent={handlePresentFrame}
+                zoomLevel={zoomLevel}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                onZoomCommand={handleZoomCommand}
+                canZoomSelection={(selectedShape?.count ?? 0) > 0}
+                canManageConnection={
+                  webEdition || (hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost
+                }
+                browserConnection={webEdition}
+                rememberOpenRouter={rememberOpenRouter}
+                onRememberOpenRouter={setRememberOpenRouter}
+                openRouterRevoke={openRouterRevoke}
+                connected={hostState.connection.status === "connected" || hostKeyConfigured}
+                onConnectionAction={(action) => {
+                  if (webEdition && (action === "connect" || action === "replace")) {
+                    persistProjectNow();
+                    void beginWebOpenRouterConnect({
+                      remember: rememberOpenRouter,
+                      returnHash: window.location.hash || "#/",
+                      origin: window.location.origin
+                    });
+                    return;
+                  }
+                  if (webEdition && action === "disconnect") {
+                    void disconnectWebOpenRouter().then((links) => {
+                      setOpenRouterRevoke(links);
+                      onConnectionAction("disconnect");
+                    });
+                    return;
+                  }
+                  if (!isStandaloneHost) {
+                    onConnectionAction(action);
+                    return;
+                  }
+                  if (action === "connect" || action === "replace") {
+                    document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus();
+                    return;
+                  }
+                  onConnectionAction(action);
                 }}
-                onWheelCapture={() => {
-                  shouldAutoFitRef.current = false;
+                {...(isStandaloneHost
+                  ? {
+                      onSaveHostKey: (key: string) => {
+                        void fetch("/api/openrouter-key", {
+                          method: "POST",
+                          credentials: "same-origin",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({ key })
+                        })
+                          .then(async (response) => {
+                            const status = (await response.json()) as { configured?: boolean };
+                            if (!response.ok || !status.configured)
+                              throw new Error("Could not save the OpenRouter key.");
+                            setHostKeyConfigured(true);
+                            onConnectionAction("test");
+                          })
+                          .catch(() => setHostKeyConfigured(false));
+                      }
+                    }
+                  : {})}
+                showBlenderActions={capabilities.blender}
+                canSendToBlender={
+                  capabilities.blender && selectedShape?.type === "vector-studio" && selectedShape.count === 1
+                }
+                onSendToBlender={() => {
+                  const shape = editorRef.current?.getSelectedShapes().find((item) => item.type === "vector-studio");
+                  const svg = (shape?.props as { lastSvg?: unknown } | undefined)?.lastSvg;
+                  return typeof svg === "string" ? svg : "";
                 }}
-              >
-                {route.name === "project" &&
-                  (canRenderCanvas ? (
-                    <Tldraw
-                      key={editorGeneration}
-                      assetUrls={tldrawAssetUrls}
-                      hideUi={true}
-                      colorScheme="light"
-                      {...(tldrawLicenseKey ? { licenseKey: tldrawLicenseKey } : {})}
-                      {...(hostAssets ? { assets: hostAssets } : {})}
-                      shapeUtils={customShapeUtils}
-                      onMount={handleMount}
+                onBlenderAssets={(result) => {
+                  const editor = editorRef.current;
+                  if (!editor) return;
+                  const shape = editor.getSelectedShapes().find((item) => item.type === "vector-studio");
+                  editor.markHistoryStoppingPoint("send to blender");
+                  editor.createShape({
+                    type: "blender-connector",
+                    x: (shape?.x ?? 0) + 480,
+                    y: shape?.y ?? 0,
+                    props: {
+                      w: 360,
+                      h: 280,
+                      blenderVersion: "",
+                      isConnected: true,
+                      activeScene: result.sceneFile,
+                      lastExport: `${result.pngSrc}\n${result.glbSrc}`
+                    }
+                  });
+                }}
+                agentSessions={agentSessions}
+                onStopAgent={() => {
+                  if (!chatRun) return;
+                  stopRunningReply(chatRun.status, cancelChat, chatRun.requestId);
+                }}
+              />
+              <StudioToolbar
+                editor={editorReady ? editorRef.current : null}
+                onImportAsset={() => assetInputRef.current?.click()}
+                onTraceAsset={() => setVectorDialogOpen(true)}
+              />
+              {vectorDialogOpen &&
+                createPortal(
+                  <React.Suspense fallback={null}>
+                    <VectorAssetDialog
+                      allowQuiver={capabilities.quiver}
+                      onClose={() => setVectorDialogOpen(false)}
+                      onTrace={(file, preset, signal, tuning) => traceImageFileLocally(file, preset, signal, tuning)}
+                      onInsert={async (svg, name) => {
+                        const editor = editorRef.current;
+                        if (!editor) throw new Error("The editor is still starting. Try again.");
+                        await placeFileOnCanvas(editor, svgTextToFile(svg, name));
+                      }}
                     />
-                  ) : (
-                    <CanvasLicenseNotice />
-                  ))}
-              </div>
-            </StudioCanvasMenu>
-          </div>
-        </div>
+                  </React.Suspense>,
+                  document.querySelector(".studio-app") ?? document.body
+                )}
+              {canvasProposal && editorRef.current && (
+                <ProposalGhost editor={editorRef.current} proposal={canvasProposal} />
+              )}
+              {canvasProposal && (
+                <ProposalBar
+                  proposal={canvasProposal}
+                  onApply={() => {
+                    const editor = editorRef.current;
+                    if (!editor) return;
+                    applyProposal(editor as unknown as Parameters<typeof applyProposal>[0], canvasProposal);
+                    const staged = stagedExecutionRef.current;
+                    if (staged) {
+                      completeToolExecution(staged.requestId, staged.callId, {
+                        ok: true,
+                        content: `Applied ${canvasProposal.shapes.length} previewed shapes.`
+                      });
+                      stagedExecutionRef.current = null;
+                    }
+                    setCanvasProposal(null);
+                  }}
+                  onReject={() => {
+                    const staged = stagedExecutionRef.current;
+                    if (staged) {
+                      completeToolExecution(staged.requestId, staged.callId, {
+                        ok: false,
+                        content: "Rejected. No canvas changes were made."
+                      });
+                      stagedExecutionRef.current = null;
+                    }
+                    setCanvasProposal(null);
+                  }}
+                />
+              )}
 
-        {/* Right Inspector & Blender 3D Bridge */}
-        {isInspectorOpen && (
-          <PanelResizer
-            panel="inspector"
-            compact={isCompactViewport}
-            size={isCompactViewport ? effectiveInspectorPanelHeight : inspectorPanelWidth}
-            maximum={getPanelSizeRange("inspector", isCompactViewport ? "height" : "width", workspaceHeight).maximum}
-            onPointerDown={(event) => beginPanelResize("inspector", event)}
-            onKeyDown={(event) => handlePanelResizeKey("inspector", event)}
-          />
-        )}
-        {isInspectorOpen && (
-          <StudioInspector
-            className="studio-inspector"
-            isOpen={isInspectorOpen}
-            onClose={() => setInspectorOpen(false)}
-            selectedShape={selectedShape}
-            page={pageProperties}
-            onUpdate={handleInspectorUpdate}
-            onPageChange={handlePageChange}
-            onFramePreset={handleFramePreset}
-            onTextStyle={handleTextStyle}
-            onShapeStyle={handleShapeStyle}
-            onExport={handleExportProject}
-            onExportPage={handleExportPage}
-            onExportFrame={handleExportFrame}
-            panelWidth={inspectorPanelWidth}
-            panelHeight={effectiveInspectorPanelHeight}
-          />
-        )}
-      </div>
+              {/* Tldraw Canvas with default UI disabled */}
+              <div className="studio-canvas-content">
+                <StudioCanvasMenu
+                  editor={editorReady ? editorRef.current : null}
+                  onAskAboutSelection={(summary: string) => {
+                    setDraftPrefill({ id: crypto.randomUUID(), text: capCanvasSummary(summary) });
+                    setAgentSidebarOpen(true);
+                  }}
+                  onNotice={setImportNotice}
+                >
+                  <div
+                    className="studio-canvas-editor"
+                    role="region"
+                    aria-label="Canvas"
+                    onPointerDownCapture={(event) => {
+                      // Selecting or editing a shape does not change the user's viewport.
+                      // Keep the artboard fitted when a dock opens after an ordinary click.
+                      if (editorRef.current?.getCurrentToolId() === "hand" || event.button === 1)
+                        shouldAutoFitRef.current = false;
+                    }}
+                    onWheelCapture={() => {
+                      shouldAutoFitRef.current = false;
+                    }}
+                  >
+                    {route.name === "project" &&
+                      (canRenderCanvas ? (
+                        <StudioCanvas
+                          editorGeneration={editorGeneration}
+                          {...(tldrawLicenseKey ? { licenseKey: tldrawLicenseKey } : {})}
+                          {...(hostAssets ? { assets: hostAssets } : {})}
+                          onMount={handleMount}
+                        />
+                      ) : (
+                        <CanvasLicenseNotice />
+                      ))}
+                  </div>
+                </StudioCanvasMenu>
+              </div>
+            </div>
+
+            {/* Right Inspector & Blender 3D Bridge */}
+            {isInspectorOpen && (
+              <PanelResizer
+                panel="inspector"
+                compact={isCompactViewport}
+                size={isCompactViewport ? effectiveInspectorPanelHeight : inspectorPanelWidth}
+                maximum={
+                  getPanelSizeRange("inspector", isCompactViewport ? "height" : "width", workspaceHeight).maximum
+                }
+                onPointerDown={(event) => beginPanelResize("inspector", event)}
+                onKeyDown={(event) => handlePanelResizeKey("inspector", event)}
+              />
+            )}
+            {isInspectorOpen && (
+              <StudioInspector
+                className="studio-inspector"
+                isOpen={isInspectorOpen}
+                onClose={() => setInspectorOpen(false)}
+                selectedShape={selectedShape}
+                page={pageProperties}
+                onUpdate={handleInspectorUpdate}
+                onPageChange={handlePageChange}
+                onFramePreset={handleFramePreset}
+                onTextStyle={handleTextStyle}
+                onShapeStyle={handleShapeStyle}
+                onExport={handleExportProject}
+                onExportPage={handleExportPage}
+                onExportFrame={handleExportFrame}
+                panelWidth={inspectorPanelWidth}
+                panelHeight={effectiveInspectorPanelHeight}
+              />
+            )}
+          </div>
+        </React.Suspense>
+      )}
 
       {route.name !== "home" &&
         route.name !== "project" &&
         route.name !== "connectors" &&
         (route.name !== "gallery" || !DevGallery) && (
-          <StudioRouteNotice
-            route={route}
-            theme={theme}
-            onHome={() => navigateRoute({ name: "home" })}
-            onConnectors={() => navigateRoute({ name: "connectors" })}
-            onSettings={() => navigateRoute({ name: "settings" })}
-            onTheme={chooseTheme}
-            onRefreshCatalog={requestModelCatalog}
-            catalogStatus={modelCatalog.message}
-            launchToken={launchToken}
-          />
+          <React.Suspense fallback={<div role="status">Loading page…</div>}>
+            <StudioRouteNotice
+              route={route}
+              theme={theme}
+              onHome={() => navigateRoute({ name: "home" })}
+              onConnectors={() => navigateRoute({ name: "connectors" })}
+              onSettings={() => navigateRoute({ name: "settings" })}
+              onTheme={chooseTheme}
+              onRefreshCatalog={requestModelCatalog}
+              catalogStatus={modelCatalog.message}
+              launchToken={launchToken}
+              host={hostState.host}
+            />
+          </React.Suspense>
         )}
 
       {route.name === "gallery" && DevGallery && (
@@ -2410,23 +2688,33 @@ export function App() {
           currentNav={route.name === "connectors" ? "connectors" : "home"}
           companion={
             route.name === "connectors" ? (
-              <StudioRouteNotice
-                route={route}
-                theme={theme}
-                onHome={() => navigateRoute({ name: "home" })}
-                onConnectors={() => navigateRoute({ name: "connectors" })}
-                onSettings={() => navigateRoute({ name: "settings" })}
-                onTheme={chooseTheme}
-                onRefreshCatalog={requestModelCatalog}
-                catalogStatus={modelCatalog.message}
-                launchToken={launchToken}
-              />
+              <React.Suspense fallback={<div role="status">Loading connectors…</div>}>
+                <StudioRouteNotice
+                  route={route}
+                  theme={theme}
+                  onHome={() => navigateRoute({ name: "home" })}
+                  onConnectors={() => navigateRoute({ name: "connectors" })}
+                  onSettings={() => navigateRoute({ name: "settings" })}
+                  onTheme={chooseTheme}
+                  onRefreshCatalog={requestModelCatalog}
+                  catalogStatus={modelCatalog.message}
+                  launchToken={launchToken}
+                  host={hostState.host}
+                />
+              </React.Suspense>
             ) : undefined
           }
           canvases={canvases}
           currentCanvasId={currentCanvasId}
           projects={projectLibraryState.projects}
-          projectMode={hostState.host === "vscode" || isStandaloneHost}
+          projectMode={hasDurableLibrary}
+          {...(desktopOnly
+            ? {
+                libraryNote: WEB_LIBRARY_STATUS,
+                workspaceTitle: "This browser",
+                workspaceDetail: "Projects stay in this browser."
+              }
+            : {})}
           projectStatus={projectLibraryState.status}
           projectMessage={projectLibraryState.message}
           corruptCount={projectLibraryState.corruptCount}
@@ -2442,13 +2730,9 @@ export function App() {
           onOpenProject={handleOpenProject}
           onDuplicateProject={handleDuplicateProject}
           onDeleteProject={handleDeleteProject}
-          onRenameProject={
-            (hostState.host === "vscode" && hostState.workspaceTrusted) || isStandaloneHost
-              ? handleRenameProject
-              : undefined
-          }
+          onRenameProject={hasDurableLibrary ? handleRenameProject : undefined}
           onRevealProject={
-            hostState.host === "vscode" && hostState.workspaceTrusted
+            capabilities.vscodeActions && hostState.workspaceTrusted
               ? (projectId) => {
                   revealProject(projectId);
                 }
@@ -2494,677 +2778,6 @@ function encodeBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
   }
   return btoa(binary);
-}
-
-function StudioRouteNotice({
-  route,
-  theme,
-  onHome,
-  onConnectors,
-  onSettings,
-  onTheme,
-  onRefreshCatalog,
-  catalogStatus,
-  launchToken
-}: {
-  route: StudioRoute;
-  theme: "dark" | "light" | "contrast";
-  onHome: () => void;
-  onConnectors: () => void;
-  onSettings: () => void;
-  onTheme: (theme: "dark" | "light" | "contrast") => void;
-  onRefreshCatalog: () => void;
-  catalogStatus: string;
-  launchToken: string | null;
-}) {
-  const [mcpClients, setMcpClients] = useState<
-    Array<{ id: string; name: string; permission: string; revoked: boolean; lastSeen: string | null }>
-  >([]);
-  const [issuedToken, setIssuedToken] = useState<string | null>(null);
-  const [keyStatus, setKeyStatus] = useState<{ configured: boolean; source: string }>({
-    configured: false,
-    source: "none"
-  });
-  const [keyNotice, setKeyNotice] = useState("Credit usage was not returned by the host.");
-  const [replacingKey, setReplacingKey] = useState(false);
-  const [quiverStatus, setQuiverStatus] = useState<{
-    available: boolean;
-    configured: boolean;
-    enabled: boolean;
-    message: string;
-  }>({
-    available: true,
-    configured: false,
-    enabled: false,
-    message: "QuiverAI stays off until you turn it on."
-  });
-  const [alwaysPreview, setAlwaysPreview] = useState(() => {
-    try {
-      return window.localStorage.getItem("studio-always-preview") !== "no";
-    } catch {
-      return true;
-    }
-  });
-  const [warnPaidModels, setWarnPaidModels] = useState(() => {
-    try {
-      return window.localStorage.getItem("studio-warn-paid") !== "no";
-    } catch {
-      return true;
-    }
-  });
-  useEffect(() => {
-    if (route.name === "settings") {
-      void fetch("/api/openrouter-key", { credentials: "same-origin" })
-        .then((response) => response.json())
-        .then((body: { configured?: boolean; source?: string }) =>
-          setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" })
-        )
-        .catch(() => setKeyStatus({ configured: false, source: "none" }));
-      void fetch("/api/quiver", { credentials: "same-origin" })
-        .then((response) => response.json())
-        .then((body: { available?: boolean; configured?: boolean; enabled?: boolean; message?: string }) =>
-          setQuiverStatus({
-            available: body.available !== false,
-            configured: body.configured === true,
-            enabled: body.enabled === true,
-            message: body.message ?? "QuiverAI stays off until you turn it on."
-          })
-        )
-        .catch(() =>
-          setQuiverStatus({
-            available: false,
-            configured: false,
-            enabled: false,
-            message: "QuiverAI status is unavailable."
-          })
-        );
-    }
-    if (route.name === "connectors") loadClients();
-  }, [route.name]);
-  const loadClients = () => {
-    void fetch("/api/mcp-clients", { credentials: "same-origin" })
-      .then((response) => response.json())
-      .then((body: { clients?: typeof mcpClients }) => setMcpClients(body.clients ?? []))
-      .catch(() => setMcpClients([]));
-  };
-  const title =
-    route.name === "connectors"
-      ? "Connectors"
-      : route.name === "settings"
-        ? "Models & keys"
-        : route.name === "gallery"
-          ? "Gallery"
-          : "Page not found";
-  const message =
-    route.name === "connectors"
-      ? "Let coding agents read and edit this canvas over MCP. They connect to the Studio on this computer, and their changes appear live on the canvas where you can undo them."
-      : route.name === "settings"
-        ? "Keys stay on this computer. The page never shows a saved key."
-        : route.name === "gallery"
-          ? "The component gallery is available only in a development build."
-          : "This address is not a Studio page.";
-  return (
-    <section className="studio-route-page" aria-labelledby="studio-route-title">
-      <h1 id="studio-route-title">{title}</h1>
-      <p>{message}</p>
-      {route.name === "settings" ? (
-        <div className="studio-settings">
-          <nav aria-label="Settings">
-            <button type="button" onClick={onHome}>
-              Back to Home
-            </button>
-            <p className="studio-settings__label">Settings</p>
-            <button
-              type="button"
-              onClick={() => document.getElementById("appearance")?.scrollIntoView({ block: "start" })}
-            >
-              Appearance
-            </button>
-            <button
-              type="button"
-              aria-current="page"
-              onClick={() => document.getElementById("models")?.scrollIntoView({ block: "start" })}
-            >
-              Models & keys
-            </button>
-            <button type="button" onClick={onConnectors}>
-              Connectors
-            </button>
-            <button
-              type="button"
-              onClick={() => document.getElementById("blender")?.scrollIntoView({ block: "start" })}
-            >
-              Blender
-            </button>
-            <button
-              type="button"
-              onClick={() => document.getElementById("privacy")?.scrollIntoView({ block: "start" })}
-            >
-              Privacy
-            </button>
-            <button
-              type="button"
-              onClick={() => document.getElementById("shortcuts")?.scrollIntoView({ block: "start" })}
-            >
-              Keyboard shortcuts
-            </button>
-          </nav>
-          <div>
-            <section id="models" className="studio-settings-card">
-              <div className="studio-settings-card__title">
-                <h2>OpenRouter</h2>
-                <span
-                  className={`studio-settings-card__status${keyStatus.configured ? " studio-settings-card__status--on" : ""}`}
-                >
-                  {keyStatus.configured ? "Connected" : "Not connected"}
-                </span>
-              </div>
-              <dl className="studio-settings-card__facts">
-                <div>
-                  <dt>Key</dt>
-                  <dd>{keyStatus.configured ? "Saved on this computer" : "Not shown"}</dd>
-                </div>
-                <div>
-                  <dt>Stored in</dt>
-                  <dd>
-                    {keyStatus.source === "keychain"
-                      ? "This computer's keychain"
-                      : keyStatus.source === "environment"
-                        ? "Environment variable"
-                        : "Not stored"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Credit</dt>
-                  <dd>Not returned</dd>
-                </div>
-              </dl>
-              {(!keyStatus.configured || replacingKey) && (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const input = event.currentTarget.elements.namedItem("openrouter-key");
-                    const key = input instanceof HTMLInputElement ? input.value : "";
-                    void fetch("/api/openrouter-key", {
-                      method: "POST",
-                      credentials: "same-origin",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ key })
-                    })
-                      .then((response) => response.json())
-                      .then((body: { configured?: boolean; source?: string }) => {
-                        setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" });
-                        setReplacingKey(false);
-                        setKeyNotice(
-                          body.configured ? "Key saved on this computer." : "The key was not saved. It is not shown."
-                        );
-                      })
-                      .catch(() => setKeyNotice("The key was not saved. It is not shown."))
-                      .finally(() => {
-                        if (input instanceof HTMLInputElement) input.value = "";
-                      });
-                  }}
-                >
-                  <label>
-                    OpenRouter key
-                    <input name="openrouter-key" type="password" autoComplete="off" aria-label="OpenRouter key" />
-                  </label>
-                  <div className="studio-settings-card__actions">
-                    <button type="submit">Save key on this computer</button>
-                    {replacingKey && (
-                      <button type="button" onClick={() => setReplacingKey(false)}>
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-                </form>
-              )}
-              <div className="studio-settings-card__actions">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void fetch("/api/openrouter-key", {
-                      method: "POST",
-                      credentials: "same-origin",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ action: "test" })
-                    })
-                      .then((response) => response.json())
-                      .then((body: { configured?: boolean }) =>
-                        setKeyNotice(
-                          body.configured
-                            ? "A key is stored on this computer."
-                            : "No OpenRouter key is stored on this computer."
-                        )
-                      )
-                      .catch(() => setKeyNotice("The key could not be checked."));
-                  }}
-                >
-                  Test
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReplacingKey(true);
-                    window.requestAnimationFrame(() =>
-                      document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus()
-                    );
-                  }}
-                >
-                  Replace key
-                </button>
-                <button
-                  className="studio-settings-card__danger"
-                  type="button"
-                  onClick={() => {
-                    void fetch("/api/openrouter-key", {
-                      method: "POST",
-                      credentials: "same-origin",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ action: "disconnect" })
-                    })
-                      .then((response) => response.json())
-                      .then((body: { configured?: boolean; source?: string }) => {
-                        setKeyStatus({ configured: body.configured === true, source: body.source ?? "none" });
-                        setReplacingKey(false);
-                        setKeyNotice("The stored key was removed from this computer.");
-                      })
-                      .catch(() => setKeyNotice("The key could not be removed."));
-                  }}
-                >
-                  Disconnect
-                </button>
-              </div>
-              <p>{keyNotice}</p>
-              <p>Your key stays in the local Studio host. This page only learns whether a key is stored.</p>
-            </section>
-            <section className="studio-settings-card" aria-label="Chat defaults">
-              <h2>Chat defaults</h2>
-              <div className="studio-settings-card__row">
-                <span>
-                  <strong>Model for new conversations</strong>
-                  <span>No default. Each conversation keeps the model you choose in the composer.</span>
-                </span>
-              </div>
-              <label className="studio-settings-card__row">
-                <span>
-                  <strong>Warn before using a paid model</strong>
-                  <span>Shows the model's price before the first message.</span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={warnPaidModels}
-                  aria-label="Warn before using a paid model"
-                  onChange={(event) => {
-                    const next = event.target.checked;
-                    setWarnPaidModels(next);
-                    try {
-                      window.localStorage.setItem("studio-warn-paid", next ? "yes" : "no");
-                    } catch {
-                      // The agent panel still receives the event for this page.
-                    }
-                    window.dispatchEvent(new Event("studio-warn-paid"));
-                  }}
-                />
-              </label>
-              <label className="studio-settings-card__row">
-                <span>
-                  <strong>Always show the full request preview</strong>
-                  <span>Review instructions, history and attachments before each send.</span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={alwaysPreview}
-                  aria-label="Always show the full request preview"
-                  onChange={(event) => {
-                    const next = event.target.checked;
-                    setAlwaysPreview(next);
-                    try {
-                      window.localStorage.setItem("studio-always-preview", next ? "yes" : "no");
-                    } catch {
-                      // The agent panel still receives the event for this page.
-                    }
-                    window.dispatchEvent(new Event("studio-always-preview"));
-                  }}
-                />
-              </label>
-              <div className="studio-settings-card__row">
-                <span>
-                  <strong>Model catalog</strong>
-                  <span>{catalogStatus}</span>
-                </span>
-                <button type="button" onClick={onRefreshCatalog}>
-                  Refresh catalog
-                </button>
-              </div>
-            </section>
-            <section className="studio-settings-card" aria-label="Optional QuiverAI SVG generation">
-              <div className="studio-settings-card__title">
-                <h2>QuiverAI</h2>
-                <span
-                  className={`studio-settings-card__status${quiverStatus.enabled ? " studio-settings-card__status--on" : ""}`}
-                >
-                  {quiverStatus.enabled ? "On" : "Off"}
-                </span>
-              </div>
-              <p>
-                Generates SVG from a prompt and a reference image you choose. Saving a key does not turn it on. Turning
-                it on can send that prompt and image to QuiverAI.
-              </p>
-              {quiverStatus.available ? (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const input = event.currentTarget.elements.namedItem("quiver-key");
-                    const key = input instanceof HTMLInputElement ? input.value : "";
-                    void fetch("/api/quiver", {
-                      method: "POST",
-                      credentials: "same-origin",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ action: "save", key })
-                    })
-                      .then((response) => response.json())
-                      .then(
-                        (body: { available?: boolean; configured?: boolean; enabled?: boolean; message?: string }) =>
-                          setQuiverStatus({
-                            available: body.available !== false,
-                            configured: body.configured === true,
-                            enabled: body.enabled === true,
-                            message: body.message ?? "The QuiverAI key was not saved."
-                          })
-                      )
-                      .catch(() =>
-                        setQuiverStatus({
-                          available: false,
-                          configured: false,
-                          enabled: false,
-                          message: "The QuiverAI key was not saved."
-                        })
-                      )
-                      .finally(() => {
-                        if (input instanceof HTMLInputElement) input.value = "";
-                      });
-                  }}
-                >
-                  <label>
-                    QuiverAI key
-                    <input name="quiver-key" type="password" autoComplete="off" aria-label="QuiverAI API key" />
-                  </label>
-                  <div className="studio-settings-card__actions">
-                    <button type="submit">Save key on this computer</button>
-                    <button
-                      type="button"
-                      disabled={!quiverStatus.configured || quiverStatus.enabled}
-                      onClick={() => {
-                        void fetch("/api/quiver", {
-                          method: "POST",
-                          credentials: "same-origin",
-                          headers: { "content-type": "application/json" },
-                          body: JSON.stringify({ action: "enable" })
-                        })
-                          .then((response) => response.json())
-                          .then(
-                            (body: {
-                              available?: boolean;
-                              configured?: boolean;
-                              enabled?: boolean;
-                              message?: string;
-                            }) =>
-                              setQuiverStatus({
-                                available: body.available !== false,
-                                configured: body.configured === true,
-                                enabled: body.enabled === true,
-                                message: body.message ?? "QuiverAI was not turned on."
-                              })
-                          )
-                          .catch(() =>
-                            setQuiverStatus((current) => ({ ...current, message: "QuiverAI was not turned on." }))
-                          );
-                      }}
-                    >
-                      Turn on for this session
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!quiverStatus.enabled}
-                      onClick={() => {
-                        void fetch("/api/quiver", {
-                          method: "POST",
-                          credentials: "same-origin",
-                          headers: { "content-type": "application/json" },
-                          body: JSON.stringify({ action: "disable" })
-                        })
-                          .then((response) => response.json())
-                          .then(
-                            (body: {
-                              available?: boolean;
-                              configured?: boolean;
-                              enabled?: boolean;
-                              message?: string;
-                            }) =>
-                              setQuiverStatus({
-                                available: body.available !== false,
-                                configured: body.configured === true,
-                                enabled: body.enabled === true,
-                                message: body.message ?? "QuiverAI was not turned off."
-                              })
-                          )
-                          .catch(() =>
-                            setQuiverStatus((current) => ({ ...current, message: "QuiverAI was not turned off." }))
-                          );
-                      }}
-                    >
-                      Turn off
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="studio-settings-card__actions">
-                  <button type="button" disabled title={quiverStatus.message}>
-                    Add key and turn on…
-                  </button>
-                </div>
-              )}
-              <p>{quiverStatus.message}</p>
-            </section>
-            <section id="appearance">
-              <h2>Appearance</h2>
-              <p>Current theme: {theme}.</p>
-              <div className="studio-settings__themes">
-                {(["dark", "light", "contrast"] as const).map((next) => (
-                  <button key={next} type="button" aria-pressed={theme === next} onClick={() => onTheme(next)}>
-                    {next}
-                  </button>
-                ))}
-              </div>
-            </section>
-            <section id="blender">
-              <h2>Blender</h2>
-              <p>Check Blender from the editor Settings menu. A missing install does not change a scene file.</p>
-            </section>
-            <section id="privacy">
-              <h2>Privacy</h2>
-              <p>The first send in a project asks before anything leaves this computer. The key is not included.</p>
-            </section>
-            <section id="shortcuts">
-              <h2>Keyboard shortcuts</h2>
-              <ul className="studio-settings-shortcuts">
-                {[
-                  ["Select", "V"],
-                  ["Hand", "H"],
-                  ["Frame", "F"],
-                  ["Rectangle", "R"],
-                  ["Pen", "P"],
-                  ["Text", "T"],
-                  ["Sticky note", "N"],
-                  ["Image or SVG", "I"],
-                  ["Trace image locally", "trace"],
-                  ["Command palette", "Ctrl+K"],
-                  ["Toggle panels", "Ctrl+\\"],
-                  ["Undo", "Ctrl+Z"],
-                  ["Redo", "Ctrl+Shift+Z"],
-                  ["Duplicate", "Ctrl+D"],
-                  ["Group", "Ctrl+G"],
-                  ["Snapping", "Ctrl+Shift+S"],
-                  ["Zoom to fit", "Shift+1"],
-                  ["Zoom to selection", "Shift+2"],
-                  ["Shortcut sheet", "?"]
-                ].map(([label, keys]) => (
-                  <li key={keys}>
-                    <span>{label}</span>
-                    <kbd>{keys}</kbd>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </div>
-        </div>
-      ) : null}
-      {route.name === "connectors" ? (
-        <div className="studio-settings">
-          <nav aria-label="Studio">
-            <button type="button" onClick={onHome}>
-              Back to Home
-            </button>
-            <button type="button" onClick={onSettings}>
-              Settings
-            </button>
-          </nav>
-          <div>
-            <div className="studio-route-page__endpoint-row">
-              <div className="studio-route-page__endpoint">
-                <span>MCP endpoint</span>
-                <span className="studio-route-page__endpoint-url">{`${window.location.origin}/mcp`}</span>
-                <button
-                  type="button"
-                  aria-label="Copy endpoint"
-                  onClick={() => {
-                    const endpoint = launchToken
-                      ? `${window.location.origin}/mcp?studioToken=${encodeURIComponent(launchToken)}`
-                      : `${window.location.origin}/mcp`;
-                    void navigator.clipboard?.writeText(endpoint);
-                  }}
-                >
-                  Copy
-                </button>
-                <span className="studio-settings-card__status studio-settings-card__status--on">
-                  Host running · loopback only
-                </span>
-              </div>
-            </div>
-            <p className="studio-route-page__endpoint-note">
-              {launchToken
-                ? "Visible snippets show the loopback endpoint. Copy snippet includes this session’s launch token."
-                : "Create a token before an IDE connects."}
-            </p>
-            <ul className="studio-route-page__connectors">
-              {(launchToken ? connectorSnippetsForLaunch(window.location.origin, launchToken) : CONNECTOR_SNIPPETS).map(
-                (connector) => {
-                  const client = mcpClients.find((item) => item.name.toLowerCase() === connector.name.toLowerCase());
-                  const status = !client ? "Not connected" : client.revoked ? "Revoked" : client.permission;
-                  const copyText =
-                    "copySnippet" in connector && typeof connector.copySnippet === "string"
-                      ? connector.copySnippet
-                      : connector.snippet;
-                  return (
-                    <li key={connector.id}>
-                      <div className="studio-route-page__connector-title">
-                        <h2>{connector.name}</h2>
-                        <span
-                          className={`studio-settings-card__status${client && !client.revoked ? " studio-settings-card__status--on" : ""}`}
-                        >
-                          {status}
-                        </span>
-                      </div>
-                      <p>
-                        {connector.file}
-                        {client?.lastSeen ? ` · last seen ${client.lastSeen}` : ""}
-                      </p>
-                      <pre>{connector.snippet}</pre>
-                      <div className="studio-route-page__connector-actions">
-                        <select
-                          aria-label={`Permission for ${connector.name}`}
-                          {...(client && !client.revoked ? { value: client.permission } : { defaultValue: "read" })}
-                          onChange={(event) => {
-                            if (!client || client.revoked) return;
-                            const permission = event.currentTarget.value;
-                            void fetch("/api/mcp-clients", {
-                              method: "POST",
-                              credentials: "same-origin",
-                              headers: { "content-type": "application/json" },
-                              body: JSON.stringify({ action: "permission", id: client.id, permission })
-                            }).then(() => loadClients());
-                          }}
-                        >
-                          <option value="read">Read only</option>
-                          <option value="propose">Propose</option>
-                          <option value="apply">Apply</option>
-                        </select>
-                        {client && !client.revoked ? (
-                          <button
-                            className="studio-route-page__revoke"
-                            type="button"
-                            onClick={() => {
-                              void fetch("/api/mcp-clients", {
-                                method: "POST",
-                                credentials: "same-origin",
-                                headers: { "content-type": "application/json" },
-                                body: JSON.stringify({ action: "revoke", id: client.id })
-                              }).then(() => loadClients());
-                            }}
-                          >
-                            Revoke
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              const select = event.currentTarget.parentElement?.querySelector("select");
-                              const permission =
-                                select instanceof HTMLSelectElement &&
-                                (select.value === "propose" || select.value === "apply")
-                                  ? select.value
-                                  : "read";
-                              void fetch("/api/mcp-clients", {
-                                method: "POST",
-                                credentials: "same-origin",
-                                headers: { "content-type": "application/json" },
-                                body: JSON.stringify({ name: connector.name, permission })
-                              })
-                                .then((response) => response.json())
-                                .then((body: { token?: string }) => {
-                                  setIssuedToken(body.token ?? null);
-                                  loadClients();
-                                })
-                                .catch(() => setIssuedToken(null));
-                            }}
-                          >
-                            Create token
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void navigator.clipboard?.writeText(copyText);
-                          }}
-                        >
-                          Copy snippet
-                        </button>
-                      </div>
-                    </li>
-                  );
-                }
-              )}
-            </ul>
-            {issuedToken ? <p>Copy this token now. It will not be shown again. {issuedToken}</p> : null}
-          </div>
-        </div>
-      ) : null}
-      <button className="studio-route-page__home" type="button" onClick={onHome}>
-        Go to Home
-      </button>
-    </section>
-  );
 }
 
 function PanelResizer({

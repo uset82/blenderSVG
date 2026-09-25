@@ -1,10 +1,11 @@
-import { isAvatarState, type AvatarState } from "@codex-avatar-studio/avatar-core";
 import { prepareSvgPreview } from "@codex-avatar-studio/asset-pipeline/svg-safety";
+import { type AvatarState, isAvatarState } from "@codex-avatar-studio/avatar-core";
 import { BrainCircuit, Code2, MessageCircle, Moon, PartyPopper, TriangleAlert } from "lucide-react";
 import { useState } from "react";
-import { HTMLContainer, Rectangle2d, ShapeUtil, T, type Editor } from "tldraw";
+import { type Editor, HTMLContainer, Rectangle2d, ShapeUtil, T } from "tldraw";
 import { LayeredMascotRenderer } from "../../../webview/src/renderers/LayeredMascotRenderer.js";
 import { SvgAvatarRenderer } from "../../../webview/src/renderers/SvgAvatarRenderer.js";
+import { isWebEdition } from "../web/kurvaTarget.js";
 import { avatarPackageManifest, avatarPackageSvg } from "./avatarPackageDraft.js";
 import { serializeAvatarSvgSnapshot } from "./avatarPackageSnapshot.js";
 import type { AvatarShape } from "./types.js";
@@ -183,6 +184,7 @@ function mascotState(value: string): AvatarState {
 async function downloadAvatarPackage(name: string, svg: string): Promise<void> {
   const safeSvg = prepareSvgPreview(svg).svg;
   const isStandaloneHost = (() => {
+    if (isWebEdition()) return false;
     try {
       return window.sessionStorage.getItem("kurva-studio-standalone") === "1";
     } catch {
@@ -204,7 +206,7 @@ async function downloadAvatarPackage(name: string, svg: string): Promise<void> {
       throw new Error("The Studio host did not return a validated avatar package.");
     }
     const blob = await response.blob();
-    const match = /filename="([^\"]+)"/.exec(response.headers.get("content-disposition") ?? "");
+    const match = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "");
     saveDownload(blob, match?.[1] || "avatar.codex-avatar.zip");
     return;
   }

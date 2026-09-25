@@ -55,6 +55,19 @@ interface PendingReply<T> {
   reject: (error: Error) => void;
 }
 
+export interface OpenRouterAttribution {
+  title: string;
+  referer?: string;
+}
+
+const DESKTOP_ATTRIBUTION: OpenRouterAttribution = { title: "Kurva Studio", referer: "http://127.0.0.1" };
+
+export function attributionHeaders(attribution: OpenRouterAttribution): Record<string, string> {
+  const headers: Record<string, string> = { "X-Title": attribution.title };
+  if (attribution.referer) headers["HTTP-Referer"] = attribution.referer;
+  return headers;
+}
+
 class ToolTurnError extends Error {
   public constructor(
     public readonly code: ChatErrorMessage["code"],
@@ -104,7 +117,8 @@ export class OpenRouterChatController {
   public constructor(
     private readonly secrets: SecretStore,
     private readonly emit: (message: HostToStudioMessageInput) => void,
-    private readonly request: typeof fetch = fetch
+    private readonly request: typeof fetch = fetch,
+    private readonly attribution: OpenRouterAttribution = DESKTOP_ATTRIBUTION
   ) {}
 
   public refreshModels(): Promise<CatalogMessage> {
@@ -245,7 +259,7 @@ export class OpenRouterChatController {
     try {
       key = await this.secrets.get(OPENROUTER_SECRET_KEY);
     } catch {
-      this.emitChatError(requestId, "provider", "VS Code could not read the saved OpenRouter key.");
+      this.emitChatError(requestId, "provider", "The saved OpenRouter key could not be read.");
       return;
     }
     if (!key) {
@@ -291,8 +305,7 @@ export class OpenRouterChatController {
             Authorization: `Bearer ${key}`,
             Accept: "text/event-stream",
             "Content-Type": "application/json",
-            "HTTP-Referer": "http://127.0.0.1",
-            "X-Title": "Kurva Studio"
+            ...attributionHeaders(this.attribution)
           },
           redirect: "error",
           signal: active.controller.signal,
@@ -652,7 +665,7 @@ function catalogError(message: string): CatalogMessage {
 }
 
 function catalogStatusMessage(status: number): string {
-  if (status === 401) return "OpenRouter rejected the saved key. Replace it and try again.";
+  if (status === 401) return "OpenRouter rejected the saved key. Reconnect and try again.";
   if (status === 403) return "OpenRouter denied access to the model catalog. Test the saved key and try again.";
   if (status === 429) return "OpenRouter is rate limiting catalog requests. Try again shortly.";
   if (status >= 500) return "OpenRouter is temporarily unavailable. Try again shortly.";
@@ -660,7 +673,9 @@ function catalogStatusMessage(status: number): string {
 }
 
 function chatStatus(status: number): { code: ChatErrorMessage["code"]; message: string } {
-  if (status === 401 || status === 403)
+  if (status === 401)
+    return { code: "provider", message: "OpenRouter rejected the saved key. Reconnect and try again." };
+  if (status === 403)
     return { code: "provider", message: "OpenRouter rejected the saved key. Replace it and try again." };
   if (status === 402)
     return { code: "credits", message: "The OpenRouter account has no available credits for this request." };

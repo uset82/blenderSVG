@@ -7,13 +7,16 @@ export interface StudioProjectExportInput {
   now?: string;
 }
 
-export function formatEditorSaveStatus(status: string): { label: string; retry: boolean } {
+export function formatEditorSaveStatus(status: string): { label: string; retry: boolean; exportBackup?: boolean } {
   if (status === "Saving…") return { label: "Saving…", retry: false };
   if (status === "Saved") return { label: "Auto-saved", retry: false };
   if (status === "Save failed") return { label: "Save failed", retry: true };
+  if (status === "Save failed – Retry") return { label: "Save failed – Retry", retry: true };
+  if (status === "Saved in this browser") return { label: "Saved in this browser", retry: false };
   if (status === "Browser session only" || status === "Kept in this browser session") {
     return { label: "Offline – kept locally", retry: false };
   }
+  if (status.includes("out of space")) return { label: status, retry: false, exportBackup: true };
   return { label: status, retry: false };
 }
 

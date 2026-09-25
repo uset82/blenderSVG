@@ -16,6 +16,14 @@
 - Keep image, SVG, avatar-package, and Blender processing local by default. Remote AI is opt-in only: the OpenRouter chat and the optional, off-by-default QuiverAI SVG engine. Both use the user's own key held by the host, and the UI shows what will be sent. Do not add other remote asset services.
 - Preserve strict Webview CSP, typed bridge validation, workspace trust, safe local paths, SVG sanitization, reduced motion, and the built-in SVG fallback.
 - The standalone Studio host and its MCP endpoint bind to loopback only and check the Host header, the Origin, and a per-launch or per-client token on every request. Provider keys never reach the browser.
+
+## Web edition
+
+- The web edition (`VITE_KURVA_TARGET=web`, built to `apps/studio/dist-web`) is a static site with no Kurva backend: projects, assets, thumbnails, and conversations stay in the visitor's browser (IndexedDB). Do not deploy the loopback standalone host or its MCP endpoint publicly.
+- One exception to "provider keys never reach the browser": in the web edition, OpenRouter connects with OAuth PKCE and the user's key stays only in their own browser — encrypted at rest, sent only to `openrouter.ai`, and never sent to a Kurva server or written to logs. The desktop extension and the standalone host keep the host-held-key rule unchanged.
+- QuiverAI, Blender, and the MCP connectors remain desktop/local-only; the web edition hides them with a short reason and a link to the desktop app.
+- No analytics, telemetry, or third-party scripts in the web edition.
+- The web edition track is W0–W10 in [`docs/plan/futureplan.md`](docs/plan/futureplan.md), registered in `docs/PLAN_CHECKLIST.md`.
 - Check Studio visual work against the Target UI design canvas linked from [`docs/STUDIO_DESIGN_BRIEF.md`](docs/STUDIO_DESIGN_BRIEF.md). Paper and pen.dev contribute layout and interaction patterns only; brand, icons and copy stay our own.
 - doop is AGPL-3.0: use it as an idea reference only and never copy its code. ZCode is Apache-2.0: port only files audited under Phase 20.1, with per-file attribution and notices.
 - Blender and advanced runtimes must remain optional and fail gracefully.

@@ -23,9 +23,9 @@ import { ChatMessageBody } from "./ChatMessageBody.js";
 import { describeSelection } from "./canvasContextMenu.js";
 import { canStartSend, lastExchange } from "./chatActions.js";
 import { type ComposerMenuAction, composerMenuItems } from "./composerMenu.js";
-import { type ComposerMode, COMPOSER_MODES, modeDescription, nextComposerMode } from "./composerModes.js";
-import { DESIGN_SKILLS } from "./designSkills.js";
+import { COMPOSER_MODES, type ComposerMode, modeDescription, nextComposerMode } from "./composerModes.js";
 import { compactHistory } from "./contextBudget.js";
+import { DESIGN_SKILLS } from "./designSkills.js";
 import { filterStudioModels, type ModalityFilter, type PriceFilter, readCatalogPrice } from "./modelFilters.js";
 import { filterModelsByBadges, groupCatalogModels, modelBadges, type QuickModelFilter } from "./modelPicker.js";
 import { nextModelOptionIndex } from "./modelPickerNavigation.js";
@@ -51,7 +51,7 @@ export interface AgentConversationPanelProps {
   draftPrefill?: { id: string; text: string } | null;
   draftImagePrefill?: { id: string; file: File } | null;
   onClose: () => void;
-  connectionHost: "vscode" | "standalone" | "browser";
+  connectionHost: "vscode" | "standalone" | "browser" | "web";
   workspaceTrusted: boolean;
   connection: {
     status: "disconnected" | "connected" | "checking" | "error";
@@ -473,7 +473,7 @@ export function AgentConversationPanel({
           ? "Connection error"
           : "Not connected";
   const connectionMessage =
-    connectionHost === "browser"
+    connectionHost === "browser" || connectionHost === "web"
       ? connection.message
       : !workspaceTrusted
         ? "Trust this workspace before connecting an OpenRouter account."
@@ -526,7 +526,10 @@ export function AgentConversationPanel({
     setModelPickerOpen(false);
     if (restoreFocus) window.requestAnimationFrame(() => modelPickerTriggerRef.current?.focus());
   };
-  const canChat = (connectionHost === "vscode" || connectionHost === "standalone") && workspaceTrusted && connected;
+  const canChat =
+    connected &&
+    (connectionHost === "web" ||
+      ((connectionHost === "vscode" || connectionHost === "standalone") && workspaceTrusted));
   const canSend =
     canChat &&
     modelCatalog.status === "ready" &&
@@ -1142,7 +1145,8 @@ export function AgentConversationPanel({
               modelName: selectedModel?.name ?? null,
               draftCharacters: draft.trim().length,
               historyCount: messages.filter((message) => message.status === "complete").length,
-              attachmentName: attachedImage?.name ?? null
+              attachmentName: attachedImage?.name ?? null,
+              direct: connectionHost === "web"
             }).map((line) => (
               <li key={line}>{line}</li>
             ))}
@@ -1782,6 +1786,11 @@ export function AgentConversationPanel({
             This image is still local. Open Studio in VS Code to connect a vision model.
           </p>
         )}
+        {attachedImage && connectionHost === "web" && (
+          <p className="studio-agent__attachment-notice" role="status">
+            This image stays in this browser until you connect a vision model.
+          </p>
+        )}
         {attachedImage && connectionHost === "vscode" && !selectedModel?.inputModalities.includes("image") && (
           <p className="studio-agent__attachment-notice" role="status">
             Choose a model with image input before reviewing this request.
@@ -1853,14 +1862,21 @@ export function AgentConversationPanel({
             </button>
           )}
         </div>
-        {!canChat && connectionHost === "browser" ? (
+        {!canChat && connectionHost === "web" ? (
+          <div className="studio-agent__composer-help">
+            Saved in this browser. Connect OpenRouter from this browser. Requests go directly to OpenRouter. Kurva has
+            no server.
+          </div>
+        ) : !canChat && connectionHost === "browser" ? (
           <div className="studio-agent__composer-help">Use the VS Code editor tab to connect and chat.</div>
         ) : !canChat && !workspaceTrusted ? (
           <div className="studio-agent__composer-help">Workspace trust is required for OpenRouter requests.</div>
         ) : null}
         <p className={`studio-agent__host-status${connected ? " studio-agent__host-status--on" : ""}`} role="status">
           {connected
-            ? "OpenRouter connected · your key stays on this computer"
+            ? connectionHost === "web"
+              ? "OpenRouter connected · requests go directly from this browser. Kurva has no server."
+              : "OpenRouter connected · your key stays on this computer"
             : `OpenRouter ${connectionLabel.toLowerCase()}`}
         </p>
       </footer>
@@ -1878,8 +1894,10 @@ export function AgentConversationPanel({
               This sends your draft, earlier messages in this chat, and an image only if one is attached. Plan mode can
               offer read-only canvas details. Build asks before each proposed canvas change. Auto applies canvas-only
               changes as one Undo step; read actions still ask before local canvas data is sent. Approved results,
-              including a frame screenshot when requested, return to the selected model. The OpenRouter key stays on the
-              host.
+              including a frame screenshot when requested, return to the selected model.{" "}
+              {connectionHost === "web"
+                ? "Requests go directly from this browser to OpenRouter. Kurva has no server."
+                : "The OpenRouter key stays on the host."}
             </p>
             <button
               type="button"
@@ -1903,6 +1921,7 @@ export function AgentConversationPanel({
           preview={outboundPreview}
           showFull={alwaysPreview}
           warnPaidModels={warnPaidModels}
+          direct={connectionHost === "web"}
           sendRef={previewSendRef}
           onCancel={() => setOutboundPreview(null)}
           onSend={sendAfterPreview}
@@ -1916,6 +1935,7 @@ function OutboundRequestDialog({
   preview,
   showFull,
   warnPaidModels,
+  direct = false,
   sendRef,
   onCancel,
   onSend
@@ -1923,6 +1943,7 @@ function OutboundRequestDialog({
   preview: OutboundPreview;
   showFull: boolean;
   warnPaidModels: boolean;
+  direct?: boolean;
   sendRef: React.RefObject<HTMLButtonElement | null>;
   onCancel: () => void;
   onSend: () => void;
@@ -1968,6 +1989,7 @@ function OutboundRequestDialog({
                   readCatalogPrice(preview.model.completionPrice)
                 ) ?? "This model is listed as free.")
               : "Paid-model price warnings are off in Settings."}
+            {direct ? " Requests go directly from this browser to OpenRouter. Kurva has no server." : ""}
           </p>
         </header>
         {showFull && (
@@ -2113,11 +2135,12 @@ function adaptEditorForVariants(editor: Editor): VariantFrameEditor {
 }
 
 function getComposerPlaceholder(
-  host: "vscode" | "standalone" | "browser",
+  host: "vscode" | "standalone" | "browser" | "web",
   canChat: boolean,
   catalog: StudioModelCatalog,
   model?: StudioModel
 ): string {
+  if (host === "web") return "Saved in this browser";
   if (host === "browser") return "Open the VS Code editor tab to chat";
   if (!canChat) return "Connect OpenRouter to begin";
   if (catalog.status !== "ready") return "Loading available models…";

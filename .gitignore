@@ -6,6 +6,9 @@ build/
 .env
 .env.local
 .env.*
+!.env.web
+
+dist-web/
 
 .codex-avatar/
 # Workspace-specific avatar selection and private/local artwork.

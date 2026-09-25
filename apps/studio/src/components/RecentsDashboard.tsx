@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Cable,
   ChevronDown,
   Clock3,
   FolderOpen,
@@ -13,7 +14,6 @@ import {
   Search,
   Settings,
   Upload,
-  Cable,
   X
 } from "lucide-react";
 import type React from "react";
@@ -73,6 +73,9 @@ export interface RecentsDashboardProps {
   onImportAsset?: (() => void) | undefined;
   currentNav?: "home" | "connectors" | undefined;
   companion?: React.ReactNode | undefined;
+  libraryNote?: string | undefined;
+  workspaceTitle?: string | undefined;
+  workspaceDetail?: string | undefined;
 }
 
 const LAYOUT_KEY = "codex-avatar-studio-home-layout";
@@ -132,7 +135,10 @@ export function RecentsDashboard({
   onRecreateScreenshot,
   onImportAsset,
   currentNav = "home",
-  companion
+  companion,
+  libraryNote,
+  workspaceTitle,
+  workspaceDetail
 }: RecentsDashboardProps) {
   const [query, setQuery] = useState("");
   const [layout, setLayout] = useState<Layout>(() => readPreference(LAYOUT_KEY, ["grid", "list"], "grid"));
@@ -224,18 +230,22 @@ export function RecentsDashboard({
       <aside className={`recents__rail${drawerOpen ? " recents__rail--open" : ""}`} aria-label="Studio navigation">
         <div className="recents__brand">
           <details className="recents__brand-menu">
-            <summary aria-label="Workspace menu" title={projectMode ? "Trusted VS Code workspace" : "Browser session"}>
+            <summary
+              aria-label="Workspace menu"
+              title={workspaceTitle ?? (projectMode ? "Trusted VS Code workspace" : "Browser session")}
+            >
               <BrandMark className="recents__brand-mark" />
               <span className="recents__rail-text recents__wordmark">kurva</span>
               <ChevronDown size={14} aria-hidden="true" />
             </summary>
             <div className="recents__brand-menu-content">
               <span className="recents__brand-menu-label">Current workspace</span>
-              <strong>{projectMode ? "Trusted VS Code workspace" : "Browser session"}</strong>
+              <strong>{workspaceTitle ?? (projectMode ? "Trusted VS Code workspace" : "Browser session")}</strong>
               <span className="recents__brand-menu-note">
-                {projectMode
-                  ? "Projects are saved locally in this workspace."
-                  : "Canvases last for this browser session."}
+                {workspaceDetail ??
+                  (projectMode
+                    ? "Projects are saved locally in this workspace."
+                    : "Canvases last for this browser session.")}
               </span>
               <div className="recents__brand-menu-actions">
                 <button
@@ -338,7 +348,7 @@ export function RecentsDashboard({
             </button>
           )}
           <p className={`recents__rail-note recents__rail-text${projectMode ? " recents__rail-note--saved" : ""}`}>
-            {projectMode ? "Local host · saved to disk" : "Browser session · not saved to disk"}
+            {libraryNote ?? (projectMode ? "Local host · saved to disk" : "Browser session · not saved to disk")}
           </p>
         </div>
       </aside>

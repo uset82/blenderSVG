@@ -125,7 +125,10 @@ async function setStudioTheme(theme) {
   await page.evaluate((next) => {
     window.__studioSetTheme?.(next);
   }, theme);
-  await page.waitForFunction((next) => document.querySelector(".studio-app")?.getAttribute("data-theme") === next, theme);
+  await page.waitForFunction(
+    (next) => document.querySelector(".studio-app")?.getAttribute("data-theme") === next,
+    theme
+  );
 }
 
 async function captureState(name, width) {
