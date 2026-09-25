@@ -60,6 +60,12 @@
 		zstd
 	}
 
+	# Hashed app assets never fall back to index.html: a missing chunk must 404, so an old tab
+	# reloads into the new build instead of parsing HTML as a script.
+	handle /app/assets/* {
+		file_server
+	}
+
 	handle /app/* {
 		try_files {path} /app/index.html
 		file_server {

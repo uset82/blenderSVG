@@ -337,16 +337,16 @@
     "src": "../../node_modules/.pnpm/tldraw@5.4.2_@floating-ui+d_8b74a63bfc355fe6f01a9c9b66495e05/node_modules/tldraw/dist-esm/lib/utils/svg/sanitizeSvg.mjs",
     "isDynamicEntry": true
   },
-  "_DesktopOnlyNotice-C19w2J5P.js": {
-    "file": "assets/DesktopOnlyNotice-C19w2J5P.js",
+  "_DesktopOnlyNotice-C-i9rN6e.js": {
+    "file": "assets/DesktopOnlyNotice-C-i9rN6e.js",
     "name": "DesktopOnlyNotice",
     "imports": [
       "_radix-BQUQsFX7.js",
       "index.html"
     ]
   },
-  "_index-D1p7QqG4.js": {
-    "file": "assets/index-D1p7QqG4.js",
+  "_index-DBRFSPpQ.js": {
+    "file": "assets/index-DBRFSPpQ.js",
     "name": "index",
     "imports": [
       "_radix-BQUQsFX7.js",
@@ -369,7 +369,7 @@
     "name": "radix"
   },
   "index.html": {
-    "file": "assets/index--flLQXyo.js",
+    "file": "assets/index-DlTOHrHi.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -413,7 +413,7 @@
     "src": "src/assets/brand-mark.svg"
   },
   "src/components/StudioLeftPanel.tsx": {
-    "file": "assets/StudioLeftPanel-mnoI-fRh.js",
+    "file": "assets/StudioLeftPanel-DX0BHWmJ.js",
     "name": "StudioLeftPanel",
     "src": "src/components/StudioLeftPanel.tsx",
     "isDynamicEntry": true,
@@ -421,39 +421,39 @@
       "_radix-BQUQsFX7.js",
       "index.html",
       "_markdown-BrHkn-La.js",
-      "_index-D1p7QqG4.js"
+      "_index-DBRFSPpQ.js"
     ]
   },
   "src/components/StudioToolbar.tsx": {
-    "file": "assets/StudioToolbar-BwvsdOsO.js",
+    "file": "assets/StudioToolbar-Cruu5z_O.js",
     "name": "StudioToolbar",
     "src": "src/components/StudioToolbar.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
-      "_index-D1p7QqG4.js",
+      "_index-DBRFSPpQ.js",
       "index.html"
     ]
   },
   "src/components/VectorAssetDialog.tsx": {
-    "file": "assets/VectorAssetDialog-Cv0Vq5xF.js",
+    "file": "assets/VectorAssetDialog-Bbszo8Y6.js",
     "name": "VectorAssetDialog",
     "src": "src/components/VectorAssetDialog.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
       "index.html",
-      "_DesktopOnlyNotice-C19w2J5P.js"
+      "_DesktopOnlyNotice-C-i9rN6e.js"
     ]
   },
   "src/editor/StudioCanvas.tsx": {
-    "file": "assets/StudioCanvas-CGHxm3iB.js",
+    "file": "assets/StudioCanvas-D6MAGNUh.js",
     "name": "StudioCanvas",
     "src": "src/editor/StudioCanvas.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
-      "_index-D1p7QqG4.js",
+      "_index-DBRFSPpQ.js",
       "index.html"
     ],
     "css": [
@@ -531,12 +531,12 @@
     ]
   },
   "src/editor/setGeoTool.ts": {
-    "file": "assets/setGeoTool-D3FTDx_C.js",
+    "file": "assets/setGeoTool-BPqk0z74.js",
     "name": "setGeoTool",
     "src": "src/editor/setGeoTool.ts",
     "isDynamicEntry": true,
     "imports": [
-      "_index-D1p7QqG4.js",
+      "_index-DBRFSPpQ.js",
       "_radix-BQUQsFX7.js",
       "index.html"
     ]
@@ -548,18 +548,18 @@
     "isDynamicEntry": true
   },
   "src/routes/StudioRoutePages.tsx": {
-    "file": "assets/StudioRoutePages-CbjIEzI5.js",
+    "file": "assets/StudioRoutePages-BjzHzpfk.js",
     "name": "StudioRoutePages",
     "src": "src/routes/StudioRoutePages.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
       "index.html",
-      "_DesktopOnlyNotice-C19w2J5P.js"
+      "_DesktopOnlyNotice-C-i9rN6e.js"
     ]
   },
   "src/web/webHostTransport.ts": {
-    "file": "assets/webHostTransport-5ePe85NC.js",
+    "file": "assets/webHostTransport-CB0iLsUR.js",
     "name": "webHostTransport",
     "src": "src/web/webHostTransport.ts",
     "isDynamicEntry": true,
