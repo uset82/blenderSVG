@@ -152,6 +152,8 @@ export function RecentsDashboard({
   const [renamingProject, setRenamingProject] = useState<StudioProjectMeta | null>(null);
   const [renamingCanvas, setRenamingCanvas] = useState<SessionCanvas | null>(null);
   const [deletingCanvas, setDeletingCanvas] = useState<SessionCanvas | null>(null);
+  // Projects are confirmed in this dialog, not window.confirm, which some browsers block or auto-cancel.
+  const [deletingProject, setDeletingProject] = useState<StudioProjectMeta | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const renameFieldRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -646,7 +648,7 @@ export function RecentsDashboard({
                                 type="button"
                                 onClick={(event) => {
                                   closeCardMenu(event);
-                                  onDeleteProject(project.id);
+                                  setDeletingProject(project);
                                 }}
                               >
                                 Delete…
@@ -842,6 +844,36 @@ export function RecentsDashboard({
                 }}
               >
                 Delete canvas
+              </Button>
+            </div>
+          </div>
+        </Dialog.Content>
+      </Dialog.Root>
+      <Dialog.Root
+        open={deletingProject !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingProject(null);
+        }}
+      >
+        <Dialog.Content aria-describedby="delete-project-description">
+          <div className="recents__rename-form">
+            <Dialog.Title>Delete “{deletingProject?.title}”?</Dialog.Title>
+            <Dialog.Description id="delete-project-description">
+              This removes the project and its canvas. It cannot be undone.
+            </Dialog.Description>
+            <div className="recents__rename-actions">
+              <Button type="button" onClick={() => setDeletingProject(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                type="button"
+                onClick={() => {
+                  if (deletingProject) onDeleteProject(deletingProject.id);
+                  setDeletingProject(null);
+                }}
+              >
+                Delete project
               </Button>
             </div>
           </div>
