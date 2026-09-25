@@ -4,6 +4,8 @@
 
 **Updated:** 2026-09-25
 
+**Web edition:** the W0–W10 track in [`docs/plan/futureplan.md`](plan/futureplan.md) runs the Studio as a public local-first static site at `app.kurva.agency`; W5 onward waits on the owner's tldraw license key for the web domain.
+
 **Current state:** Phases 0–11 are complete. Phase 12 has one unchecked Blender MCP acceptance task and is blocked until the project-scoped server is available after restart. Phase 13's clean-profile offline and installed-host evidence is now recorded; the historical key still needs revoking by its account owner. The current Studio track is a standalone local infinite-canvas app served by a loopback host, with VS Code as an optional connector. It follows the Target UI linked from `docs/STUDIO_DESIGN_BRIEF.md`, uses Paper and pen.dev interaction patterns with our own brand, adds an OpenRouter agent panel where the user picks a model, adapts audited ZCode harness pieces, and exposes IDE connectors over MCP. Phases 14 and 15 are complete; Phase 16.1–16.12 are implemented and verified. Phase 18.1e remains pending because its live VS Code Webview edit/reopen half needs a valid tldraw production key, which is not present in this build environment. Phase 19's standalone OpenRouter path has a live isolated Edge pass for key setup, catalog refresh, picker keyboard selection, consent, outbound preview, streaming, and key-free browser transport; project-specific consent reloading is regression-tested. The old `AgentHarnessSidebar.tsx` has been replaced by `AgentConversationPanel.tsx` (19.11). Phase 21.3's optional QuiverAI path is off by default, uses a separate host-held key, requires session opt-in and per-generation consent, and sanitizes output. Phase 21.4's avatar builder offers the layered mascot and package SVG renderers, previews states, and exports the visible avatar as a validated static SVG package; an isolated Edge smoke imported and activated that ZIP through the Phase 4 registry. Conversation persistence (19.5) passed an isolated Edge restart check; the VS Code extension host supports the same typed, trust-checked operations and is covered by host/protocol tests. The former Phases 14–18 remain under “Studio v1 shell (superseded)”.
 
 **Next work for the requested Studio track:** §6.4 has eight of nine items checked with evidence. Still open: the installed VSIX canvas journey (needs `VITE_TLDRAW_LICENSE_KEY`). Phase 23.1’s Target layout review is complete with intentional Kurva brand and honesty gaps recorded. Phase 22.6 remains open for VS Code Agent Host authentication and WorkBuddy’s live MCP probe; Codex, Claude Code, Qoder, and Cursor already pass isolated read/write. Phase 18.1e’s VS Code Webview half and Phase 19.4’s Webview picker half stay blocked on the same tldraw key. The repository does not contain a license key. Safe next action: configure a valid canvas key for the installed VSIX pass, and resume VS Code/WorkBuddy probes when their runtimes allow. Keep Phase 12’s final MCP acceptance box open until its separate verification is recorded, and do not declare the overall release complete while §6.4’s VSIX item remains.
@@ -1337,6 +1339,22 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
   - open the Studio preview and the avatar sidebar
 - [ ] R7.2 Record the evidence here, including the before and after `du` sizes of the tree and the tracked-file count. Confirm `git status` shows only intended changes.
 
+### Web edition track (W0–W10) · requested 2026-09-25
+
+The web edition runs the Studio as a public static site at `https://app.kurva.agency` with no account and no Kurva backend; work is saved in the visitor's browser (IndexedDB). The detailed markable checklist with per-task evidence lives in [`docs/plan/futureplan.md`](plan/futureplan.md). **Owner decisions (2026-09-25):** a public local-first web app with no accounts; OpenRouter connects with OAuth PKCE and the key stays only in the visitor's browser, a web-only exception to the host-held-key rule; the tldraw license covering the web domain is an owner prerequisite that blocks W5 onward.
+
+- [ ] W0 Decisions, policy and prerequisites — futureplan.md §W0 (W0.3 tldraw license and W0.4 DNS confirmation are owner actions)
+- [ ] W1 Web build target and the `web` host mode — futureplan.md §W1
+- [ ] W2 IndexedDB local library — §W2
+- [ ] W3 OpenRouter in the browser (OAuth PKCE) — §W3
+- [ ] W4 Browser versions of host-only flows — §W4
+- [ ] W5 Static hosting on Railway (blocked on W0.3) — §W5
+- [ ] W6 Installable offline PWA — §W6
+- [ ] W7 Security and privacy hardening — §W7
+- [ ] W8 Landing page integration — §W8
+- [ ] W9 Testing and QA — §W9
+- [ ] W10 CI/CD, launch and operations — §W10
+
 ## 6. Release gates
 
 The checked gates in 6.1–6.3 certify the existing avatar extension/pipeline only. They do not certify the newer `apps/studio` canvas or its current network route. The Studio gate in 6.4 starts unchecked.
@@ -1392,6 +1410,20 @@ The checked gates in 6.1–6.3 certify the existing avatar extension/pipeline on
 - [ ] The standalone host and the installed VSIX pass the visual, functional, accessibility, privacy, performance and regression checks.
   - BLOCKED (2026-09-25): Standalone host passed visual e2e, a11y, perf, privacy, and `pnpm run ci` under Phase 23.2–23.6. The installed VSIX canvas journey still needs a valid `VITE_TLDRAW_LICENSE_KEY` (23.6/23.8). Safe next action: configure the key, rebuild, and rerun the installed VSIX canvas smoke.
 
+### 6.5 Web edition gate · new, unchecked
+
+The evidence for each item is recorded per task in [`docs/plan/futureplan.md`](plan/futureplan.md).
+
+- [ ] `app.kurva.agency` serves Kurva over HTTPS with the production headers and a valid tldraw license for the domain.
+- [ ] A visitor with no account can create, edit, reload, close and reopen a project, and a network log shows no project data leaving the browser.
+- [ ] Image → SVG, import, PNG/SVG/JSON export and the avatar ZIP all work in the browser.
+- [ ] OpenRouter connects through OAuth PKCE and the key is sent only to `openrouter.ai`; chat streams, stops and retries, and a proposal applies and undoes in one step.
+- [ ] Backup export/import and "Clear all data" work; persistent storage is requested and quota errors are handled.
+- [ ] Kurva opens offline after the first visit; the update prompt and the kill switch are verified.
+- [ ] Chromium, Firefox and Safari (macOS and iOS) pass the E2E journey; accessibility and performance budgets are met.
+- [ ] The desktop, standalone-host and VS Code regression suites still pass.
+- [ ] The landing page opens the web app, and the privacy and notices pages are live.
+
 ## 7. Deferred backlog
 
 These are intentionally outside the active delivery path:
@@ -1416,6 +1448,7 @@ These are intentionally outside the active delivery path:
 - A checked item needs evidence: command/manual procedure, observed result, environment, and affected files.
 - If blocked, leave the item unchecked and add `BLOCKED:` with the exact condition and a safe next action.
 - Maintain local-only image/model/asset processing, strict CSP, path containment, SVG sanitization, workspace trust, `shell: false`, reduced motion, and SVG fallback throughout. The only remote-processing exceptions are the user-enabled OpenRouter chat and the optional, off-by-default QuiverAI SVG engine. Both use host-held user keys and show what will be sent.
+- The web edition (W-track) is a static build with no Kurva backend: the visitor's browser holds their library (IndexedDB) and their OpenRouter key (OAuth PKCE, encrypted at rest, sent only to `openrouter.ai`). Desktop-only engines (Blender, MCP, QuiverAI) stay hidden in the web edition, and it ships no analytics or third-party scripts. The standalone host stays loopback-only and is never deployed publicly.
 - Check visual work against the Target UI design canvas. Paper and pen.dev contribute layout and interaction patterns only; brand, icons and copy stay our own.
 - doop (AGPL-3.0) is an idea reference only; never copy its code. ZCode (Apache-2.0) files may be ported only after the Phase 20.1 audit, with per-file attribution and notices.
 - Phase 12's final live MCP acceptance remains a separate required gate and must not be marked complete by Studio work.
