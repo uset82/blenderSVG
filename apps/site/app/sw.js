@@ -1,12 +1,26 @@
-const ASSET_CACHE = "kurva-assets";
+// Bump the version when cached assets must be thrown away. v1 ("kurva-assets") could hold
+// HTML stored under script URLs, served while a deploy was switching over.
+const ASSET_CACHE = "kurva-assets-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      const names = await caches.keys();
+      await Promise.all(
+        names.filter((name) => name.startsWith("kurva-assets") && name !== ASSET_CACHE).map((name) => caches.delete(name))
+      );
+      await self.clients.claim();
+    })()
+  );
 });
+
+function isHtml(response) {
+  return (response.headers.get("content-type") ?? "").includes("text/html");
+}
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
@@ -27,12 +41,13 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       caches.open(ASSET_CACHE).then(async (cache) => {
         const cached = await cache.match(event.request);
-        if (cached) return cached;
+        // Never serve a page where a script, style or font belongs; drop it and refetch.
+        if (cached && !isHtml(cached)) return cached;
+        if (cached) await cache.delete(event.request);
         const response = await fetch(event.request);
         // Cache real assets only. A host that answers a missing asset with the HTML shell
         // would otherwise poison this cache with a page where a script belongs.
-        const type = response.headers.get("content-type") ?? "";
-        if (response.ok && !type.includes("text/html")) await cache.put(event.request, response.clone());
+        if (response.ok && !isHtml(response)) await cache.put(event.request, response.clone());
         return response;
       })
     );
