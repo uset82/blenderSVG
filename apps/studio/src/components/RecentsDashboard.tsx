@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Clock3,
   FolderOpen,
+  House,
   Image,
   LayoutGrid,
   List,
@@ -155,6 +156,8 @@ export function RecentsDashboard({
   const renameFieldRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const recentsRef = useRef<HTMLDivElement>(null);
+  const brandDetailsRef = useRef<HTMLDetailsElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => rememberPreference(LAYOUT_KEY, layout), [layout]);
   useEffect(() => rememberPreference(SORT_KEY, sortOrder), [sortOrder]);
@@ -200,10 +203,25 @@ export function RecentsDashboard({
 
   if (!isOpen) return null;
 
+  const goToHome = () => {
+    setDrawerOpen(false);
+    brandDetailsRef.current?.removeAttribute("open");
+    setQuery("");
+    onNavigate?.("home");
+    contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const goToRecents = () => {
     setDrawerOpen(false);
-    if (companion) onNavigate?.("home");
-    else recentsRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+    brandDetailsRef.current?.removeAttribute("open");
+    if (companion) {
+      onNavigate?.("home");
+      requestAnimationFrame(() => {
+        recentsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    } else {
+      recentsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
   const category = HOME_CATEGORY_PRESETS.find((preset) => preset.id === categoryId) ?? HOME_CATEGORY_PRESETS[0];
   const selectCategory = (preset: HomeCategory) => {
@@ -229,13 +247,22 @@ export function RecentsDashboard({
       )}
       <aside className={`recents__rail${drawerOpen ? " recents__rail--open" : ""}`} aria-label="Studio navigation">
         <div className="recents__brand">
-          <details className="recents__brand-menu">
+          <button
+            type="button"
+            className="recents__brand-home"
+            onClick={goToHome}
+            title="Kurva Home"
+            aria-label="Kurva Home"
+          >
+            <BrandMark className="recents__brand-mark" />
+            <span className="recents__rail-text recents__wordmark">kurva</span>
+          </button>
+          <details ref={brandDetailsRef} className="recents__brand-menu">
             <summary
+              className="recents__brand-chevron"
               aria-label="Workspace menu"
               title={workspaceTitle ?? (projectMode ? "Trusted VS Code workspace" : "Browser session")}
             >
-              <BrandMark className="recents__brand-mark" />
-              <span className="recents__rail-text recents__wordmark">kurva</span>
               <ChevronDown size={14} aria-hidden="true" />
             </summary>
             <div className="recents__brand-menu-content">
@@ -248,6 +275,15 @@ export function RecentsDashboard({
                     : "Canvases last for this browser session.")}
               </span>
               <div className="recents__brand-menu-actions">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    closeCardMenu(event);
+                    goToHome();
+                  }}
+                >
+                  <House size={15} aria-hidden="true" /> Home
+                </button>
                 <button
                   type="button"
                   onClick={(event) => {
@@ -296,12 +332,16 @@ export function RecentsDashboard({
         </button>
         <nav className="recents__nav" aria-label="Workspace">
           <button
-            className={`recents__nav-item${currentNav === "home" ? " recents__nav-item--active" : ""}`}
+            className={`recents__nav-item${currentNav === "home" && !companion ? " recents__nav-item--active" : ""}`}
             type="button"
-            onClick={goToRecents}
-            aria-current={currentNav === "home" ? "page" : undefined}
-            title="Recents"
+            onClick={goToHome}
+            aria-current={currentNav === "home" && !companion ? "page" : undefined}
+            title="Home"
           >
+            <House size={17} strokeWidth={1.75} aria-hidden="true" />
+            <span className="recents__rail-text">Home</span>
+          </button>
+          <button className="recents__nav-item" type="button" onClick={goToRecents} title="Recents">
             <Clock3 size={17} strokeWidth={1.75} aria-hidden="true" />
             <span className="recents__rail-text">Recents</span>
           </button>
@@ -364,9 +404,17 @@ export function RecentsDashboard({
             <Menu size={20} aria-hidden="true" />
           </button>
           {companion ? (
-            <h1 className="recents__page-title">Connectors</h1>
+            <h1 className="recents__page-title">
+              <button type="button" className="recents__page-title-button" onClick={goToHome} title="Return to Home">
+                Connectors
+              </button>
+            </h1>
           ) : (
-            <h1 className="recents__page-title">Home</h1>
+            <h1 className="recents__page-title">
+              <button type="button" className="recents__page-title-button" onClick={goToHome} title="Return to top">
+                Home
+              </button>
+            </h1>
           )}
           {!companion && (
             <div className="recents__header-actions">
@@ -390,7 +438,7 @@ export function RecentsDashboard({
         {companion ? (
           <div className="recents__content recents__companion">{companion}</div>
         ) : (
-          <div className="recents__content">
+          <div className="recents__content" ref={contentRef}>
             <div className="recents__content-inner">
               <StudioComposer
                 className="studio-composer--home"

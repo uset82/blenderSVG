@@ -33,24 +33,19 @@
 }
 
 .recents__brand {
+  position: relative;
   display: flex;
   align-items: center;
   min-height: 44px;
-  gap: 4px;
+  gap: 2px;
 }
 
-.recents__brand-menu {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 44px;
-}
-
-.recents__brand-menu > summary {
+.recents__brand-home {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 44px;
   padding: 0 8px;
   border: 0;
@@ -60,18 +55,48 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
-  list-style: none;
+  font-family: inherit;
+  text-align: left;
+  text-decoration: none;
+  transition: background-color var(--studio-transition-fast);
 }
 
-.recents__brand-menu > summary::-webkit-details-marker {
+.recents__brand-home:hover {
+  background: var(--studio-surface-1);
+}
+
+.recents__brand-menu {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.recents__brand-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--studio-radius-control);
+  background: transparent;
+  color: var(--studio-text-muted);
+  cursor: pointer;
+  list-style: none;
+  transition:
+    background-color var(--studio-transition-fast),
+    color var(--studio-transition-fast);
+}
+
+.recents__brand-chevron::-webkit-details-marker {
   display: none;
 }
-.recents__brand-menu > summary > svg:last-child {
-  margin-left: auto;
-  color: var(--studio-text-muted);
-}
-.recents__brand-menu > summary:hover {
+
+.recents__brand-chevron:hover {
   background: var(--studio-surface-1);
+  color: var(--studio-text-primary);
 }
 
 .recents__brand-menu-content {
@@ -81,7 +106,8 @@
   left: 0;
   display: grid;
   gap: 6px;
-  width: 248px;
+  width: 224px;
+  box-sizing: border-box;
   padding: 12px;
   border: 1px solid var(--studio-divider);
   border-radius: var(--studio-radius-panel);
@@ -279,6 +305,32 @@
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+}
+
+.recents__page-title-button {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--studio-radius-control);
+  text-decoration: none;
+  transition: opacity var(--studio-transition-fast);
+}
+
+.recents__page-title-button:hover {
+  opacity: 0.8;
+}
+
+.recents__page-title-button:focus-visible {
+  outline: 2px solid var(--studio-focus-ring);
+  outline-offset: 2px;
 }
 
 .recents__header-actions,
