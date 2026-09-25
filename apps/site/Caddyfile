@@ -18,7 +18,12 @@
 		format json
 	}
 
-	respond /health 200
+	# handle blocks run before respond, so /health needs its own handle or the catch-all serves a 404.
+	handle /health {
+		respond 200
+	}
+
+	redir /app /app/ 308
 
 	@app path /app /app/*
 	header @app {
