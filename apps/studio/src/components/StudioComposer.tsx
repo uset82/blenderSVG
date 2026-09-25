@@ -112,9 +112,9 @@ export function StudioComposer({
               className="studio-composer__control"
               type="button"
               disabled
-              title="The editor opens in Ask. Change the mode there."
+              title="Home starts a Build frame. Change Ask, Plan, or Auto in the editor."
             >
-              Ask
+              Build
             </button>
           )}
           {variantControl ?? (

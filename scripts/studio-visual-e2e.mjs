@@ -120,11 +120,17 @@ function json(value) {
   return new Response(JSON.stringify(value), { status: 200, headers: { "content-type": "application/json" } });
 }
 
+async function setStudioTheme(theme) {
+  await page.waitForFunction(() => typeof window.__studioSetTheme === "function");
+  await page.evaluate((next) => {
+    window.__studioSetTheme?.(next);
+  }, theme);
+  await page.waitForFunction((next) => document.querySelector(".studio-app")?.getAttribute("data-theme") === next, theme);
+}
+
 async function captureState(name, width) {
   for (const theme of themes) {
-    await page.evaluate((next) => {
-      document.querySelector(".studio-app")?.setAttribute("data-theme", next);
-    }, theme);
+    await setStudioTheme(theme);
     const file = path.join(stateDir, `editor-${name}-${theme}-${width}.png`);
     await page.screenshot({ path: file });
     console.log(file);
@@ -280,9 +286,7 @@ try {
         );
       }
       for (const theme of themes) {
-        await page.evaluate((next) => {
-          document.querySelector(".studio-app")?.setAttribute("data-theme", next);
-        }, theme);
+        await setStudioTheme(theme);
         const file = path.join(outDir, `${screen}-${theme}-${width}.png`);
         await page.screenshot({ path: file });
         console.log(file);

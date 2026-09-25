@@ -1,12 +1,9 @@
 import {
-  ArrowRight,
   ChevronDown,
-  Circle,
   Frame,
   Hand,
   ImagePlus,
   Keyboard,
-  Minus,
   MousePointer2,
   PenLine,
   RectangleHorizontal,
@@ -17,7 +14,7 @@ import {
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { type Editor, GeoShapeGeoStyle, useValue } from "tldraw";
 
-type ToolId = "select" | "hand" | "frame" | "geo" | "arrow" | "line" | "draw" | "text" | "note";
+type ToolId = "select" | "hand" | "frame" | "geo" | "draw" | "text" | "note";
 
 interface ToolDefinition {
   id?: ToolId;
@@ -33,15 +30,15 @@ const TOOLS: ToolDefinition[] = [
   { id: "hand", label: "Hand", shortcut: "H", icon: Hand },
   { id: "frame", label: "Frame", shortcut: "F", icon: Frame },
   { id: "geo", label: "Rectangle", shortcut: "R", icon: RectangleHorizontal, geo: "rectangle" },
-  { id: "geo", label: "Ellipse", shortcut: "O", icon: Circle, geo: "ellipse" },
-  { id: "line", label: "Line", shortcut: "L", icon: Minus },
-  { id: "arrow", label: "Arrow", shortcut: "A", icon: ArrowRight },
   { id: "draw", label: "Pen", shortcut: "P", icon: PenLine },
   { id: "text", label: "Text", shortcut: "T", icon: Type },
-  { id: "note", label: "Sticky", shortcut: "N", icon: StickyNote },
-  { label: "Import image or SVG", shortcut: "I", icon: ImagePlus, action: "import" },
+  { id: "note", label: "Sticky note", shortcut: "N", icon: StickyNote },
+  { label: "Image or SVG", shortcut: "I", icon: ImagePlus, action: "import" },
+  // Phase 21 requires Vector asset from the tool rail; Target omits it, but the plan wins.
   { label: "Trace image locally", shortcut: "trace", icon: ImagePlus, action: "trace" }
 ];
+
+const RAIL_TOOLS = TOOLS;
 
 const FRAME_PRESETS = [
   { id: "desktop", label: "Desktop", width: 1440, height: 900 },
@@ -170,12 +167,12 @@ function MountedStudioToolbar({
   return (
     <nav className="studio-toolbar" aria-label="Canvas tools">
       <div className="studio-toolbar__items">
-        {TOOLS.map((tool, index) => {
+        {RAIL_TOOLS.map((tool, index) => {
           const Icon = tool.icon;
           const selected = isActive(tool);
           return (
             <Fragment key={`${tool.id}-${tool.label}`}>
-              {(index === 2 || index === 5) && <span className="studio-toolbar__divider" aria-hidden="true" />}
+              {index === 2 && <span className="studio-toolbar__divider" aria-hidden="true" />}
               <span className={`studio-toolbar__item${tool.id === "frame" ? " studio-toolbar__item--frame" : ""}`}>
                 <button
                   type="button"

@@ -772,6 +772,7 @@ textarea:focus-visible {
 .studio-windowbar__brand-mark {
   width: 20px;
   height: 20px;
+  color: var(--studio-text-primary);
 }
 
 .studio-windowbar__brand-button {
@@ -947,11 +948,6 @@ textarea:focus-visible {
   color: var(--studio-text-muted);
   font-family: var(--studio-font-mono);
   font-size: 11px;
-}
-
-.studio-app[data-theme="light"] .studio-windowbar__brand-mark,
-.studio-app[data-theme="light"] .recents__brand-mark {
-  filter: invert(1);
 }
 
 .studio-windowbar__separator {
