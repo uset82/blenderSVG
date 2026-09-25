@@ -34,7 +34,8 @@ for (const content of contents.values()) {
   for (const code of [...codeSpans, ...codeBlocks]) {
     for (const match of code.matchAll(/\bpnpm\s+(?:(?:run)\s+)?([a-z][a-z\d:_-]*)/g)) {
       const command = match[1];
-      if (!new Set(["install", "add", "update", "list", "exec", "dlx"]).has(command)) {
+      // "pnpm" alone is a line-wrap artifact ("npm install -g pnpm\npnpm install"), never a script.
+      if (!new Set(["install", "add", "update", "list", "exec", "dlx", "pnpm"]).has(command)) {
         documentedPnpmCommands.add(command);
       }
     }
