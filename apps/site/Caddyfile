@@ -1,0 +1,57 @@
+# Kurva landing page. Railpack's static provider fills in {{.StaticFileRoot}}.
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	log {
+		format json
+	}
+
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:{$PORT:80} {
+	log {
+		format json
+	}
+
+	respond /health 200
+
+	header {
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+		-Server
+	}
+
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=604800"
+	@pages path / /index.html /404.html /styles.css
+	header @pages Cache-Control "no-cache"
+
+	root * {{.StaticFileRoot}}
+
+	file_server {
+		hide .git
+		hide .env*
+		hide Caddyfile
+		hide railway.json
+	}
+
+	encode {
+		gzip
+		zstd
+	}
+
+	try_files {path} {path}.html {path}/index.html
+
+	handle_errors {
+		rewrite * /{err.status_code}.html
+		file_server
+	}
+}
