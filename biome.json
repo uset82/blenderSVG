@@ -10,6 +10,7 @@
       "!**/dist/**",
       "!**/dist-web/**",
       "!**/.kilo/**",
+      "!apps/site/app/**",
       "!apps/extension/media/**",
       "!apps/webview/dist/**",
       "!apps/webview/src/renderers/WebGLAvatarRenderer.tsx"

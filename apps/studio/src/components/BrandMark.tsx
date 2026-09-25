@@ -16,15 +16,7 @@ export const BrandMark = ({ className, title = "Kurva" }: BrandMarkProps): React
     focusable="false"
   >
     <title>{title}</title>
-    <line
-      x1="18"
-      y1="10"
-      x2="18"
-      y2="54"
-      stroke="currentColor"
-      strokeWidth="8"
-      strokeLinecap="round"
-    />
+    <line x1="18" y1="10" x2="18" y2="54" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
     <path
       d="M48 10 C16 28 16 36 48 54"
       fill="none"

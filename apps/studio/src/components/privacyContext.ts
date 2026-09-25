@@ -1,5 +1,4 @@
-export const WEB_DIRECT_REQUEST =
-  "Requests go directly from this browser to OpenRouter. Kurva has no server.";
+export const WEB_DIRECT_REQUEST = "Requests go directly from this browser to OpenRouter. Kurva has no server.";
 
 export function sendContextLines(input: {
   modelName: string | null;

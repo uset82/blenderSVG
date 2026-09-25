@@ -142,7 +142,9 @@ a:hover {
 .display {
   margin: 0;
   font-family: var(--display);
-  font-variation-settings: "SOFT" 100, "WONK" 0;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 0;
   font-weight: 380;
   letter-spacing: -0.025em;
   line-height: 1;
@@ -166,7 +168,9 @@ a:hover {
   font-weight: 600;
   font-size: 17px;
   text-decoration: none;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 .btn--primary {
   background: var(--vermilion-deep);
@@ -224,7 +228,9 @@ a:hover {
 }
 .wordmark {
   font-family: var(--display);
-  font-variation-settings: "SOFT" 100, "WONK" 1;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1;
   font-size: 30px;
   font-weight: 460;
   letter-spacing: -0.03em;
@@ -266,7 +272,9 @@ a:hover {
   font-size: clamp(56px, 9vw, 116px);
   line-height: 0.96;
   letter-spacing: -0.03em;
-  font-variation-settings: "SOFT" 100, "WONK" 1;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1;
 }
 .hero-lede {
   margin: 0;
@@ -343,7 +351,9 @@ a:hover {
   border-radius: 16px;
   background: var(--paper-2);
   overflow: hidden;
-  box-shadow: 0 1px 0 rgba(27, 26, 23, 0.06), 0 24px 60px -30px rgba(27, 26, 23, 0.35);
+  box-shadow:
+    0 1px 0 rgba(27, 26, 23, 0.06),
+    0 24px 60px -30px rgba(27, 26, 23, 0.35);
 }
 .mock-bar {
   height: 48px;
@@ -875,7 +885,9 @@ a:hover {
 .closing h2 {
   font-size: clamp(48px, 7vw, 92px);
   letter-spacing: -0.03em;
-  font-variation-settings: "SOFT" 100, "WONK" 1;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1;
 }
 
 /* Footer */
