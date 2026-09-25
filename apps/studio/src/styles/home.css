@@ -465,6 +465,9 @@
 .recents__canvas-preview {
   display: grid;
   place-items: center;
+  /* Explicit: older Chromium (the desktop app's Electron) does not stretch flex children of a <button>. */
+  box-sizing: border-box;
+  width: 100%;
   min-height: 120px;
   height: 124px;
   overflow: hidden;
@@ -491,6 +494,8 @@
 .recents__canvas-details {
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
   gap: 2px;
   padding: 10px 12px 12px;
 }
