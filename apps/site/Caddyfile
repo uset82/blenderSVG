@@ -20,7 +20,19 @@
 
 	respond /health 200
 
-	header {
+	@app path /app /app/*
+	header @app {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://openrouter.ai; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+		-Server
+	}
+	@site {
+		not path /app /app/*
+	}
+	header @site {
 		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
@@ -31,24 +43,37 @@
 
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=604800"
-	@pages path / /index.html /404.html /styles.css
+	@appassets path /app/assets/*
+	header @appassets Cache-Control "public, max-age=31536000, immutable"
+	@pages path / /index.html /404.html /styles.css /app /app/ /app/index.html
 	header @pages Cache-Control "no-cache"
 
 	root * {{.StaticFileRoot}}
-
-	file_server {
-		hide .git
-		hide .env*
-		hide Caddyfile
-		hide railway.json
-	}
 
 	encode {
 		gzip
 		zstd
 	}
 
-	try_files {path} {path}.html {path}/index.html
+	handle /app/* {
+		try_files {path} /app/index.html
+		file_server {
+			hide .git
+			hide .env*
+			hide Caddyfile
+			hide railway.json
+		}
+	}
+
+	handle {
+		try_files {path} {path}.html {path}/index.html
+		file_server {
+			hide .git
+			hide .env*
+			hide Caddyfile
+			hide railway.json
+		}
+	}
 
 	handle_errors {
 		rewrite * /{err.status_code}.html
