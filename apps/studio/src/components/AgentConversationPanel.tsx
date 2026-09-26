@@ -28,6 +28,7 @@ import { compactHistory } from "./contextBudget.js";
 import { DESIGN_SKILLS } from "./designSkills.js";
 import {
   filterStudioModels,
+  isDuplicateRoute,
   MODEL_SORT_OPTIONS,
   type ModelSortOrder,
   readCatalogPrice,
@@ -504,6 +505,9 @@ export function AgentConversationPanel({
     () => sortStudioModels(quickMatchingModels, modelSortOrder),
     [quickMatchingModels, modelSortOrder]
   );
+  // `sortedModels` still contains OpenRouter's duplicate routes; the picker only
+  // renders the deduped set, so the counts must come from here.
+  const visibleModels = useMemo(() => sortedModels.filter((model) => !isDuplicateRoute(model)), [sortedModels]);
 
   useEffect(() => {
     if (!sortMenuOpen) return;
@@ -1448,7 +1452,10 @@ export function AgentConversationPanel({
                 <header className="studio-model-picker-popover__header">
                   <div>
                     <strong>Choose a model</strong>
-                    <span>{modelCatalog.models.length.toLocaleString()} available in this catalog</span>
+                    <span>
+                      {visibleModels.length.toLocaleString()} of {modelCatalog.models.length.toLocaleString()} shown ·
+                      newest first when unsorted
+                    </span>
                   </div>
                   <button
                     className="studio-model-picker-popover__icon-button"
@@ -1712,7 +1719,7 @@ export function AgentConversationPanel({
                       })}
                     </div>
                   ))}
-                  {sortedModels.length === 0 && (
+                  {visibleModels.length === 0 && (
                     <p className="studio-model-picker-popover__empty">
                       {modelCatalog.status === "loading" ? "Loading models…" : "No models match these filters."}
                     </p>
@@ -1721,7 +1728,7 @@ export function AgentConversationPanel({
 
                 <footer className="studio-model-picker-popover__footer">
                   <span aria-live="polite">
-                    {sortedModels.length.toLocaleString()} of {modelCatalog.models.length.toLocaleString()} models ·
+                    {visibleModels.length.toLocaleString()} of {modelCatalog.models.length.toLocaleString()} models ·
                     $/1M input / output
                     {modelCatalog.refreshedAt
                       ? ` · refreshed ${formatCatalogRefresh(modelCatalog.refreshedAt)}`

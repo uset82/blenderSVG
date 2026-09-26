@@ -104,77 +104,21 @@ export function sortStudioModels(models: readonly StudioModel[], sortOrder: Mode
 
   switch (sortOrder) {
     case "intelligence-high-to-low":
-      return list.sort((a, b) => {
-        const aVal = a.intelligence;
-        const bVal = b.intelligence;
-        if (aVal != null && bVal != null) return bVal - aVal;
-        if (aVal != null) return -1;
-        if (bVal != null) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      return list.sort((a, b) => compareMetric(a, b, "intelligence", "desc"));
     case "intelligence-low-to-high":
-      return list.sort((a, b) => {
-        const aVal = a.intelligence;
-        const bVal = b.intelligence;
-        if (aVal != null && bVal != null) return aVal - bVal;
-        if (aVal != null) return -1;
-        if (bVal != null) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      return list.sort((a, b) => compareMetric(a, b, "intelligence", "asc"));
     case "coding-high-to-low":
-      return list.sort((a, b) => {
-        const aVal = a.codingIndex;
-        const bVal = b.codingIndex;
-        if (aVal != null && bVal != null) return bVal - aVal;
-        if (aVal != null) return -1;
-        if (bVal != null) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      return list.sort((a, b) => compareMetric(a, b, "codingIndex", "desc"));
     case "coding-low-to-high":
-      return list.sort((a, b) => {
-        const aVal = a.codingIndex;
-        const bVal = b.codingIndex;
-        if (aVal != null && bVal != null) return aVal - bVal;
-        if (aVal != null) return -1;
-        if (bVal != null) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      return list.sort((a, b) => compareMetric(a, b, "codingIndex", "asc"));
     case "agentic-high-to-low":
-      return list.sort((a, b) => {
-        const aVal = a.agenticIndex;
-        const bVal = b.agenticIndex;
-        if (aVal != null && bVal != null) return bVal - aVal;
-        if (aVal != null) return -1;
-        if (bVal != null) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      return list.sort((a, b) => compareMetric(a, b, "agenticIndex", "desc"));
     case "agentic-low-to-high":
-      return list.sort((a, b) => {
-        const aVal = a.agenticIndex;
-        const bVal = b.agenticIndex;
-        if (aVal != null && bVal != null) return aVal - bVal;
-        if (aVal != null) return -1;
-        if (bVal != null) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      return list.sort((a, b) => compareMetric(a, b, "agenticIndex", "asc"));
     case "design-arena-elo-high-to-low":
-      return list.sort((a, b) => {
-        const aVal = a.designArenaElo;
-        const bVal = b.designArenaElo;
-        if (aVal != null && bVal != null) return bVal - aVal;
-        if (aVal != null) return -1;
-        if (bVal != null) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      return list.sort((a, b) => compareMetric(a, b, "designArenaElo", "desc"));
     case "design-arena-elo-low-to-high":
-      return list.sort((a, b) => {
-        const aVal = a.designArenaElo;
-        const bVal = b.designArenaElo;
-        if (aVal != null && bVal != null) return aVal - bVal;
-        if (aVal != null) return -1;
-        if (bVal != null) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      return list.sort((a, b) => compareMetric(a, b, "designArenaElo", "asc"));
     case "pricing-low-to-high":
       return list.sort((a, b) => {
         const priceA = (readCatalogPrice(a.promptPrice) ?? 0) + (readCatalogPrice(a.completionPrice) ?? 0);
@@ -192,10 +136,62 @@ export function sortStudioModels(models: readonly StudioModel[], sortOrder: Mode
     case "context-low-to-high":
       return list.sort((a, b) => a.contextLength - b.contextLength);
     case "newest":
-      return list.sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
+      return list.sort((a, b) => byRecency(a, b, "desc"));
     case "oldest":
-      return list.sort((a, b) => (a.created ?? 0) - (b.created ?? 0));
+      return list.sort((a, b) => byRecency(a, b, "asc"));
     default:
       return list;
   }
+}
+
+/**
+ * Order two models by a benchmark metric, keeping the result deterministic.
+ *
+ * Unscored models always sink below scored ones, and — crucially — the unscored
+ * tail is ordered by recency rather than by name. OpenRouter only scores a
+ * fraction of its catalog (roughly 136 of 628 at the time of writing), so an
+ * alphabetical tail turned most of the list into what looked like random noise.
+ */
+function compareMetric(
+  a: StudioModel,
+  b: StudioModel,
+  key: "intelligence" | "codingIndex" | "agenticIndex" | "designArenaElo",
+  direction: "asc" | "desc"
+): number {
+  const aVal = a[key] ?? null;
+  const bVal = b[key] ?? null;
+  if (aVal !== null && bVal !== null && aVal !== bVal) {
+    return direction === "desc" ? bVal - aVal : aVal - bVal;
+  }
+  if (aVal !== null && bVal === null) return -1;
+  if (aVal === null && bVal !== null) return 1;
+  // Both scored equal, or both unscored: fall back to recency, then name.
+  return byRecency(a, b, "desc") || a.name.localeCompare(b.name);
+}
+
+function byRecency(a: StudioModel, b: StudioModel, direction: "asc" | "desc"): number {
+  const aVal = a.created ?? null;
+  const bVal = b.created ?? null;
+  if (aVal === bVal) return 0;
+  if (aVal === null) return 1;
+  if (bVal === null) return -1;
+  return direction === "desc" ? bVal - aVal : aVal - bVal;
+}
+
+/** OpenRouter lists `~vendor/model-latest` alias routes that duplicate the
+ *  canonical slug. Hiding them removes near-identical rows from the picker. */
+export function isAliasModel(model: StudioModel): boolean {
+  return model.id.startsWith("~");
+}
+
+/** Batch-processing variants (`vendor/model:batch`) are the same model at a
+ *  lower price with higher latency. There are ~76 of them, and they otherwise
+ *  duplicate the interactive model in every ranked list. */
+export function isBatchVariant(model: StudioModel): boolean {
+  return model.id.endsWith(":batch") || /\(batch\)\s*$/i.test(model.name);
+}
+
+/** Rows that only add noise to a picker meant for interactive chat. */
+export function isDuplicateRoute(model: StudioModel): boolean {
+  return isAliasModel(model) || isBatchVariant(model);
 }

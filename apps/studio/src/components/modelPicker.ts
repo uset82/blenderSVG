@@ -1,5 +1,5 @@
 import type { StudioModel } from "@codex-avatar-studio/avatar-core";
-import { MODEL_SORT_OPTIONS, type ModelSortOrder, readCatalogPrice } from "./modelFilters.js";
+import { isDuplicateRoute, MODEL_SORT_OPTIONS, type ModelSortOrder, readCatalogPrice } from "./modelFilters.js";
 
 export interface ModelPickerGroup {
   id: string;
@@ -48,7 +48,10 @@ export function groupCatalogModels(
   recentIds: readonly string[],
   sortOrder?: ModelSortOrder
 ): ModelPickerGroup[] {
-  const byId = new Map(models.map((model) => [model.id, model]));
+  // Drop OpenRouter's duplicate routes — `~vendor/model-latest` aliases and
+  // `vendor/model:batch` variants — so each interactive model appears once.
+  const visible = models.filter((model) => !isDuplicateRoute(model));
+  const byId = new Map(visible.map((model) => [model.id, model]));
   const used = new Set<string>();
   const take = (ids: readonly string[]) =>
     ids.flatMap((id) => {
@@ -63,7 +66,7 @@ export function groupCatalogModels(
   if (favorites.length > 0) groups.push({ id: "favorites", label: "Favorites", models: favorites });
   if (recent.length > 0) groups.push({ id: "recent", label: "Recent", models: recent });
 
-  const remaining = models.filter((model) => !used.has(model.id));
+  const remaining = visible.filter((model) => !used.has(model.id));
 
   if (sortOrder && sortOrder !== "most-popular") {
     const sortOption = MODEL_SORT_OPTIONS.find((opt) => opt.id === sortOrder);

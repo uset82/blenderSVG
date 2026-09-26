@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { StudioModel } from "@codex-avatar-studio/avatar-core";
-import { filterStudioModels, sortStudioModels, type StudioModelFilters } from "../src/components/modelFilters.js";
+import {
+  filterStudioModels,
+  isAliasModel,
+  isBatchVariant,
+  isDuplicateRoute,
+  sortStudioModels,
+  type StudioModelFilters
+} from "../src/components/modelFilters.js";
 
 const models: StudioModel[] = [
   makeModel({
@@ -121,6 +128,65 @@ describe("OpenRouter model catalog filters", () => {
     expect(sortStudioModels(list, "context-high-to-low").map((entry) => entry.id)).toEqual(["high-ctx", "low-ctx"]);
 
     expect(sortStudioModels(list, "pricing-low-to-high").map((entry) => entry.id)).toEqual(["high-ctx", "low-ctx"]);
+  });
+
+  it("orders the unscored tail by recency instead of by name", () => {
+    // OpenRouter only scores a fraction of its catalog, so the unscored tail is
+    // most of the list. It must stay newest-first rather than alphabetical.
+    const list: StudioModel[] = [
+      makeModel({ id: "zzz/old-unscored", name: "Zzz Old", created: 100, intelligence: null }),
+      makeModel({ id: "aaa/new-unscored", name: "Aaa New", created: 900, intelligence: null }),
+      makeModel({ id: "mmm/mid-unscored", name: "Mmm Mid", created: 500, intelligence: null }),
+      makeModel({ id: "top/scored", name: "Top Scored", created: 50, intelligence: 71.2 })
+    ];
+
+    expect(sortStudioModels(list, "intelligence-high-to-low").map((entry) => entry.id)).toEqual([
+      "top/scored",
+      "aaa/new-unscored",
+      "mmm/mid-unscored",
+      "zzz/old-unscored"
+    ]);
+  });
+
+  it("sinks unscored models below scored ones in both directions", () => {
+    const list: StudioModel[] = [
+      makeModel({ id: "a/unscored", name: "A", created: 10, intelligence: null }),
+      makeModel({ id: "b/scored", name: "B", created: 20, intelligence: 40 })
+    ];
+
+    // Even low-to-high keeps unscored entries last: they are absent data, not zero.
+    expect(sortStudioModels(list, "intelligence-low-to-high").map((entry) => entry.id)).toEqual([
+      "b/scored",
+      "a/unscored"
+    ]);
+  });
+
+  it("sorts newest first and oldest first by creation time", () => {
+    const list: StudioModel[] = [
+      makeModel({ id: "old", created: 100 }),
+      makeModel({ id: "new", created: 900 }),
+      makeModel({ id: "nodate", created: undefined })
+    ];
+
+    expect(sortStudioModels(list, "newest").map((entry) => entry.id)).toEqual(["new", "old", "nodate"]);
+    expect(sortStudioModels(list, "oldest").map((entry) => entry.id)).toEqual(["old", "new", "nodate"]);
+  });
+
+  it("treats `~vendor/model-latest` alias routes as aliases", () => {
+    expect(isAliasModel(makeModel({ id: "~openai/gpt-sol-latest" }))).toBe(true);
+    expect(isAliasModel(makeModel({ id: "openai/gpt-sol" }))).toBe(false);
+  });
+
+  it("detects batch variants by id suffix and by name", () => {
+    expect(isBatchVariant(makeModel({ id: "openai/gpt-sol:batch" }))).toBe(true);
+    expect(isBatchVariant(makeModel({ id: "x/y", name: "OpenAI: GPT-6 Sol (batch)" }))).toBe(true);
+    expect(isBatchVariant(makeModel({ id: "openai/gpt-sol" }))).toBe(false);
+  });
+
+  it("marks aliases and batch variants as duplicate routes, keeping real models", () => {
+    expect(isDuplicateRoute(makeModel({ id: "~openai/gpt-sol-latest" }))).toBe(true);
+    expect(isDuplicateRoute(makeModel({ id: "openai/gpt-sol:batch" }))).toBe(true);
+    expect(isDuplicateRoute(makeModel({ id: "openai/gpt-sol" }))).toBe(false);
   });
 });
 

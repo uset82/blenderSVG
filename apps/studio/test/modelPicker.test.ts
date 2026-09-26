@@ -50,6 +50,38 @@ describe("model picker", () => {
     expect(groups[0]?.models.map((entry) => entry.id)).toEqual(["anthropic/claude-3-5", "openai/gpt-4o"]);
   });
 
+  it("hides `~vendor/model-latest` alias routes so each model appears once", () => {
+    const models = [
+      model("openai/gpt-sol", "openai"),
+      model("~openai/gpt-sol-latest", "openai"),
+      model("anthropic/claude", "anthropic")
+    ];
+    const groups = groupCatalogModels(models, [], []);
+    const ids = groups.flatMap((group) => group.models.map((entry) => entry.id));
+    expect(ids).toEqual(["anthropic/claude", "openai/gpt-sol"]);
+    expect(ids).not.toContain("~openai/gpt-sol-latest");
+  });
+
+  it("hides `:batch` variants so a model is not listed twice", () => {
+    const models = [
+      model("openai/gpt-sol", "openai"),
+      model("openai/gpt-sol:batch", "openai"),
+      model("anthropic/claude:batch", "anthropic")
+    ];
+    const groups = groupCatalogModels(models, [], []);
+    const ids = groups.flatMap((group) => group.models.map((entry) => entry.id));
+    expect(ids).toEqual(["openai/gpt-sol"]);
+  });
+
+  it("keeps an alias route visible when it is the selected favorite", () => {
+    const models = [model("~openai/gpt-sol-latest", "openai"), model("openai/gpt-sol", "openai")];
+    const groups = groupCatalogModels(models, ["~openai/gpt-sol-latest"], []);
+    // Favorites resolve against the visible set, so an alias in storage does not
+    // resurrect a duplicate row.
+    expect(groups.map((group) => group.label)).toEqual(["openai"]);
+    expect(groups[0]?.models.map((entry) => entry.id)).toEqual(["openai/gpt-sol"]);
+  });
+
   it("applies quick filters together and returns all models when none are active", () => {
     const models = [
       model("free/vision-tools", "free", {
