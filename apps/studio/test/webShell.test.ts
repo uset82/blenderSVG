@@ -71,7 +71,7 @@ describe("web shell", () => {
     expect(kill).toContain("kurva-kill");
     expect(kill).toContain("kurva-reset");
     const caddy = readFileSync(new URL("apps/studio/web/Caddyfile", root), "utf8");
-    expect(caddy).toContain("connect-src 'self' https://openrouter.ai");
+    expect(caddy).toContain("connect-src 'self' https://openrouter.ai data:");
     const privacy = readFileSync(new URL("apps/studio/public/privacy.html", root), "utf8");
     expect(privacy).toContain("no analytics");
     expect(privacy).toContain("OpenRouter");

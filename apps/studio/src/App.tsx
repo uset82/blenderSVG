@@ -420,6 +420,8 @@ export function App() {
   const scratchpadRequestedRef = useRef(false);
   const pendingNewCanvasRef = useRef<string | null>(null);
   const pendingFramePresetRef = useRef<(typeof HOME_CATEGORY_PRESETS)[number] | null>(null);
+  /** Project ids created in this session; skip IndexedDB open so a blank placeholder cannot remount over the live canvas. */
+  const localCreatedProjectRef = useRef<string | null>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
   const stampCanvasTimerRef = useRef<number | undefined>(undefined);
   const refreshCanvasesRef = useRef<(editor: Editor, touchCurrent?: boolean) => void>(() => undefined);
@@ -1364,11 +1366,13 @@ export function App() {
     pendingFramePresetRef.current = HOME_CATEGORY_PRESETS.find((candidate) => candidate.id === categoryId) ?? null;
     const editor = editorRef.current;
     if (!editor) {
-      pendingNewCanvasRef.current = categoryId ?? "";
       if (hasDurableLibrary) {
+        pendingNewCanvasRef.current = null;
+        pendingFramePresetRef.current = HOME_CATEGORY_PRESETS.find((candidate) => candidate.id === categoryId) ?? null;
         const nextProjectId = crypto.randomUUID();
         projectIdRef.current = nextProjectId;
         projectTitleRef.current = "Untitled";
+        localCreatedProjectRef.current = nextProjectId;
         setActiveProjectId(nextProjectId);
         setProjectTitle("Untitled");
         routedProjectRef.current = nextProjectId;
@@ -1387,6 +1391,8 @@ export function App() {
             .catch(() => setProjectSaveStatus("The page could not be saved."));
         }
         navigateRoute({ name: "project", projectId: nextProjectId });
+      } else {
+        pendingNewCanvasRef.current = categoryId ?? "";
       }
       return;
     }
@@ -1408,6 +1414,7 @@ export function App() {
       const nextProjectId = crypto.randomUUID();
       projectIdRef.current = nextProjectId;
       projectTitleRef.current = title;
+      localCreatedProjectRef.current = nextProjectId;
       setActiveProjectId(nextProjectId);
       setProjectTitle(title);
       routedProjectRef.current = nextProjectId;
@@ -1955,6 +1962,10 @@ export function App() {
       mountedEditorRef.current = null;
       editorRef.current = null;
       routedProjectRef.current = null;
+      localCreatedProjectRef.current = null;
+      // Drop the active id so the next open waits for IndexedDB before mounting a blank canvas.
+      setActiveProjectId(null);
+      setEditorReady(false);
     }
   }, [route.name]);
 
@@ -1991,8 +2002,26 @@ export function App() {
   }, [route.name, hostState.host, currentCanvasId]);
 
   useEffect(() => {
-    if (route.name !== "project" || route.projectId === projectIdRef.current) return;
-    if (routedProjectRef.current === route.projectId) return;
+    if (route.name !== "project") return;
+    // Same project already on the live editor — ignore repeat route syncs.
+    if (
+      route.projectId === projectIdRef.current &&
+      activeProjectId === route.projectId &&
+      editorRef.current &&
+      !editorRef.current.isDisposed &&
+      editorReady
+    ) {
+      return;
+    }
+    if (routedProjectRef.current === route.projectId && activeProjectId === route.projectId) return;
+    // New file already claimed this id; do not open the blank IndexedDB placeholder over the canvas.
+    if (
+      (localCreatedProjectRef.current === route.projectId || projectIdRef.current === route.projectId) &&
+      routedProjectRef.current === route.projectId
+    ) {
+      if (activeProjectId !== route.projectId) setActiveProjectId(route.projectId);
+      return;
+    }
     if (hostState.host === "vscode") {
       if (!hostState.workspaceTrusted) {
         setProjectSaveStatus("Trust a local workspace to open this project.");
@@ -2012,32 +2041,21 @@ export function App() {
       const openProjectFile = libraryKind === "browser" ? browserProjectBackend.open : openStandaloneProject;
       void openProjectFile(route.projectId)
         .then((project) => {
-          if (routedProjectRef.current !== project.id || projectIdRef.current === project.id) return;
+          if (routedProjectRef.current !== project.id) return;
+          // Apply via pendingSnapshot + remount only. In-place loadSnapshot then a blank remount
+          // was dropping shapes (Chromium/WebKit flaked; Firefox sometimes flashed geo then lost it).
           projectIdRef.current = project.id;
           claimProjectLock(project.id);
-          setActiveProjectId(project.id);
           projectTitleRef.current = project.title;
-          const snapshot = JSON.parse(project.snapshot) as unknown;
-          pendingSnapshotRef.current = snapshot;
+          pendingSnapshotRef.current = JSON.parse(project.snapshot) as unknown;
           setProjectTitle(project.title);
           setProjectSaveStatus(libraryKind === "browser" ? WEB_LIBRARY_STATUS : "Saved");
-          const editor = editorRef.current;
-          if (editor && !editor.isDisposed && !isBlankCanvasSnapshot(snapshot)) {
-            try {
-              editor.loadSnapshot(snapshot as Parameters<Editor["loadSnapshot"]>[0]);
-              pendingSnapshotRef.current = null;
-              if (!webEdition) projectWritableRef.current = true;
-              refreshCanvases(editor);
-            } catch {
-              mountingRef.current = false;
-              mountedEditorRef.current = null;
-              setEditorGeneration((generation) => generation + 1);
-            }
-          } else {
-            mountingRef.current = false;
-            mountedEditorRef.current = null;
-            setEditorGeneration((generation) => generation + 1);
-          }
+          mountingRef.current = false;
+          mountedEditorRef.current = null;
+          editorRef.current = null;
+          setEditorReady(false);
+          setActiveProjectId(project.id);
+          setEditorGeneration((generation) => generation + 1);
           refreshProjectLibrary();
         })
         .catch((error: unknown) => {
@@ -2066,6 +2084,7 @@ export function App() {
     hostState.host,
     hostState.workspaceTrusted,
     editorReady,
+    activeProjectId,
     openProject,
     persistProjectNow,
     isStandaloneHost,
@@ -2616,6 +2635,11 @@ export function App() {
                     }}
                   >
                     {route.name === "project" &&
+                      !(
+                        (libraryKind === "browser" || isStandaloneHost) &&
+                        isProjectUuid(route.projectId) &&
+                        activeProjectId !== route.projectId
+                      ) &&
                       (canRenderCanvas ? (
                         <StudioCanvas
                           editorGeneration={editorGeneration}

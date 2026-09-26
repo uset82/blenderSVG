@@ -23,7 +23,7 @@ const securityHeaders = headersFromCaddy(readFileSync(caddyPath, "utf8"));
 const csp = securityHeaders["Content-Security-Policy"];
 const connectSrc = cspDirective(csp, "connect-src");
 const scriptSrc = cspDirective(csp, "script-src");
-assert.equal(connectSrc, "'self' https://openrouter.ai");
+assert.equal(connectSrc, "'self' https://openrouter.ai data:");
 assert.equal(scriptSrc, "'self' 'wasm-unsafe-eval'");
 
 writePathGuardLog();

@@ -178,12 +178,13 @@ export class OpenRouterChatController {
       // touched, so a catalog that already has scores costs one no-op pass.
       const unscored = rawModels.filter((value) => isRecord(value) && !hasArtificialAnalysis(value));
       if (unscored.length > 0) {
-        const merged = await this.readBenchmarkScores(controller.signal);
+        const merged = await this.readBenchmarkScores(controller.signal, key);
         if (merged) {
           for (const value of unscored) {
             if (!isRecord(value)) continue;
             const id = typeof value.id === "string" ? value.id : "";
-            const scores = merged.get(id);
+            const canonicalId = id.startsWith("~") ? id.slice(1) : id.replace(/:batch$/, "");
+            const scores = merged.get(id) ?? merged.get(canonicalId);
             if (scores) value.benchmarks = { ...(isRecord(value.benchmarks) ? value.benchmarks : {}), ...scores };
           }
         }
@@ -605,26 +606,73 @@ export class OpenRouterChatController {
    * `intelligence_index`) and keys the result by model id. A failure here is
    * non-fatal: the catalog still loads, just without scores.
    */
-  private async readBenchmarkScores(signal: AbortSignal): Promise<Map<string, ArtificialAnalysisScores> | null> {
+  private async readBenchmarkScores(
+    signal: AbortSignal,
+    key?: string
+  ): Promise<Map<string, ArtificialAnalysisScores> | null> {
     try {
       const response = await this.request(`${API_ROOT}/benchmarks?source=artificial-analysis`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...(key ? { Authorization: `Bearer ${key}` } : {})
+        },
+        redirect: "error",
+        signal
+      });
+      if (response.ok) {
+        const payload = await readBoundedJson(response, MAX_CATALOG_BYTES);
+        if (!isRecord(payload) || !Array.isArray(payload.data)) return null;
+        const scores = new Map<string, ArtificialAnalysisScores>();
+        for (const row of payload.data) {
+          if (!isRecord(row)) continue;
+          const parsed = readArtificialAnalysisRow(row);
+          const permaslug = typeof row.model_permaslug === "string" ? row.model_permaslug : "";
+          const slug = typeof row.model_slug === "string" ? row.model_slug : "";
+          const id = typeof row.id === "string" ? row.id : "";
+          if (parsed) {
+            if (permaslug) scores.set(permaslug, parsed);
+            if (slug) scores.set(slug, parsed);
+            if (id) scores.set(id, parsed);
+          }
+        }
+        return scores.size > 0 ? scores : null;
+      }
+      await response.body?.cancel().catch(() => undefined);
+    } catch {
+      // Proceed to public models fallback only if /benchmarks request failed
+    }
+
+    try {
+      const publicResponse = await this.request(`${API_ROOT}/models?output_modalities=all`, {
         method: "GET",
         headers: { Accept: "application/json" },
         redirect: "error",
         signal
       });
-      if (!response.ok) {
-        await response.body?.cancel().catch(() => undefined);
+      if (!publicResponse.ok) {
+        await publicResponse.body?.cancel().catch(() => undefined);
         return null;
       }
-      const payload = await readBoundedJson(response, MAX_CATALOG_BYTES);
-      if (!isRecord(payload) || !Array.isArray(payload.data)) return null;
+      const publicPayload = await readBoundedJson(publicResponse, MAX_CATALOG_BYTES);
+      if (!isRecord(publicPayload) || !Array.isArray(publicPayload.data)) return null;
       const scores = new Map<string, ArtificialAnalysisScores>();
-      for (const row of payload.data) {
+      for (const row of publicPayload.data) {
         if (!isRecord(row)) continue;
-        const parsed = readArtificialAnalysisRow(row);
-        const id = typeof row.model_permaslug === "string" ? row.model_permaslug : "";
-        if (parsed && id) scores.set(id, parsed);
+        const benchmarks = isRecord(row.benchmarks) ? row.benchmarks : null;
+        if (!benchmarks) continue;
+        const aa = isRecord(benchmarks.artificial_analysis) ? benchmarks.artificial_analysis : null;
+        if (!aa) continue;
+        const id = typeof row.id === "string" ? row.id : "";
+        if (!id) continue;
+        const intel = typeof aa.intelligence_index === "number" ? aa.intelligence_index : null;
+        const coding = typeof aa.coding_index === "number" ? aa.coding_index : null;
+        const agentic = typeof aa.agentic_index === "number" ? aa.agentic_index : null;
+        if (intel !== null || coding !== null || agentic !== null) {
+          scores.set(id, {
+            artificial_analysis: { intelligence_index: intel, coding_index: coding, agentic_index: agentic }
+          });
+        }
       }
       return scores.size > 0 ? scores : null;
     } catch {

@@ -1505,6 +1505,7 @@ export function AgentConversationPanel({
                   {(
                     [
                       ["free", "Free"],
+                      ["intelligence", "Intelligence"],
                       ["vision", "Vision"],
                       ["tools", "Tools"],
                       ["reasoning", "Reasoning"]
@@ -1518,9 +1519,15 @@ export function AgentConversationPanel({
                         aria-pressed={active}
                         className={active ? "is-active" : ""}
                         onClick={() =>
-                          setQuickModelFilters((current) =>
-                            current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]
-                          )
+                          setQuickModelFilters((current) => {
+                            const next = current.includes(filter)
+                              ? current.filter((item) => item !== filter)
+                              : [...current, filter];
+                            if (filter === "intelligence" && !active && modelSortOrder === "most-popular") {
+                              setModelSortOrder("intelligence-high-to-low");
+                            }
+                            return next;
+                          })
                         }
                       >
                         {label}

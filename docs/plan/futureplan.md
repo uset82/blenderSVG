@@ -1,6 +1,6 @@
 # Kurva web edition — task plan (run Kurva in the browser)
 
-**Status:** approved by the owner 2026-09-25, in execution. W1–W4 can start once the W0 repo items are checked; W5 (hosting) waits on the owner items W0.3 (tldraw license) and W0.4 (domains).
+**Status:** approved by the owner 2026-09-25, in execution. W1–W4 can start once the W0 repo items are checked; W5 (hosting) waits on W0.4 (domains) and a Railway project; W0.3 trial key is accepted for non-production use.
 
 **Goal:** anyone can open Kurva at `https://kurva.agency/ ` in a modern browser, with no install and no account. Their projects, assets and conversations stay in their own browser. AI chat uses the visitor's own OpenRouter account.
 
@@ -92,7 +92,7 @@
 
 - **Sequence:** W0 → W1 → W2 and W3 → W4 → W5 → W6 → W7 → W8 → W9 → W10.
 - **Blockers:**
-  - The tldraw license (W0.3) blocks every public deploy of the editor (W5 onward).
+  - Public deploy (W5) still needs DNS (W0.4) and Railway; the trial key is accepted for local and non-production builds.
   - W8 needs the landing-site branch on `main` (W0.8).
 - **Work sequentially.** W1–W4 all touch `apps/studio/src/App.tsx`, and other agents are active on this repo, so parallel agents would conflict.
 
@@ -119,7 +119,7 @@
     - **100-day trial**: no grace period, so never launch on a trial
   - Record the type, the allowed hosts and the expiry date. Keep the key out of the repo; it becomes a Railway build variable in W5.4.
   - Add a renewal reminder 30 days before expiry. Annual licenses get a 30-day grace period.
-  - Evidence (2026-09-26): owner supplied a tldraw key with payload hosts `*`, id prefix `tldraw-2027-01-03`, expiry `2027-01-03` (trial / any-domain). Stored only in gitignored `apps/studio/.env.local` for local builds; not committed. `build:web` embeds the key and `node scripts/web-canvas-persist.mjs` draws and reloads a rectangle without the setup notice. Production launch still needs a commercial key (or hobby policy accept) for `*.kurva.agency`, plus Railway `VITE_TLDRAW_LICENSE_KEY` and a GitHub Actions secret. Renewal reminder: 2026-12-04.
+  - Evidence (2026-09-26): owner supplied a tldraw key with payload hosts `*`, id prefix `tldraw-2027-01-03`, expiry `2027-01-03` (trial / any-domain). **Owner decision (2026-09-27):** this project is not for production or business use; the trial key is the accepted license for all remaining Studio/web work. Stored only in gitignored `apps/studio/.env.local` for local builds; not committed. Optional later: Railway/GitHub `VITE_TLDRAW_LICENSE_KEY` if a public host is stood up. Renewal reminder: 2026-12-04.
 - [ ] W0.4 Owner: confirm the domains. Production is `app.kurva.agency` and staging is `staging.kurva.agency`. The DNS CNAME records will point at the Railway targets created in W5.5.
   - BLOCKED (2026-09-25): owner confirmation pending. Nothing else in W1–W4 depends on it.
 - [x] W0.5 Update the policy in the root `AGENTS.md`, and match it in `docs/PLAN_CHECKLIST.md` §8:
@@ -418,9 +418,11 @@ A network log shows the key only in requests to `openrouter.ai`.
   - **Logging:** access logs record no query strings, so the OAuth `code` never lands in a log.
   - Evidence (2026-09-26): `handle /health` answers before `try_files`. Hashed `/assets/*` are immutable; `index.html`, `sw.js`, and `manifest.webmanifest` are `no-cache`. `encode` uses gzip and zstd, and `precompressed br gzip` serves a precompressed file when one exists. `.git`, `.env*`, `Caddyfile`, and `*.map` are hidden; `/.well-known/security.txt` is not. Access logs delete the query string. Source maps stay off via `build.sourcemap: false`. `node scripts/check-web-headers.mjs` printed `Web headers file OK.` Files: `apps/studio/web/Caddyfile`, `apps/studio/vite.config.ts`, `scripts/check-web-headers.mjs`.
 - [x] W5.3 Security headers:
-  - **CSP:** `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://openrouter.ai; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests`
-    - Add `blob:` to `worker-src` only if a verified need appears.
+  - **CSP:** `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://openrouter.ai data:; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests`
+  - Notes:
+    - `data:` is allowed in `connect-src` so the licensed tldraw canvas can fetch in-memory JSON without a network hop (trial/hobby builds).
     - Add the tldraw license endpoint to `connect-src` only when a hobby or trial license is used and the owner accepts the ping. Otherwise, verify that the editor still renders with the ping blocked.
+    - Add `blob:` to `worker-src` only if a verified need appears.
   - **Other headers:**
     - `Strict-Transport-Security`
     - `X-Content-Type-Options: nosniff`
@@ -429,7 +431,7 @@ A network log shows the key only in requests to `openrouter.ai`.
     - `Cross-Origin-Opener-Policy: same-origin`
     - `Cross-Origin-Resource-Policy: same-origin`
   - **Trusted Types:** evaluate `require-trusted-types-for 'script'` with tldraw and React, and adopt it only if the full journey reports zero violations.
-  - Evidence (2026-09-26): the Caddyfile sets the specified CSP (no tldraw license host, because no hobby or trial key is in use), HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, and CORP. Trusted Types stay off: React and tldraw assign HTML, and the licensed journey that must report zero violations is still blocked on W0.3. `node scripts/check-web-headers.mjs` passed. A live curl of these headers waits on W5.5. Files: `apps/studio/web/Caddyfile`, `docs/WEB_DEPLOYMENT.md`.
+  - Evidence (2026-09-27): Caddyfile CSP is `connect-src 'self' https://openrouter.ai data:` (trial key makes the licensed canvas fetch `data:` JSON; no separate tldraw license host was required in the CSP journey). HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, and CORP unchanged. `node scripts/check-web-headers.mjs` passed. Files: `apps/studio/web/Caddyfile`, `docs/WEB_DEPLOYMENT.md`.
 - [ ] W5.4 Create the Railway service `kurva-app`. Its settings live in the Railway dashboard and are mirrored in `docs/WEB_DEPLOYMENT.md`:
   - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
   - the build command, and the output folder `apps/studio/dist-web`
@@ -549,14 +551,14 @@ A network log shows the key only in requests to `openrouter.ai`.
 - [x] W9.1 Unit tests (Vitest) for the storage backends, the web transport, PKCE, the key store, the capability map and the bundle-budget script.
   - Evidence (2026-09-25): `browserLibrary.test.ts`, `webOpenRouter.test.ts`, `openRouterPkce.test.ts`, `webEdition.test.ts`, and `webShell.test.ts` drive those paths. `build:web` runs `scripts/check-web-bundle.mjs`. Files: `apps/studio/test/webOpenRouter.test.ts`, `packages/studio-host-core/test/openRouterPkce.test.ts`.
 - [ ] W9.2 End-to-end tests (Playwright) against `dist-web`, served with the production headers:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - PARTIAL (2026-09-27): with the local trial `VITE_TLDRAW_LICENSE_KEY`, Playwright Chromium, Firefox, and WebKit against `dist-web` passed `web-canvas-persist` and `web-export` via `node scripts/web-browser-matrix.mjs` (`KURVA_BROWSERS=chromium,firefox,webkit`). Chromium alone also still passes `web-project-lock`, `web-backup-clear`, `web-offline` (including Image→SVG trace of `favicon-32.png`, Edge 153.0.4234.48), and `web-a11y`. `node scripts/web-csp-journey.mjs` passed twice each on Chromium and Firefox under the Caddyfile CSP (PKCE exchange + mocked chat stream + local WASM trace; zero `securitypolicyviolation` after allowing `data:` in `connect-src` for the licensed canvas). Reopen race fixed: library open waits for IndexedDB and skips blank placeholder remounts for in-session New file. Still open: staging host, avatar ZIP UI journey, and W0.4/W5. Safe next action: optional GitHub/Railway key for CI; avatar ZIP UI smoke; staging when DNS exists.
   - Home → New → draw → reload, and the content persists.
   - Image → SVG → insert → export SVG and PNG; export the project JSON, then import it.
   - Download an avatar ZIP, then import it into the registry.
   - Connect through PKCE, with OpenRouter mocked by route interception → chat stream → proposal → Apply → Undo → Disconnect.
   - An offline reload through the service worker; the two-tab lock; a simulated quota error; the unsupported-browser notice.
 - [ ] W9.3 Browser matrix:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - PARTIAL (2026-09-27): Playwright Chromium, Firefox, and WebKit completed `web-canvas-persist` + `web-export` on `dist-web` with the trial key (`web-browser-matrix ok (chromium, firefox, webkit)`; WebKit also 6/6 consecutive persist and export). Engines: Playwright 1.63.0 — Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6. Manual Safari macOS/iOS and Chrome Android still open.
   - Playwright Chromium, Firefox and WebKit.
   - A manual pass on Safari for macOS, Safari for iOS, and Chrome for Android.
   - Record every version.

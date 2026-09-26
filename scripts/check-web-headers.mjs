@@ -5,11 +5,11 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const caddy = readFileSync(path.join(root, "apps/studio/web/Caddyfile"), "utf8");
 const csp = /Content-Security-Policy "([^"]+)"/.exec(caddy)?.[1] ?? "";
-if (!csp.includes("connect-src 'self' https://openrouter.ai")) {
-  throw new Error("Web CSP must allow only this origin and https://openrouter.ai.");
+if (!csp.includes("connect-src 'self' https://openrouter.ai data:")) {
+  throw new Error("Web CSP must allow this origin, https://openrouter.ai, and data: for the licensed canvas.");
 }
-if (csp.includes("connect-src 'self' https://openrouter.ai http")) {
-  throw new Error("Web CSP connect-src is wider than the app origin and openrouter.ai.");
+if (csp.includes("connect-src 'self' https://openrouter.ai data: http")) {
+  throw new Error("Web CSP connect-src is wider than the app origin, openrouter.ai, and data:.");
 }
 if (!caddy.includes("query delete")) throw new Error("Web access logs must drop query strings.");
 if (!caddy.includes("handle /health") || !caddy.includes("respond 200")) {

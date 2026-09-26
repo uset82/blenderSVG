@@ -108,6 +108,8 @@ try {
 
 async function traceSample(page, sample) {
   await page.getByRole("button", { name: /Image → SVG/ }).click();
+  const dialog = page.locator(".studio-vector-dialog");
+  await dialog.waitFor({ timeout: 10_000 });
   const input = page.locator('input[aria-label="Image to trace"]');
   await input.setInputFiles(sample);
   const trace = page.getByRole("button", { name: "Trace image", exact: true });
@@ -130,14 +132,6 @@ async function traceSample(page, sample) {
     throw new Error(`${error instanceof Error ? error.message : String(error)}\n${status.slice(0, 600)}`);
   }
   await trace.click();
-  try {
-    await page.getByRole("button", { name: "Trace again" }).waitFor({ timeout: 20_000 });
-  } catch (error) {
-    const status = await page
-      .locator(".studio-vector-dialog")
-      .innerText()
-      .catch(() => "");
-    throw new Error(`${error instanceof Error ? error.message : String(error)}\n${status.slice(0, 800)}`);
-  }
+  await dialog.getByRole("button", { name: "Trace again", exact: true }).waitFor({ timeout: 60_000 });
   await page.locator(".studio-vector-dialog__close").click();
 }

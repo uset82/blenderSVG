@@ -50,6 +50,9 @@ const debugPort =
     });
   }));
 
+const projectDir = path.join(workspaceDir, ".codex-avatar", "studio", "projects");
+let childPid = 0;
+
 if (!attachedPort) {
   console.log(`Profile: ${profileRoot}`);
   console.log(
@@ -82,10 +85,11 @@ if (!attachedPort) {
     { detached: true, stdio: "ignore", windowsHide: true }
   );
   child.unref();
+  childPid = child.pid;
   console.log(`VS Code PID ${child.pid}, CDP ${debugPort}`);
 }
 
-const deadline = Date.now() + 30_000;
+const deadline = Date.now() + 60_000;
 let targets;
 while (Date.now() < deadline) {
   try {
@@ -98,7 +102,6 @@ while (Date.now() < deadline) {
   await new Promise((resolve) => setTimeout(resolve, 250));
 }
 assert.ok(targets?.length, "VS Code did not expose a CDP target");
-const projectDir = path.join(workspaceDir, ".codex-avatar", "studio", "projects");
 console.log(`Project files: ${projectDir}`);
 
 const workbench = targets.find((target) => target.type === "page" && target.url.includes("workbench.html"));
@@ -212,9 +215,14 @@ if (canvasState === "license-required") {
 
 await waitUntil(() => {
   const files = existsSync(projectDir) ? readdirSync(projectDir).filter((name) => name.endsWith(".json")) : [];
-  return files.length === 1 ? files[0] : undefined;
-}, "one autosaved project file");
-const [projectFileName] = readdirSync(projectDir).filter((name) => name.endsWith(".json"));
+  const editable = files.filter((name) => !name.startsWith("00000000-0000-4000-8000-000000000001"));
+  return editable.length >= 1 ? editable[0] : undefined;
+}, "one autosaved non-Scratchpad project file");
+const projectFiles = readdirSync(projectDir)
+  .filter((name) => name.endsWith(".json"))
+  .filter((name) => !name.startsWith("00000000-0000-4000-8000-000000000001"));
+assert.ok(projectFiles.length >= 1, `expected an editable project, found ${projectFiles.join(", ") || "none"}`);
+const projectFileName = projectFiles[0];
 const projectPath = path.join(projectDir, projectFileName);
 const initialProject = readProject(projectPath);
 const initialGeoCount = countShapes(initialProject, "geo");
@@ -289,45 +297,148 @@ if (process.env.STUDIO_SKIP_EDIT !== "1") {
     `Edited project ${editedProject.id}: ${countShapes(editedProject, "frame")} frame, ${countShapes(editedProject, "geo")} rectangles; autosaved ${editedProject.updatedAt}`
   );
 }
-console.log(
-  `Studio save status: ${await evaluate(studioCdp, `${innerDocument}?.querySelector('.studio-windowbar__unsaved')?.innerText`)}`
-);
-console.log(
-  "Rendered shapes:",
-  await evaluate(
-    studioCdp,
-    `${innerDocument} && [...${innerDocument}.querySelectorAll('[data-shape-id], [data-testid], .tl-shape, .tl-container')].map(x => ({id:x.getAttribute('data-shape-id'), testId:x.getAttribute('data-testid'), cls:String(x.className).slice(0,80)})).slice(0,25)`
-  )
-);
-console.log(
-  "License overlay:",
-  await evaluate(
-    studioCdp,
-    `${innerDocument}?.querySelector('[data-testid="tl-license-expired"]')?.outerHTML.slice(0,1200)`
-  )
-);
-console.log(
-  "Canvas layout:",
-  await evaluate(
-    studioCdp,
-    `${innerDocument} && ['.studio-canvas-content','.studio-canvas-editor','.tl-container','.tl-canvas','.tl-shapes','.tl-shape-container'].map(s => {const x=${innerDocument}.querySelector(s);const r=x?.getBoundingClientRect();return {selector:s,exists:!!x,rect:r&&[r.x,r.y,r.width,r.height],html:x?.outerHTML.slice(0,250)}})`
-  )
-);
-console.log(
-  "tldraw classes:",
-  await evaluate(
-    studioCdp,
-    `${innerDocument} && [...new Set([...${innerDocument}.querySelectorAll('[class*=tl-]')].map(x => String(x.className).split(' ')[0]))].slice(0,50)`
-  )
-);
-console.log(
-  "tldraw html:",
-  await evaluate(studioCdp, `${innerDocument}?.querySelector('.tl-container')?.innerHTML.slice(0,3000)`)
-);
+
 const screenshot = await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true });
 writeFileSync(path.join(profileRoot, "studio-live.png"), Buffer.from(screenshot.data, "base64"));
 studioCdp.close();
 cdp.close();
+
+if (!attachedPort && process.env.STUDIO_SKIP_EDIT !== "1") {
+  const geoBeforeRestart = countShapes(readProject(projectPath), "geo");
+  assert.ok(geoBeforeRestart >= 1, "edited rectangle missing before VS Code restart");
+  spawnSync("taskkill", ["/PID", String(childPid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  const reopenPort = await new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close(() => resolve(address.port));
+    });
+  });
+  const reopenChild = spawn(
+    codeExe,
+    [
+      "--new-window",
+      "--user-data-dir",
+      userDataDir,
+      "--extensions-dir",
+      extensionsDir,
+      `--remote-debugging-port=${reopenPort}`,
+      "--disable-background-networking",
+      "--skip-welcome",
+      workspaceDir
+    ],
+    { detached: true, stdio: "ignore", windowsHide: true }
+  );
+  reopenChild.unref();
+  const reopenDeadline = Date.now() + 60_000;
+  let reopenTargets;
+  while (Date.now() < reopenDeadline) {
+    try {
+      reopenTargets = await (await fetch(`http://127.0.0.1:${reopenPort}/json/list`)).json();
+      if (reopenTargets.length) break;
+    } catch {
+      // waiting for restart
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  assert.ok(reopenTargets?.length, "VS Code did not expose a CDP target after restart");
+  const reopenWorkbench = reopenTargets.find(
+    (target) => target.type === "page" && target.url.includes("workbench.html")
+  );
+  assert.ok(reopenWorkbench?.webSocketDebuggerUrl, "VS Code workbench missing after restart");
+  const reopenCdp = await connectCdp(reopenWorkbench.webSocketDebuggerUrl);
+  await reopenCdp.send("Runtime.enable");
+  await reopenCdp.send("Page.enable");
+  if (!reopenTargets.some((target) => target.type === "iframe" && target.url.startsWith("vscode-webview://"))) {
+    await waitUntil(
+      async () => /Explorer|Show All Commands/.test((await evaluate(reopenCdp, "document.body?.innerText")) ?? ""),
+      "VS Code workbench UI after restart",
+      30_000
+    );
+    await reopenCdp.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "P",
+      code: "KeyP",
+      modifiers: 10,
+      windowsVirtualKeyCode: 80
+    });
+    await reopenCdp.send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: "P",
+      code: "KeyP",
+      modifiers: 10,
+      windowsVirtualKeyCode: 80
+    });
+    await waitUntil(
+      async () => await evaluate(reopenCdp, "Boolean(document.querySelector('.quick-input-widget'))"),
+      "Command Palette after restart"
+    );
+    await reopenCdp.send("Input.insertText", { text: "Codex Avatar: Open Studio" });
+    await waitUntil(
+      async () =>
+        (await evaluate(reopenCdp, "document.querySelector('.quick-input-widget')?.innerText"))?.includes(
+          "Codex Avatar: Open Studio"
+        ),
+      "Open Studio after restart"
+    );
+    await reopenCdp.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "Enter",
+      code: "Enter",
+      windowsVirtualKeyCode: 13
+    });
+    await reopenCdp.send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: "Enter",
+      code: "Enter",
+      windowsVirtualKeyCode: 13
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  const reopenStudioTarget = await waitUntil(
+    async () => {
+      const listed = await (await fetch(`http://127.0.0.1:${reopenPort}/json/list`)).json();
+      return listed.find((target) => target.type === "iframe" && target.url.startsWith("vscode-webview://"));
+    },
+    "Studio Webview after restart",
+    20_000
+  );
+  const reopenStudio = await connectCdp(reopenStudioTarget.webSocketDebuggerUrl);
+  await reopenStudio.send("Runtime.enable");
+  await waitUntil(async () => {
+    const text = await evaluate(reopenStudio, `${innerDocument}?.body?.innerText`);
+    return /Untitled|Recents|New file|Auto-saved/.test(text ?? "") ? text : undefined;
+  }, "Studio content after restart");
+  const openedExisting = await evaluate(
+    reopenStudio,
+    `(() => {
+      const doc = ${innerDocument};
+      const card = [...doc?.querySelectorAll(".recents__canvas-title") ?? []].find((item) =>
+        item.textContent?.includes("Untitled")
+      );
+      card?.closest("button")?.click() ?? card?.parentElement?.click();
+      return Boolean(card);
+    })()`
+  );
+  if (openedExisting) {
+    await waitUntil(
+      async () => await evaluate(reopenStudio, `Boolean(${innerDocument}?.querySelector(".tl-container"))`),
+      "reopened project canvas"
+    );
+  }
+  const reopened = readProject(projectPath);
+  assert.equal(countShapes(reopened, "geo"), geoBeforeRestart, "rectangle missing after VS Code restart");
+  console.log(
+    `VS Code restart reopen ok: project ${reopened.id} still has ${countShapes(reopened, "geo")} rectangle(s)`
+  );
+  reopenStudio.close();
+  reopenCdp.close();
+  spawnSync("taskkill", ["/PID", String(reopenChild.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+}
+
+console.log("smoke-live-vscode-studio ok");
 
 function readProject(filePath) {
   const project = JSON.parse(readFileSync(filePath, "utf8"));

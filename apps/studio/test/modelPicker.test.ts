@@ -1,6 +1,13 @@
 import type { StudioModel } from "@codex-avatar-studio/avatar-core";
 import { describe, expect, it } from "vitest";
-import { filterModelsByBadges, groupCatalogModels, modelBadges } from "../src/components/modelPicker.js";
+import {
+  filterModelsByBadges,
+  formatContextLength,
+  formatShortCatalogPrice,
+  groupCatalogModels,
+  isFreeModel,
+  modelBadges
+} from "../src/components/modelPicker.js";
 import { nextModelOptionIndex } from "../src/components/modelPickerNavigation.js";
 
 function model(id: string, author: string, extra: Partial<StudioModel> = {}): StudioModel {
@@ -118,5 +125,47 @@ describe("model picker", () => {
     expect(nextModelOptionIndex("Home", 2, 4)).toBe(0);
     expect(nextModelOptionIndex("End", 1, 4)).toBe(3);
     expect(nextModelOptionIndex("ArrowDown", -1, 0)).toBeNull();
+  });
+
+  it("identifies free models by price, slug, and name", () => {
+    expect(isFreeModel(model("stealth/space-bunny-alpha", "stealth", { promptPrice: "0", completionPrice: "0" }))).toBe(
+      true
+    );
+    expect(isFreeModel(model("qwen/qwen3.8-27b:free", "qwen", { promptPrice: "0", completionPrice: "0" }))).toBe(true);
+    expect(
+      isFreeModel(
+        model("meta/llama-3-free", "meta", { name: "Llama 3 (free)", promptPrice: "0.01", completionPrice: "0.01" })
+      )
+    ).toBe(true);
+    expect(
+      isFreeModel(
+        model("anthropic/claude-3-5-sonnet", "anthropic", { promptPrice: "0.000003", completionPrice: "0.000015" })
+      )
+    ).toBe(false);
+  });
+
+  it("formats short catalog prices cleanly", () => {
+    expect(formatShortCatalogPrice(model("free/model", "free", { promptPrice: "0", completionPrice: "0" }))).toBe(
+      "Free"
+    );
+    expect(
+      formatShortCatalogPrice(model("qwen/qwen3.8-27b:free", "qwen", { promptPrice: "0", completionPrice: "0" }))
+    ).toBe("Free");
+    expect(
+      formatShortCatalogPrice(
+        model("anthropic/claude", "anthropic", { promptPrice: "0.000003", completionPrice: "0.000015" })
+      )
+    ).toBe("$3 / $15");
+    expect(formatShortCatalogPrice(model("unknown/price", "unknown", { promptPrice: "", completionPrice: "" }))).toBe(
+      "Price n/a"
+    );
+  });
+
+  it("formats context lengths cleanly", () => {
+    expect(formatContextLength(200000)).toBe("200K context");
+    expect(formatContextLength(1000000)).toBe("1M context");
+    expect(formatContextLength(128000)).toBe("128K context");
+    expect(formatContextLength(8192)).toBe("8K context");
+    expect(formatContextLength(512)).toBe("512 context");
   });
 });

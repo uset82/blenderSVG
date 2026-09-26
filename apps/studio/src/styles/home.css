@@ -775,12 +775,16 @@
   white-space: nowrap;
 }
 
-/* Anchored above the composer, right-aligned so it stays inside the card. */
+/* Anchored below the composer button, right-aligned so it stays inside the card. */
 .studio-home-model-picker {
+  position: absolute;
+  top: calc(100% + 8px);
+  bottom: auto;
   right: 0;
   left: auto;
-  z-index: 40;
-  width: min(440px, calc(100vw - 48px));
+  z-index: 60;
+  width: min(var(--studio-model-picker-width, 490px), calc(100vw - 48px));
+  max-height: min(72vh, 560px);
 }
 
 .studio-composer__submit {

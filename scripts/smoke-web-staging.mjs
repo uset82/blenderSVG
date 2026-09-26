@@ -109,8 +109,8 @@ function headersFromCaddy(source) {
     const match = /^\s*([A-Za-z0-9-]+)\s+"([^"]*)"/.exec(line);
     if (match?.[1] && match[2]) headers[match[1]] = match[2];
   }
-  if (!headers["Content-Security-Policy"]?.includes("connect-src 'self' https://openrouter.ai")) {
-    throw new Error("Caddyfile CSP is missing the OpenRouter connect-src.");
+  if (!headers["Content-Security-Policy"]?.includes("connect-src 'self' https://openrouter.ai data:")) {
+    throw new Error("Caddyfile CSP is missing the OpenRouter connect-src (and data: for the licensed canvas).");
   }
   return headers;
 }

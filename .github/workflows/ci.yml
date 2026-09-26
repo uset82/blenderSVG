@@ -98,4 +98,5 @@ jobs:
           node scripts/web-project-lock.mjs
           node scripts/web-backup-clear.mjs
           node scripts/web-canvas-persist.mjs
+          node scripts/web-export.mjs
           node scripts/smoke-web-staging.mjs
