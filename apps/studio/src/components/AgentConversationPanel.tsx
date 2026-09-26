@@ -221,6 +221,8 @@ export function AgentConversationPanel({
   const [modelQuery, setModelQuery] = useState("");
   const [quickModelFilters, setQuickModelFilters] = useState<QuickModelFilter[]>([]);
   const [modelSortOrder, setModelSortOrder] = useState<ModelSortOrder>("most-popular");
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [minimumContext, setMinimumContext] = useState("all");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -507,6 +509,17 @@ export function AgentConversationPanel({
   // renders the deduped set, so the counts must come from here.
   const visibleModels = useMemo(() => sortedModels.filter((model) => !isDuplicateRoute(model)), [sortedModels]);
 
+  useEffect(() => {
+    if (!sortMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+        setSortMenuOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [sortMenuOpen]);
+
   const selectedModel = modelCatalog.models.find((model) => model.id === selectedModelId);
   const chooseModel = (modelId: string) => {
     setSelectedModelId(modelId);
@@ -522,6 +535,7 @@ export function AgentConversationPanel({
   const openModelPicker = () => setModelPickerOpen(true);
   const closeModelPicker = (restoreFocus = false) => {
     setModelPickerOpen(false);
+    setSortMenuOpen(false);
     if (restoreFocus) window.requestAnimationFrame(() => modelPickerTriggerRef.current?.focus());
   };
   const canChat =
@@ -1478,22 +1492,50 @@ export function AgentConversationPanel({
                       }}
                     />
                   </label>
-                  <div className="studio-model-picker-popover__sort">
-                    <ArrowUpDown size={13} aria-hidden="true" className="studio-model-picker-popover__sort-icon" />
-                    <select
-                      className="studio-model-picker-popover__sort-select"
-                      value={modelSortOrder}
-                      onChange={(event) => setModelSortOrder(event.target.value as ModelSortOrder)}
-                      aria-label="Sort models"
+                  <div className="studio-model-picker-popover__sort" ref={sortMenuRef}>
+                    <button
+                      type="button"
+                      className="studio-model-picker-popover__sort-button"
+                      aria-haspopup="menu"
+                      aria-expanded={sortMenuOpen}
                       title="Sort models"
+                      onClick={() => setSortMenuOpen((open) => !open)}
                     >
-                      {MODEL_SORT_OPTIONS.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown size={13} aria-hidden="true" className="studio-model-picker-popover__sort-chevron" />
+                      <ArrowUpDown size={13} aria-hidden="true" />
+                      <span className="studio-model-picker-popover__sort-label">
+                        {MODEL_SORT_OPTIONS.find((option) => option.id === modelSortOrder)?.label ?? "Sort"}
+                      </span>
+                      <ChevronDown size={13} aria-hidden="true" />
+                    </button>
+                    {sortMenuOpen && (
+                      <div className="studio-model-picker-popover__sort-menu" role="menu" aria-label="Sort models">
+                        {MODEL_SORT_OPTIONS.map((option) => {
+                          const isSelected = option.id === modelSortOrder;
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={isSelected}
+                              className={`studio-model-picker-popover__sort-item${isSelected ? " is-selected" : ""}`}
+                              onClick={() => {
+                                setModelSortOrder(option.id);
+                                setSortMenuOpen(false);
+                              }}
+                            >
+                              <span>{option.label}</span>
+                              {isSelected ? (
+                                <Check
+                                  size={14}
+                                  aria-hidden="true"
+                                  className="studio-model-picker-popover__sort-check"
+                                />
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
