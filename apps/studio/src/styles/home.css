@@ -750,6 +750,39 @@
   white-space: nowrap;
 }
 
+/* Home's model picker replaces the static signpost once a catalog is loaded. */
+.studio-composer__model-wrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.studio-composer__model-button {
+  max-width: 100%;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.studio-composer__model-button:disabled {
+  cursor: default;
+}
+
+.studio-model-picker-trigger__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Anchored above the composer, right-aligned so it stays inside the card. */
+.studio-home-model-picker {
+  right: 0;
+  left: auto;
+  z-index: 40;
+  width: min(440px, calc(100vw - 48px));
+}
+
 .studio-composer__submit {
   margin-left: auto;
   border: 0;

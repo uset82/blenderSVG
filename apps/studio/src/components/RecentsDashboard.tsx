@@ -19,9 +19,10 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { StudioProjectMeta } from "../bridge/studioHost.js";
+import type { StudioModelCatalog, StudioProjectMeta } from "../bridge/studioHost.js";
 import { Button, Dialog } from "../ui/index.js";
 import { BrandMark } from "./BrandMark.js";
+import { HomeModelPicker } from "./HomeModelPicker.js";
 import { formatEditedLabel } from "./recentCanvas.js";
 import { RecentEmptyState, RecentLoadingCards, RecentProjectNotice, recentListMode } from "./recentStates.js";
 import { HOME_CATEGORY_PRESETS, type HomeCategory, StudioComposer } from "./StudioComposer.js";
@@ -72,6 +73,9 @@ export interface RecentsDashboardProps {
   onImageToSvg?: (() => void) | undefined;
   onRecreateScreenshot?: (() => void) | undefined;
   onImportAsset?: (() => void) | undefined;
+  modelCatalog?: StudioModelCatalog | undefined;
+  selectedModelId?: string | undefined;
+  onSelectModel?: ((modelId: string) => void) | undefined;
   currentNav?: "home" | "connectors" | undefined;
   companion?: React.ReactNode | undefined;
   libraryNote?: string | undefined;
@@ -135,6 +139,9 @@ export function RecentsDashboard({
   onImageToSvg,
   onRecreateScreenshot,
   onImportAsset,
+  modelCatalog,
+  selectedModelId = "",
+  onSelectModel,
   currentNav = "home",
   companion,
   libraryNote,
@@ -455,6 +462,15 @@ export function RecentsDashboard({
                   onStartDesign
                     ? "Open this prompt in the editor"
                     : "Prompt handoff is coming soon. Use New file to start a canvas."
+                }
+                modelControl={
+                  modelCatalog && onSelectModel ? (
+                    <HomeModelPicker
+                      catalog={modelCatalog}
+                      selectedModelId={selectedModelId}
+                      onSelectModel={onSelectModel}
+                    />
+                  ) : undefined
                 }
                 footnote={
                   <>

@@ -457,6 +457,7 @@ export function App() {
     return window.innerWidth >= 1100 || window.innerWidth <= 700;
   });
   const [isAgentPanelCollapsed, setAgentPanelCollapsed] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState(readStoredSelectedModelId);
   const [canvasEpoch, setCanvasEpoch] = useState(0);
   const [isInspectorOpen, setInspectorOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -1459,6 +1460,17 @@ export function App() {
     setDraftPrefill({ id: crypto.randomUUID(), text: prompt.trim() });
     setAgentSidebarOpen(true);
   };
+
+  // Home and the editor's agent panel share one choice, kept in the same storage key.
+  const handleSelectModel = useCallback((modelId: string) => {
+    setSelectedModelId(modelId);
+    try {
+      if (modelId) window.localStorage.setItem(SELECTED_MODEL_STORAGE_KEY, modelId);
+      else window.localStorage.removeItem(SELECTED_MODEL_STORAGE_KEY);
+    } catch {
+      // The selection still applies for this session when storage is unavailable.
+    }
+  }, []);
 
   const openLocalAsset = async (file: File | undefined, mode: "trace" | "screenshot" | "import") => {
     if (!file) return;
@@ -2771,6 +2783,9 @@ export function App() {
           }}
           onRecreateScreenshot={() => screenshotInputRef.current?.click()}
           onImportAsset={() => assetInputRef.current?.click()}
+          modelCatalog={modelCatalog}
+          selectedModelId={selectedModelId}
+          onSelectModel={handleSelectModel}
         />
       )}
     </div>
@@ -2779,6 +2794,16 @@ export function App() {
 
 function isProjectUuid(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+}
+
+const SELECTED_MODEL_STORAGE_KEY = "codex-avatar-studio-selected-model";
+
+function readStoredSelectedModelId(): string {
+  try {
+    return window.localStorage.getItem(SELECTED_MODEL_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function projectConversationUrl(projectId: string, conversationId?: string): string | null {
