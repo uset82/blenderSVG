@@ -3,7 +3,7 @@ import {
   type StudioChatHistoryMessage,
   type StudioModel
 } from "@codex-avatar-studio/avatar-core";
-import { ArrowUp, ArrowUpDown, Check, ChevronDown, Plus, RefreshCw, Search, Star, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Plus, RefreshCw, Search, Star, X } from "lucide-react";
 import type React from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "tldraw";
@@ -30,19 +30,13 @@ import {
   filterStudioModels,
   isDuplicateRoute,
   MODEL_SORT_OPTIONS,
+  type ModalityFilter,
   type ModelSortOrder,
+  type PriceFilter,
   readCatalogPrice,
   sortStudioModels
 } from "./modelFilters.js";
-import {
-  filterModelsByBadges,
-  groupCatalogModels,
-  modelBadges,
-  quickFilterConflict,
-  quickFilterCounts,
-  quickFilterSelectableGap,
-  type QuickModelFilter
-} from "./modelPicker.js";
+import { filterModelsByBadges, groupCatalogModels, modelBadges, type QuickModelFilter } from "./modelPicker.js";
 import { nextModelOptionIndex } from "./modelPickerNavigation.js";
 import { paidModelCue, sendContextLines } from "./privacyContext.js";
 import { hasProjectChatConsent, recordProjectChatConsent } from "./projectChatConsent.js";
@@ -229,10 +223,13 @@ export function AgentConversationPanel({
   const [modelQuery, setModelQuery] = useState("");
   const [quickModelFilters, setQuickModelFilters] = useState<QuickModelFilter[]>([]);
   const [modelSortOrder, setModelSortOrder] = useState<ModelSortOrder>("most-popular");
-  const [sortMenuOpen, setSortMenuOpen] = useState(false);
-  const sortMenuRef = useRef<HTMLDivElement>(null);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [authorFilter, setAuthorFilter] = useState("all");
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>("all");
+  const [modalityFilter, setModalityFilter] = useState<ModalityFilter>("all");
   const [minimumContext, setMinimumContext] = useState("all");
+  const [maximumInputPrice, setMaximumInputPrice] = useState("");
+  const [maximumOutputPrice, setMaximumOutputPrice] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("perf") !== "1") return;
@@ -492,35 +489,36 @@ export function AgentConversationPanel({
         ? "Trust this workspace before connecting an OpenRouter account."
         : connection.message || "Connect your own OpenRouter account through the VS Code host.";
 
+  const authors = useMemo(
+    () => [...new Set(modelCatalog.models.map((model) => model.author).filter(Boolean))].sort(),
+    [modelCatalog.models]
+  );
   const matchingModels = useMemo(
     () =>
       filterStudioModels(modelCatalog.models, {
         query: modelQuery,
-        author: "all",
-        price: "all",
-        modality: "all",
+        author: authorFilter,
+        price: priceFilter,
+        modality: modalityFilter,
         minimumContext: minimumContext === "all" ? null : Number(minimumContext),
-        maximumInputPricePerMillion: null,
-        maximumOutputPricePerMillion: null
+        maximumInputPricePerMillion: readOptionalNumber(maximumInputPrice),
+        maximumOutputPricePerMillion: readOptionalNumber(maximumOutputPrice)
       }),
-    [minimumContext, modelCatalog.models, modelQuery]
+    [
+      authorFilter,
+      maximumInputPrice,
+      maximumOutputPrice,
+      minimumContext,
+      modelCatalog.models,
+      modelQuery,
+      modalityFilter,
+      priceFilter
+    ]
   );
   const quickMatchingModels = useMemo(
     () => filterModelsByBadges(matchingModels, quickModelFilters),
     [matchingModels, quickModelFilters]
   );
-  // Per-chip counts make the AND across chips visible: without them a pair that
-  // intersects to nothing looks like the picker resetting itself.
-  const filterCounts = useMemo(
-    () => quickFilterCounts(matchingModels, quickModelFilters),
-    [matchingModels, quickModelFilters]
-  );
-  const filtersConflict = quickFilterConflict(filterCounts, quickModelFilters);
-  const selectableMatches = useMemo(
-    () => quickMatchingModels.filter((model) => model.textChatEligible).length,
-    [quickMatchingModels]
-  );
-  const filtersSelectableGap = quickFilterSelectableGap(filterCounts, quickModelFilters, selectableMatches);
   const sortedModels = useMemo(
     () => sortStudioModels(quickMatchingModels, modelSortOrder),
     [quickMatchingModels, modelSortOrder]
@@ -528,17 +526,6 @@ export function AgentConversationPanel({
   // `sortedModels` still contains OpenRouter's duplicate routes; the picker only
   // renders the deduped set, so the counts must come from here.
   const visibleModels = useMemo(() => sortedModels.filter((model) => !isDuplicateRoute(model)), [sortedModels]);
-
-  useEffect(() => {
-    if (!sortMenuOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
-        setSortMenuOpen(false);
-      }
-    };
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [sortMenuOpen]);
 
   const selectedModel = modelCatalog.models.find((model) => model.id === selectedModelId);
   const chooseModel = (modelId: string) => {
@@ -555,7 +542,6 @@ export function AgentConversationPanel({
   const openModelPicker = () => setModelPickerOpen(true);
   const closeModelPicker = (restoreFocus = false) => {
     setModelPickerOpen(false);
-    setSortMenuOpen(false);
     if (restoreFocus) window.requestAnimationFrame(() => modelPickerTriggerRef.current?.focus());
   };
   const canChat =
@@ -1479,7 +1465,9 @@ export function AgentConversationPanel({
                         ? "Loading available models…"
                         : modelCatalog.models.length === 0
                           ? "OpenRouter catalog"
-                          : `${visibleModels.length.toLocaleString()} of ${modelCatalog.models.length.toLocaleString()} shown · newest first when unsorted`}
+                          : quickMatchingModels.length === modelCatalog.models.length
+                            ? `${modelCatalog.models.length.toLocaleString()} available in this catalog`
+                            : `${quickMatchingModels.length.toLocaleString()} of ${modelCatalog.models.length.toLocaleString()} shown · newest first when unsorted`}
                     </span>
                   </div>
                   <button
@@ -1492,72 +1480,25 @@ export function AgentConversationPanel({
                   </button>
                 </header>
 
-                <div className="studio-model-picker-popover__search-row">
-                  <label className="studio-model-picker-popover__search">
-                    <Search size={15} aria-hidden="true" />
-                    <input
-                      ref={modelPickerSearchRef}
-                      type="search"
-                      value={modelQuery}
-                      onChange={(event) => setModelQuery(event.target.value)}
-                      placeholder="Search models or publishers"
-                      aria-label="Search models"
-                      onKeyDown={(event) => {
-                        if (event.key === "ArrowDown") {
-                          event.preventDefault();
-                          modelPickerListRef.current
-                            ?.querySelector<HTMLButtonElement>('button[role="option"]:not(:disabled)')
-                            ?.focus();
-                        }
-                      }}
-                    />
-                  </label>
-                  <div className="studio-model-picker-popover__sort" ref={sortMenuRef}>
-                    <button
-                      type="button"
-                      className="studio-model-picker-popover__sort-button"
-                      aria-haspopup="menu"
-                      aria-expanded={sortMenuOpen}
-                      title="Sort models"
-                      onClick={() => setSortMenuOpen((open) => !open)}
-                    >
-                      <ArrowUpDown size={13} aria-hidden="true" />
-                      <span className="studio-model-picker-popover__sort-label">
-                        {MODEL_SORT_OPTIONS.find((option) => option.id === modelSortOrder)?.label ?? "Sort"}
-                      </span>
-                      <ChevronDown size={13} aria-hidden="true" />
-                    </button>
-                    {sortMenuOpen && (
-                      <div className="studio-model-picker-popover__sort-menu" role="menu" aria-label="Sort models">
-                        {MODEL_SORT_OPTIONS.map((option) => {
-                          const isSelected = option.id === modelSortOrder;
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              role="menuitemradio"
-                              aria-checked={isSelected}
-                              className={`studio-model-picker-popover__sort-item${isSelected ? " is-selected" : ""}`}
-                              onClick={() => {
-                                setModelSortOrder(option.id);
-                                setSortMenuOpen(false);
-                              }}
-                            >
-                              <span>{option.label}</span>
-                              {isSelected ? (
-                                <Check
-                                  size={14}
-                                  aria-hidden="true"
-                                  className="studio-model-picker-popover__sort-check"
-                                />
-                              ) : null}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <label className="studio-model-picker-popover__search">
+                  <Search size={15} aria-hidden="true" />
+                  <input
+                    ref={modelPickerSearchRef}
+                    type="search"
+                    value={modelQuery}
+                    onChange={(event) => setModelQuery(event.target.value)}
+                    placeholder="Search models or publishers"
+                    aria-label="Search models"
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        modelPickerListRef.current
+                          ?.querySelector<HTMLButtonElement>('button[role="option"]:not(:disabled)')
+                          ?.focus();
+                      }
+                    }}
+                  />
+                </label>
 
                 <fieldset className="studio-model-picker-popover__quick-filters">
                   <legend className="sr-only">Quick filters</legend>
@@ -1566,24 +1507,16 @@ export function AgentConversationPanel({
                       ["free", "Free"],
                       ["vision", "Vision"],
                       ["tools", "Tools"],
-                      ["reasoning", "Reasoning"],
-                      ["intelligence", "Intelligence"]
+                      ["reasoning", "Reasoning"]
                     ] as const
                   ).map(([filter, label]) => {
                     const active = quickModelFilters.includes(filter);
-                    const total = filterCounts.perFilter[filter];
-                    const usable = filterCounts.perFilterSelectable[filter];
                     return (
                       <button
                         key={filter}
                         type="button"
                         aria-pressed={active}
                         className={active ? "is-active" : ""}
-                        title={
-                          usable === total
-                            ? `${label}: ${total.toLocaleString()} model${total === 1 ? "" : "s"}`
-                            : `${label}: ${total.toLocaleString()} listed, ${usable.toLocaleString()} ready for chat`
-                        }
                         onClick={() =>
                           setQuickModelFilters((current) =>
                             current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]
@@ -1591,9 +1524,6 @@ export function AgentConversationPanel({
                         }
                       >
                         {label}
-                        <span className="studio-model-picker-popover__filter-count" aria-hidden="true">
-                          {usable === total ? total.toLocaleString() : `${usable.toLocaleString()}/${total.toLocaleString()}`}
-                        </span>
                       </button>
                     );
                   })}
@@ -1606,6 +1536,113 @@ export function AgentConversationPanel({
                     128K+
                   </button>
                 </fieldset>
+
+                <details className="studio-model-picker-popover__filters">
+                  <summary>More filters</summary>
+                  <div className="studio-agent__filter-grid">
+                    <label className="studio-agent__filter-label">
+                      Publisher
+                      <select
+                        aria-label="Filter by publisher"
+                        value={authorFilter}
+                        onChange={(event) => setAuthorFilter(event.target.value)}
+                        className="studio-agent__field"
+                      >
+                        <option value="all">All publishers</option>
+                        {authors.map((author) => (
+                          <option key={author} value={author}>
+                            {author}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="studio-agent__filter-label">
+                      Price
+                      <select
+                        aria-label="Filter by price"
+                        value={priceFilter}
+                        onChange={(event) => setPriceFilter(event.target.value as PriceFilter)}
+                        className="studio-agent__field"
+                      >
+                        <option value="all">Any price</option>
+                        <option value="free">Listed as free</option>
+                        <option value="paid">Paid</option>
+                        <option value="unknown">Price unavailable</option>
+                      </select>
+                    </label>
+                    <label className="studio-agent__filter-label">
+                      Capability
+                      <select
+                        aria-label="Filter by capability"
+                        value={modalityFilter}
+                        onChange={(event) => setModalityFilter(event.target.value as ModalityFilter)}
+                        className="studio-agent__field"
+                      >
+                        <option value="all">All capabilities</option>
+                        <option value="text">Text chat</option>
+                        <option value="vision">Text + image input</option>
+                        <option value="image-output">Image output</option>
+                      </select>
+                    </label>
+                    <label className="studio-agent__filter-label">
+                      Minimum context
+                      <select
+                        aria-label="Filter by minimum context"
+                        value={minimumContext}
+                        onChange={(event) => setMinimumContext(event.target.value)}
+                        className="studio-agent__field"
+                      >
+                        <option value="all">Any context</option>
+                        <option value="32000">32K or more</option>
+                        <option value="128000">128K or more</option>
+                        <option value="256000">256K or more</option>
+                      </select>
+                    </label>
+                    <label className="studio-agent__filter-label">
+                      Max input · $/1M tokens
+                      <input
+                        aria-label="Maximum input price per million tokens"
+                        type="number"
+                        min="0"
+                        max="1000000"
+                        step="0.01"
+                        value={maximumInputPrice}
+                        onChange={(event) => setMaximumInputPrice(event.target.value)}
+                        placeholder="Any"
+                        className="studio-agent__field"
+                      />
+                    </label>
+                    <label className="studio-agent__filter-label">
+                      Max output · $/1M tokens
+                      <input
+                        aria-label="Maximum output price per million tokens"
+                        type="number"
+                        min="0"
+                        max="1000000"
+                        step="0.01"
+                        value={maximumOutputPrice}
+                        onChange={(event) => setMaximumOutputPrice(event.target.value)}
+                        placeholder="Any"
+                        className="studio-agent__field"
+                      />
+                    </label>
+                    <label className="studio-agent__filter-label">
+                      Sort by
+                      <select
+                        aria-label="Sort models by"
+                        value={modelSortOrder}
+                        onChange={(event) => setModelSortOrder(event.target.value as ModelSortOrder)}
+                        className="studio-agent__field"
+                      >
+                        {MODEL_SORT_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </details>
 
                 {modelCatalog.status === "loading" && (
                   <p className="studio-model-picker-popover__catalog-note" role="status">
@@ -1661,6 +1698,13 @@ export function AgentConversationPanel({
                     if (next !== null) options[next]?.focus();
                   }}
                 >
+                  {visibleModels.length === 0 && modelCatalog.status === "ready" && (
+                    <p className="studio-model-picker-popover__catalog-note">
+                      {modelQuery.trim()
+                        ? `No models match “${modelQuery.trim()}”.`
+                        : "No models match the selected filters."}
+                    </p>
+                  )}
                   {groupCatalogModels(
                     sortedModels,
                     readStoredIds(FAVORITE_MODELS_KEY),
@@ -1774,36 +1818,6 @@ export function AgentConversationPanel({
                             }}
                           >
                             Open Settings
-                          </button>
-                        </div>
-                      ) : filtersConflict ? (
-                        <div className="studio-model-picker-popover__empty-connect">
-                          <p>No model matches all of those filters together</p>
-                          <span>
-                            The filters combine with “and”. Each one matches on its own —{" "}
-                            {quickModelFilters
-                              .map((filter) => `${filterCounts.perFilter[filter].toLocaleString()} ${filter}`)
-                              .join(", ")}{" "}
-                            — but nothing matches them all at once. Drop one to see results.
-                          </span>
-                          <button type="button" onClick={() => setQuickModelFilters([])}>
-                            Clear filters
-                          </button>
-                        </div>
-                      ) : filtersSelectableGap ? (
-                        <div className="studio-model-picker-popover__empty-connect">
-                          <p>These filters only match models that cannot chat</p>
-                          <span>
-                            {quickModelFilters
-                              .map(
-                                (filter) =>
-                                  `${filterCounts.perFilterSelectable[filter].toLocaleString()} of ${filterCounts.perFilter[filter].toLocaleString()} ${filter}`
-                              )
-                              .join(", ")}{" "}
-                            — the rest do not advertise text in and text out, so they stay disabled.
-                          </span>
-                          <button type="button" onClick={() => setQuickModelFilters([])}>
-                            Clear filters
                           </button>
                         </div>
                       ) : (

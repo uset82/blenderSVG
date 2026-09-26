@@ -776,29 +776,25 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
   color: var(--studio-text-primary);
 }
 
-.studio-model-picker-popover__search-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 10px 10px 0;
-}
-
 .studio-model-picker-popover__search {
-  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 36px;
-  margin: 0;
+  margin: 10px 10px 0;
   padding: 0 9px;
   border: 1px solid var(--studio-divider);
   border-radius: 8px;
   color: var(--studio-text-muted);
   background: var(--studio-surface-0);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .studio-model-picker-popover__search:focus-within {
-  border-color: var(--studio-accent);
+  border-color: var(--studio-control-border);
+  box-shadow: 0 0 0 1px var(--studio-control-border);
 }
 
 .studio-model-picker-popover__search input {
@@ -811,96 +807,6 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
   color: var(--studio-text-primary);
   font: inherit;
   font-size: 13px;
-}
-
-.studio-model-picker-popover__sort {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.studio-model-picker-popover__sort-button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--studio-divider);
-  border-radius: 8px;
-  background: var(--studio-surface-0);
-  color: var(--studio-text-primary);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease;
-}
-
-.studio-model-picker-popover__sort-button:hover,
-.studio-model-picker-popover__sort-button[aria-expanded="true"] {
-  border-color: var(--studio-control-border);
-  background: var(--studio-surface-active);
-}
-
-.studio-model-picker-popover__sort-label {
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.studio-model-picker-popover__sort-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  min-width: 210px;
-  padding: 5px;
-  border: 1px solid var(--studio-divider);
-  border-radius: 12px;
-  background: var(--studio-surface-1);
-  box-shadow: var(--studio-shadow-dialog);
-}
-
-.studio-model-picker-popover__sort-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--studio-text-primary);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 450;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background 0.12s ease,
-    color 0.12s ease;
-}
-
-.studio-model-picker-popover__sort-item:hover {
-  background: var(--studio-surface-active);
-  color: var(--studio-text-primary);
-}
-
-.studio-model-picker-popover__sort-item.is-selected {
-  background: var(--studio-surface-active);
-  color: var(--studio-text-primary);
-  font-weight: 600;
-}
-
-.studio-model-picker-popover__sort-check {
-  color: var(--studio-accent);
-  flex-shrink: 0;
 }
 
 .studio-model-picker-popover__quick-filters {
@@ -918,9 +824,6 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
 }
 
 .studio-model-picker-popover__quick-filters button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
   min-height: 26px;
   padding: 0 9px;
   border: 1px solid var(--studio-divider);
@@ -934,21 +837,6 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
     background 0.15s ease,
     border-color 0.15s ease,
     color 0.15s ease;
-}
-
-/* Per-chip match count. Dimmer than the label so the chip still reads as one
-   unit, but always present — it is what makes the AND across chips visible. */
-.studio-model-picker-popover__filter-count {
-  color: var(--studio-text-tertiary, var(--studio-text-secondary));
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.72;
-}
-
-.studio-model-picker-popover__quick-filters button.is-active
-  .studio-model-picker-popover__filter-count {
-  color: inherit;
-  opacity: 0.85;
 }
 
 .studio-model-picker-popover__quick-filters button:hover,

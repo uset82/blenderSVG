@@ -31,84 +31,6 @@ export function modelBadges(model: StudioModel): string[] {
   return badges;
 }
 
-/**
- * Count what each quick filter would yield on its own, plus how many models
- * match every currently-active filter together.
- *
- * The chips combine with AND, which is easy to misread as "reset" the moment a
- * pair intersects to nothing — Free and Reasoning have no overlap at all today,
- * while Free and Intelligence have only a handful. Showing the per-chip counts
- * up front makes the AND visible and lets the empty state name the combination
- * that failed.
- *
- * `chatSelectable` splits each count into the subset that can actually be sent
- * to, because the list renders non-chat models in a disabled state. A chip that
- * matches only disabled rows looks broken even though the count is honest.
- */
-export function quickFilterCounts(
-  models: readonly StudioModel[],
-  active: readonly QuickModelFilter[]
-): {
-  perFilter: Record<QuickModelFilter, number>;
-  perFilterSelectable: Record<QuickModelFilter, number>;
-  combined: number;
-} {
-  const perFilter = { free: 0, vision: 0, tools: 0, reasoning: 0, intelligence: 0 };
-  const perFilterSelectable = { free: 0, vision: 0, tools: 0, reasoning: 0, intelligence: 0 };
-  const badgeSets: Array<{ badges: Set<string>; selectable: boolean }> = [];
-  for (const model of models) {
-    const badges = modelBadges(model);
-    const badgeSet = new Set(badges);
-    badgeSets.push({ badges: badgeSet, selectable: model.textChatEligible });
-    for (const filter of Object.keys(perFilter) as QuickModelFilter[]) {
-      if (badgeSet.has(QUICK_FILTER_BADGE[filter])) {
-        perFilter[filter] += 1;
-        if (model.textChatEligible) perFilterSelectable[filter] += 1;
-      }
-    }
-  }
-  const combined = badgeSets.filter(({ badges }) => active.every((f) => badges.has(QUICK_FILTER_BADGE[f]))).length;
-  return { perFilter, perFilterSelectable, combined };
-}
-
-/** True when the intersection is empty but the filters are individually non-empty. */
-export function quickFilterConflict(
-  counts: {
-    perFilter: Record<QuickModelFilter, number>;
-    perFilterSelectable: Record<QuickModelFilter, number>;
-    combined: number;
-  },
-  active: readonly QuickModelFilter[]
-): boolean {
-  return active.length > 1 && counts.combined === 0 && active.every((filter) => counts.perFilter[filter] > 0);
-}
-
-/**
- * The active filters match something, but nothing they match can be sent to.
- *
- * This is the real "the box emptied itself" trap: the Free chip counts image and
- * video generators whose text tokens are priced at zero, so it reports far more
- * matches than it can offer, and combining it with a text-only metric can leave
- * only disabled rows. The list is correct; the chip counts were the misleading
- * part.
- */
-export function quickFilterSelectableGap(
-  counts: {
-    perFilter: Record<QuickModelFilter, number>;
-    perFilterSelectable: Record<QuickModelFilter, number>;
-    combined: number;
-  },
-  active: readonly QuickModelFilter[],
-  selectableResultCount: number
-): boolean {
-  return (
-    active.length > 1 &&
-    selectableResultCount === 0 &&
-    counts.combined > 0 &&
-    active.every((filter) => counts.perFilter[filter] > 0)
-  );
-}
-
 export function filterModelsByBadges(
   models: readonly StudioModel[],
   filters: readonly QuickModelFilter[]
@@ -149,7 +71,9 @@ export function groupCatalogModels(
   if (sortOrder && sortOrder !== "most-popular") {
     const sortOption = MODEL_SORT_OPTIONS.find((opt) => opt.id === sortOrder);
     const label = sortOption ? sortOption.label : "Ranked";
-    groups.push({ id: `sorted:${sortOrder}`, label, models: remaining });
+    if (remaining.length > 0) {
+      groups.push({ id: `sorted:${sortOrder}`, label, models: remaining });
+    }
     return groups;
   }
 
