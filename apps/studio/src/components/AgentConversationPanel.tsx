@@ -34,7 +34,14 @@ import {
   readCatalogPrice,
   sortStudioModels
 } from "./modelFilters.js";
-import { filterModelsByBadges, groupCatalogModels, modelBadges, type QuickModelFilter } from "./modelPicker.js";
+import {
+  filterModelsByBadges,
+  groupCatalogModels,
+  modelBadges,
+  quickFilterConflict,
+  quickFilterCounts,
+  type QuickModelFilter
+} from "./modelPicker.js";
 import { nextModelOptionIndex } from "./modelPickerNavigation.js";
 import { paidModelCue, sendContextLines } from "./privacyContext.js";
 import { hasProjectChatConsent, recordProjectChatConsent } from "./projectChatConsent.js";
@@ -501,6 +508,13 @@ export function AgentConversationPanel({
     () => filterModelsByBadges(matchingModels, quickModelFilters),
     [matchingModels, quickModelFilters]
   );
+  // Per-chip counts make the AND across chips visible: without them a pair that
+  // intersects to nothing looks like the picker resetting itself.
+  const filterCounts = useMemo(
+    () => quickFilterCounts(matchingModels, quickModelFilters),
+    [matchingModels, quickModelFilters]
+  );
+  const filtersConflict = quickFilterConflict(filterCounts, quickModelFilters);
   const sortedModels = useMemo(
     () => sortStudioModels(quickMatchingModels, modelSortOrder),
     [quickMatchingModels, modelSortOrder]
@@ -1551,12 +1565,14 @@ export function AgentConversationPanel({
                     ] as const
                   ).map(([filter, label]) => {
                     const active = quickModelFilters.includes(filter);
+                    const count = filterCounts.perFilter[filter];
                     return (
                       <button
                         key={filter}
                         type="button"
                         aria-pressed={active}
                         className={active ? "is-active" : ""}
+                        title={`${label}: ${count.toLocaleString()} model${count === 1 ? "" : "s"} match on their own`}
                         onClick={() =>
                           setQuickModelFilters((current) =>
                             current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]
@@ -1564,6 +1580,9 @@ export function AgentConversationPanel({
                         }
                       >
                         {label}
+                        <span className="studio-model-picker-popover__filter-count" aria-hidden="true">
+                          {count.toLocaleString()}
+                        </span>
                       </button>
                     );
                   })}
@@ -1744,6 +1763,20 @@ export function AgentConversationPanel({
                             }}
                           >
                             Open Settings
+                          </button>
+                        </div>
+                      ) : filtersConflict ? (
+                        <div className="studio-model-picker-popover__empty-connect">
+                          <p>No model matches all of those filters together</p>
+                          <span>
+                            The filters combine with “and”. Each one matches on its own —{" "}
+                            {quickModelFilters
+                              .map((filter) => `${filterCounts.perFilter[filter].toLocaleString()} ${filter}`)
+                              .join(", ")}{" "}
+                            — but nothing matches them all at once. Drop one to see results.
+                          </span>
+                          <button type="button" onClick={() => setQuickModelFilters([])}>
+                            Clear filters
                           </button>
                         </div>
                       ) : (

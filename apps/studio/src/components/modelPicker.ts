@@ -31,6 +31,41 @@ export function modelBadges(model: StudioModel): string[] {
   return badges;
 }
 
+/**
+ * Count what each quick filter would yield on its own, plus how many models
+ * match every currently-active filter together.
+ *
+ * The chips combine with AND, which is easy to misread as "reset" the moment a
+ * pair intersects to nothing — Free and Reasoning, for instance, have no
+ * overlap at all today while Free and Intelligence have only a handful. Showing
+ * the per-chip counts up front makes the AND visible and lets the empty state
+ * say which combination is the problem.
+ */
+export function quickFilterCounts(
+  models: readonly StudioModel[],
+  active: readonly QuickModelFilter[]
+): { perFilter: Record<QuickModelFilter, number>; combined: number } {
+  const perFilter = { free: 0, vision: 0, tools: 0, reasoning: 0, intelligence: 0 };
+  const badgeSets: Array<{ model: StudioModel; badges: Set<string> }> = [];
+  for (const model of models) {
+    const badges = modelBadges(model);
+    badgeSets.push({ model, badges: new Set(badges) });
+    for (const filter of Object.keys(perFilter) as QuickModelFilter[]) {
+      if (badges.includes(QUICK_FILTER_BADGE[filter])) perFilter[filter] += 1;
+    }
+  }
+  const combined = badgeSets.filter(({ badges }) => active.every((f) => badges.has(QUICK_FILTER_BADGE[f]))).length;
+  return { perFilter, combined };
+}
+
+/** True when the intersection is empty but the filters are individually non-empty. */
+export function quickFilterConflict(
+  counts: { perFilter: Record<QuickModelFilter, number>; combined: number },
+  active: readonly QuickModelFilter[]
+): boolean {
+  return active.length > 1 && counts.combined === 0 && active.every((filter) => counts.perFilter[filter] > 0);
+}
+
 export function filterModelsByBadges(
   models: readonly StudioModel[],
   filters: readonly QuickModelFilter[]

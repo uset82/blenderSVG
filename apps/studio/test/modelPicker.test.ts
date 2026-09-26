@@ -1,6 +1,6 @@
 import type { StudioModel } from "@codex-avatar-studio/avatar-core";
 import { describe, expect, it } from "vitest";
-import { filterModelsByBadges, groupCatalogModels, modelBadges } from "../src/components/modelPicker.js";
+import { filterModelsByBadges, groupCatalogModels, modelBadges, quickFilterConflict, quickFilterCounts } from "../src/components/modelPicker.js";
 import { nextModelOptionIndex } from "../src/components/modelPickerNavigation.js";
 
 function model(id: string, author: string, extra: Partial<StudioModel> = {}): StudioModel {
@@ -101,6 +101,49 @@ describe("model picker", () => {
     expect(filterModelsByBadges(models, ["tools"])).toEqual([models[0], models[1]]);
     expect(filterModelsByBadges(models, ["reasoning"])).toEqual([]);
     expect(filterModelsByBadges(models, ["intelligence"])).toEqual([models[2]]);
+  });
+
+  it("counts each quick filter on its own and the AND across the active ones", () => {
+    const models = [
+      model("free/vision", "free", { inputModalities: ["text", "image"], intelligence: 30 }),
+      model("free/plain", "free", { intelligence: 20 }),
+      model("paid/vision", "paid", {
+        promptPrice: "0.1",
+        completionPrice: "0.2",
+        inputModalities: ["text", "image"]
+      }),
+      model("free/unscored", "free")
+    ];
+
+    const idle = quickFilterCounts(models, []);
+    expect(idle.perFilter).toEqual({ free: 3, vision: 2, tools: 0, reasoning: 0, intelligence: 2 });
+    expect(idle.combined).toBe(4);
+
+    // Free AND Intelligence is the combination from the reported bug.
+    const freeIntel = quickFilterCounts(models, ["free", "intelligence"]);
+    expect(freeIntel.combined).toBe(2);
+    expect(quickFilterConflict(freeIntel, ["free", "intelligence"])).toBe(false);
+  });
+
+  it("flags a filter pair that intersects to nothing only when each side matches alone", () => {
+    const models = [
+      model("free/one", "free", { intelligence: 30 }),
+      model("paid/tools", "paid", { promptPrice: "0.1", completionPrice: "0.2", supportedParameters: ["tools"] })
+    ];
+
+    // Free (1) and Tools (1) both match, but never on the same model.
+    const conflict = quickFilterCounts(models, ["free", "tools"]);
+    expect(conflict.combined).toBe(0);
+    expect(quickFilterConflict(conflict, ["free", "tools"])).toBe(true);
+
+    // A genuinely empty filter is not a conflict — it is just empty.
+    const empty = quickFilterCounts(models, ["reasoning"]);
+    expect(empty.perFilter.reasoning).toBe(0);
+    expect(quickFilterConflict(empty, ["reasoning"])).toBe(false);
+
+    // A single active filter is never reported as a conflict.
+    const single = quickFilterCounts(models, ["free"]);
+    expect(quickFilterConflict(single, ["free"])).toBe(false);
   });
 
   it("moves model focus with arrows and Home/End without skipping the first option", () => {
