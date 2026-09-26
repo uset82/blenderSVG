@@ -40,6 +40,7 @@ import {
   modelBadges,
   quickFilterConflict,
   quickFilterCounts,
+  quickFilterSelectableGap,
   type QuickModelFilter
 } from "./modelPicker.js";
 import { nextModelOptionIndex } from "./modelPickerNavigation.js";
@@ -515,6 +516,11 @@ export function AgentConversationPanel({
     [matchingModels, quickModelFilters]
   );
   const filtersConflict = quickFilterConflict(filterCounts, quickModelFilters);
+  const selectableMatches = useMemo(
+    () => quickMatchingModels.filter((model) => model.textChatEligible).length,
+    [quickMatchingModels]
+  );
+  const filtersSelectableGap = quickFilterSelectableGap(filterCounts, quickModelFilters, selectableMatches);
   const sortedModels = useMemo(
     () => sortStudioModels(quickMatchingModels, modelSortOrder),
     [quickMatchingModels, modelSortOrder]
@@ -1565,14 +1571,19 @@ export function AgentConversationPanel({
                     ] as const
                   ).map(([filter, label]) => {
                     const active = quickModelFilters.includes(filter);
-                    const count = filterCounts.perFilter[filter];
+                    const total = filterCounts.perFilter[filter];
+                    const usable = filterCounts.perFilterSelectable[filter];
                     return (
                       <button
                         key={filter}
                         type="button"
                         aria-pressed={active}
                         className={active ? "is-active" : ""}
-                        title={`${label}: ${count.toLocaleString()} model${count === 1 ? "" : "s"} match on their own`}
+                        title={
+                          usable === total
+                            ? `${label}: ${total.toLocaleString()} model${total === 1 ? "" : "s"}`
+                            : `${label}: ${total.toLocaleString()} listed, ${usable.toLocaleString()} ready for chat`
+                        }
                         onClick={() =>
                           setQuickModelFilters((current) =>
                             current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]
@@ -1581,7 +1592,7 @@ export function AgentConversationPanel({
                       >
                         {label}
                         <span className="studio-model-picker-popover__filter-count" aria-hidden="true">
-                          {count.toLocaleString()}
+                          {usable === total ? total.toLocaleString() : `${usable.toLocaleString()}/${total.toLocaleString()}`}
                         </span>
                       </button>
                     );
@@ -1774,6 +1785,22 @@ export function AgentConversationPanel({
                               .map((filter) => `${filterCounts.perFilter[filter].toLocaleString()} ${filter}`)
                               .join(", ")}{" "}
                             — but nothing matches them all at once. Drop one to see results.
+                          </span>
+                          <button type="button" onClick={() => setQuickModelFilters([])}>
+                            Clear filters
+                          </button>
+                        </div>
+                      ) : filtersSelectableGap ? (
+                        <div className="studio-model-picker-popover__empty-connect">
+                          <p>These filters only match models that cannot chat</p>
+                          <span>
+                            {quickModelFilters
+                              .map(
+                                (filter) =>
+                                  `${filterCounts.perFilterSelectable[filter].toLocaleString()} of ${filterCounts.perFilter[filter].toLocaleString()} ${filter}`
+                              )
+                              .join(", ")}{" "}
+                            — the rest do not advertise text in and text out, so they stay disabled.
                           </span>
                           <button type="button" onClick={() => setQuickModelFilters([])}>
                             Clear filters

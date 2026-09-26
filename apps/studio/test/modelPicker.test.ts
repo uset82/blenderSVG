@@ -1,6 +1,13 @@
 import type { StudioModel } from "@codex-avatar-studio/avatar-core";
 import { describe, expect, it } from "vitest";
-import { filterModelsByBadges, groupCatalogModels, modelBadges, quickFilterConflict, quickFilterCounts } from "../src/components/modelPicker.js";
+import {
+  filterModelsByBadges,
+  groupCatalogModels,
+  modelBadges,
+  quickFilterConflict,
+  quickFilterCounts,
+  quickFilterSelectableGap
+} from "../src/components/modelPicker.js";
 import { nextModelOptionIndex } from "../src/components/modelPickerNavigation.js";
 
 function model(id: string, author: string, extra: Partial<StudioModel> = {}): StudioModel {
@@ -118,11 +125,48 @@ describe("model picker", () => {
     const idle = quickFilterCounts(models, []);
     expect(idle.perFilter).toEqual({ free: 3, vision: 2, tools: 0, reasoning: 0, intelligence: 2 });
     expect(idle.combined).toBe(4);
+    // Every fixture here can chat, so the selectable split mirrors the raw count.
+    expect(idle.perFilterSelectable).toEqual(idle.perFilter);
 
     // Free AND Intelligence is the combination from the reported bug.
     const freeIntel = quickFilterCounts(models, ["free", "intelligence"]);
     expect(freeIntel.combined).toBe(2);
     expect(quickFilterConflict(freeIntel, ["free", "intelligence"])).toBe(false);
+    expect(quickFilterSelectableGap(freeIntel, ["free", "intelligence"], 2)).toBe(false);
+  });
+
+  it("separates listed matches from chat-selectable ones when a chip catches disabled rows", () => {
+    // Image generators are priced at zero for text tokens, so they carry the
+    // Free badge while being unselectable — the source of the "the box emptied
+    // itself" report.
+    const models = [
+      model("free/chat", "free", { intelligence: 40 }),
+      model("black-forest-labs/flux", "black-forest-labs", {
+        outputModalities: ["image"],
+        textChatEligible: false
+      })
+    ];
+
+    const idle = quickFilterCounts(models, []);
+    expect(idle.perFilter.free).toBe(2);
+    expect(idle.perFilterSelectable.free).toBe(1);
+    expect(idle.perFilter.intelligence).toBe(1);
+    expect(idle.perFilterSelectable.intelligence).toBe(1);
+
+    // Free alone matches something sendable, so there is no gap.
+    expect(quickFilterSelectableGap(idle, ["free"], 1)).toBe(false);
+
+    // Free AND Intelligence still resolves to the chat model.
+    const freeIntel = quickFilterCounts(models, ["free", "intelligence"]);
+    expect(freeIntel.combined).toBe(1);
+    expect(quickFilterSelectableGap(freeIntel, ["free", "intelligence"], 1)).toBe(false);
+
+    // When the only surviving rows are disabled, the gap is reported.
+    expect(quickFilterSelectableGap(freeIntel, ["free", "intelligence"], 0)).toBe(true);
+    // A single filter never reports a gap — that path uses the plain empty state.
+    expect(quickFilterSelectableGap(idle, ["intelligence"], 0)).toBe(false);
+    // An empty intersection is a conflict, not a gap.
+    expect(quickFilterSelectableGap({ ...idle, combined: 0 }, ["free", "vision"], 0)).toBe(false);
   });
 
   it("flags a filter pair that intersects to nothing only when each side matches alone", () => {
