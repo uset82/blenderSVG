@@ -221,8 +221,6 @@ export function AgentConversationPanel({
   const [modelQuery, setModelQuery] = useState("");
   const [quickModelFilters, setQuickModelFilters] = useState<QuickModelFilter[]>([]);
   const [modelSortOrder, setModelSortOrder] = useState<ModelSortOrder>("most-popular");
-  const [sortMenuOpen, setSortMenuOpen] = useState(false);
-  const sortMenuRef = useRef<HTMLDivElement>(null);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [minimumContext, setMinimumContext] = useState("all");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -509,16 +507,6 @@ export function AgentConversationPanel({
   // renders the deduped set, so the counts must come from here.
   const visibleModels = useMemo(() => sortedModels.filter((model) => !isDuplicateRoute(model)), [sortedModels]);
 
-  useEffect(() => {
-    if (!sortMenuOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
-        setSortMenuOpen(false);
-      }
-    };
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [sortMenuOpen]);
   const selectedModel = modelCatalog.models.find((model) => model.id === selectedModelId);
   const chooseModel = (modelId: string) => {
     setSelectedModelId(modelId);
@@ -1419,7 +1407,7 @@ export function AgentConversationPanel({
             ref={modelPickerAnchorRef}
             style={
               {
-                "--studio-model-picker-width": "460px"
+                "--studio-model-picker-width": "490px"
               } as React.CSSProperties
             }
           >
@@ -1453,8 +1441,11 @@ export function AgentConversationPanel({
                   <div>
                     <strong>Choose a model</strong>
                     <span>
-                      {visibleModels.length.toLocaleString()} of {modelCatalog.models.length.toLocaleString()} shown ·
-                      newest first when unsorted
+                      {modelCatalog.status === "loading"
+                        ? "Loading available models…"
+                        : modelCatalog.models.length === 0
+                          ? "OpenRouter catalog"
+                          : `${visibleModels.length.toLocaleString()} of ${modelCatalog.models.length.toLocaleString()} shown · newest first when unsorted`}
                     </span>
                   </div>
                   <button
@@ -1487,46 +1478,22 @@ export function AgentConversationPanel({
                       }}
                     />
                   </label>
-                  <div className="studio-model-picker-popover__sort" ref={sortMenuRef}>
-                    <button
-                      type="button"
-                      className="studio-model-picker-popover__sort-button"
-                      aria-haspopup="menu"
-                      aria-expanded={sortMenuOpen}
+                  <div className="studio-model-picker-popover__sort">
+                    <ArrowUpDown size={13} aria-hidden="true" className="studio-model-picker-popover__sort-icon" />
+                    <select
+                      className="studio-model-picker-popover__sort-select"
+                      value={modelSortOrder}
+                      onChange={(event) => setModelSortOrder(event.target.value as ModelSortOrder)}
+                      aria-label="Sort models"
                       title="Sort models"
-                      onClick={() => setSortMenuOpen((open) => !open)}
                     >
-                      <ArrowUpDown size={13} aria-hidden="true" />
-                      <span className="studio-model-picker-popover__sort-label">
-                        {MODEL_SORT_OPTIONS.find((option) => option.id === modelSortOrder)?.label ?? "Sort"}
-                      </span>
-                      <ChevronDown size={13} aria-hidden="true" />
-                    </button>
-                    {sortMenuOpen && (
-                      <div className="studio-model-picker-popover__sort-menu" role="menu" aria-label="Model sort order">
-                        {MODEL_SORT_OPTIONS.map((option) => {
-                          const isSelected = option.id === modelSortOrder;
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              role="menuitemradio"
-                              aria-checked={isSelected}
-                              className={`studio-model-picker-popover__sort-item${isSelected ? " is-selected" : ""}`}
-                              onClick={() => {
-                                setModelSortOrder(option.id);
-                                setSortMenuOpen(false);
-                              }}
-                            >
-                              <span className="studio-model-picker-popover__sort-check">
-                                {isSelected ? <Check size={14} aria-hidden="true" /> : null}
-                              </span>
-                              <span>{option.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                      {MODEL_SORT_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={13} aria-hidden="true" className="studio-model-picker-popover__sort-chevron" />
                   </div>
                 </div>
 
@@ -1720,19 +1687,40 @@ export function AgentConversationPanel({
                     </div>
                   ))}
                   {visibleModels.length === 0 && (
-                    <p className="studio-model-picker-popover__empty">
-                      {modelCatalog.status === "loading" ? "Loading models…" : "No models match these filters."}
-                    </p>
+                    <div className="studio-model-picker-popover__empty" role="status">
+                      {modelCatalog.status === "loading" ? (
+                        <p>Loading models…</p>
+                      ) : modelCatalog.models.length === 0 ? (
+                        <div className="studio-model-picker-popover__empty-connect">
+                          <p>No models available yet</p>
+                          <span>Connect your OpenRouter key in Settings to load models.</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              closeModelPicker(true);
+                              document.querySelector<HTMLElement>('[aria-label="Settings"]')?.click();
+                            }}
+                          >
+                            Open Settings
+                          </button>
+                        </div>
+                      ) : (
+                        <p>No models match the current search or filters.</p>
+                      )}
+                    </div>
                   )}
                 </div>
 
                 <footer className="studio-model-picker-popover__footer">
                   <span aria-live="polite">
-                    {visibleModels.length.toLocaleString()} of {modelCatalog.models.length.toLocaleString()} models ·
-                    $/1M input / output
+                    {modelCatalog.models.length === 0
+                      ? "Connect OpenRouter to browse models"
+                      : `${visibleModels.length.toLocaleString()} of ${modelCatalog.models.length.toLocaleString()} models · $/1M input / output`}
                     {modelCatalog.refreshedAt
                       ? ` · refreshed ${formatCatalogRefresh(modelCatalog.refreshedAt)}`
-                      : ` · ${modelCatalog.message}`}
+                      : modelCatalog.message && modelCatalog.models.length > 0
+                        ? ` · ${modelCatalog.message}`
+                        : ""}
                   </span>
                   <button
                     type="button"

@@ -22,20 +22,12 @@ export type ModelSortOrder =
 
 export const MODEL_SORT_OPTIONS: ReadonlyArray<{ id: ModelSortOrder; label: string }> = [
   { id: "most-popular", label: "Most Popular" },
-  { id: "newest", label: "Newest" },
-  { id: "oldest", label: "Oldest" },
-  { id: "pricing-low-to-high", label: "Pricing: Low to High" },
-  { id: "pricing-high-to-low", label: "Pricing: High to Low" },
-  { id: "context-high-to-low", label: "Context: High to Low" },
-  { id: "context-low-to-high", label: "Context: Low to High" },
   { id: "intelligence-high-to-low", label: "Intelligence: High to Low" },
-  { id: "intelligence-low-to-high", label: "Intelligence: Low to High" },
   { id: "coding-high-to-low", label: "Coding: High to Low" },
-  { id: "coding-low-to-high", label: "Coding: Low to High" },
-  { id: "agentic-high-to-low", label: "Agentic: High to Low" },
-  { id: "agentic-low-to-high", label: "Agentic: Low to High" },
-  { id: "design-arena-elo-high-to-low", label: "Design Arena ELO: High to Low" },
-  { id: "design-arena-elo-low-to-high", label: "Design Arena ELO: Low to High" }
+  { id: "pricing-low-to-high", label: "Price: Low to High" },
+  { id: "pricing-high-to-low", label: "Price: High to Low" },
+  { id: "context-high-to-low", label: "Context: High to Low" },
+  { id: "newest", label: "Newest" }
 ];
 
 export interface StudioModelFilters {
