@@ -170,6 +170,25 @@ export class OpenRouterChatController {
         return catalogError("OpenRouter returned an unreadable model catalog.");
       }
 
+      // The account-scoped `/models/user` list does not reliably carry
+      // `benchmarks.artificial_analysis`, so rows normalise to
+      // `intelligence: null` and the Intelligence chip reads zero even though the
+      // public `/models` list is publishing scores. Top up any row the primary
+      // response left unscored, keyed by id. Only rows actually missing data are
+      // touched, so a catalog that already has scores costs one no-op pass.
+      const unscored = rawModels.filter((value) => isRecord(value) && !hasArtificialAnalysis(value));
+      if (unscored.length > 0) {
+        const merged = await this.readBenchmarkScores(controller.signal);
+        if (merged) {
+          for (const value of unscored) {
+            if (!isRecord(value)) continue;
+            const id = typeof value.id === "string" ? value.id : "";
+            const scores = merged.get(id);
+            if (scores) value.benchmarks = { ...(isRecord(value.benchmarks) ? value.benchmarks : {}), ...scores };
+          }
+        }
+      }
+
       const models = rawModels.map(normalizeModel).filter((value): value is StudioModel => value !== null);
       if (models.length === 0) {
         this.availableModels.clear();
@@ -577,6 +596,42 @@ export class OpenRouterChatController {
     return pages;
   }
 
+  /**
+   * Load Artificial Analysis scores for every model the account can see.
+   *
+   * `/models/user` does not reliably include `benchmarks.artificial_analysis`,
+   * which leaves the Intelligence chip and its sorts empty. This asks the
+   * dedicated `/benchmarks` endpoint (the only documented source that publishes
+   * `intelligence_index`) and keys the result by model id. A failure here is
+   * non-fatal: the catalog still loads, just without scores.
+   */
+  private async readBenchmarkScores(signal: AbortSignal): Promise<Map<string, ArtificialAnalysisScores> | null> {
+    try {
+      const response = await this.request(`${API_ROOT}/benchmarks?source=artificial-analysis`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        redirect: "error",
+        signal
+      });
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
+        return null;
+      }
+      const payload = await readBoundedJson(response, MAX_CATALOG_BYTES);
+      if (!isRecord(payload) || !Array.isArray(payload.data)) return null;
+      const scores = new Map<string, ArtificialAnalysisScores>();
+      for (const row of payload.data) {
+        if (!isRecord(row)) continue;
+        const parsed = readArtificialAnalysisRow(row);
+        const id = typeof row.model_permaslug === "string" ? row.model_permaslug : "";
+        if (parsed && id) scores.set(id, parsed);
+      }
+      return scores.size > 0 ? scores : null;
+    } catch {
+      return null;
+    }
+  }
+
   public dispose(): void {
     this.cancelAll();
   }
@@ -765,6 +820,31 @@ function boundedString(value: unknown, maxLength: number): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** True when a raw catalog row already carries Artificial Analysis scores. */
+function hasArtificialAnalysis(value: Record<string, unknown>): boolean {
+  const benchmarks = isRecord(value.benchmarks) ? value.benchmarks : {};
+  return isRecord(benchmarks.artificial_analysis);
+}
+
+/** The benchmark block `normalizeModel` reads, keyed by model id. */
+interface ArtificialAnalysisScores {
+  artificial_analysis: Record<string, unknown>;
+}
+
+/** Pull the Artificial Analysis numbers out of one `/benchmarks` row. */
+function readArtificialAnalysisRow(row: Record<string, unknown>): ArtificialAnalysisScores | null {
+  if (row.source !== "artificial-analysis") return null;
+  const permalink = typeof row.model_permaslug === "string" ? row.model_permaslug : "";
+  if (!permalink) return null;
+  const intelligence = typeof row.intelligence_index === "number" ? row.intelligence_index : null;
+  const coding = typeof row.coding_index === "number" ? row.coding_index : null;
+  const agentic = typeof row.agentic_index === "number" ? row.agentic_index : null;
+  if (intelligence === null && coding === null && agentic === null) return null;
+  return {
+    artificial_analysis: { intelligence_index: intelligence, coding_index: coding, agentic_index: agentic }
+  };
 }
 
 class OpenRouterStreamError extends Error {}
