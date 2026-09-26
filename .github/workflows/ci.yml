@@ -79,8 +79,11 @@ jobs:
       - name: Build web edition
         run: |
           pnpm --filter "@codex-avatar-studio/studio^..." build
+          # web-avatar-package imports AvatarPackageRegistry from the extension dist.
+          pnpm --filter codex-avatar-studio-extension build
           # The canvas smokes below need a licensed canvas. Without a key the app shows the license
-          # notice instead of tldraw. The /app/ site key is public (it ships in the bundle), so reuse it.
+          # notice instead of tldraw. The evaluation trial key ships in the browser bundle via
+          # apps/studio/.env.web-site (owner-accepted for non-production); Actions secrets override.
           export VITE_TLDRAW_LICENSE_KEY="${VITE_TLDRAW_LICENSE_KEY:-$(sed -n 's/^VITE_TLDRAW_LICENSE_KEY=//p' apps/studio/.env.web-site)}"
           pnpm --filter @codex-avatar-studio/studio build:web
       - name: Web unit tests
@@ -99,4 +102,5 @@ jobs:
           node scripts/web-backup-clear.mjs
           node scripts/web-canvas-persist.mjs
           node scripts/web-export.mjs
+          node scripts/web-avatar-package.mjs
           node scripts/smoke-web-staging.mjs

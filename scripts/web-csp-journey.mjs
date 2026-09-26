@@ -48,11 +48,14 @@ try {
       outcomes.push(await runJourney(browserName, run, origin));
     }
   }
+  for (const run of [1, 2]) {
+    outcomes.push(await runWebKitTraceJourney(run, origin));
+  }
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
 
-for (const browserName of ["chromium", "firefox"]) {
+for (const browserName of ["chromium", "firefox", "webkit"]) {
   const pair = outcomes.filter((item) => item.browserName === browserName);
   assert.equal(pair.length, 2, `${browserName} ran ${pair.length} times`);
   assert.deepEqual(pair[0].summary, pair[1].summary, `${browserName} runs differed`);
@@ -126,6 +129,96 @@ function httpsGet(url) {
     });
     request.on("error", reject);
   });
+}
+
+/** WebKit covers Image→SVG under the production CSP; full PKCE stays on Chromium/Firefox (WebKit stalls on the OAuth redirect). */
+async function runWebKitTraceJourney(run, pageOrigin) {
+  const requests = [];
+  const consoleNotes = [];
+  const pageErrors = [];
+  const browser = await playwright.webkit.launch({ headless: true });
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1000 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(45_000);
+  await page.addInitScript(() => {
+    window.__kurvaCspViolations = [];
+    document.addEventListener("securitypolicyviolation", (event) => {
+      window.__kurvaCspViolations.push({
+        directive: event.effectiveDirective,
+        blocked: event.blockedURI,
+        sample: event.sample
+      });
+    });
+  });
+  context.on("request", (request) => requests.push(request.url()));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleNotes.push(message.text());
+  });
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  try {
+    await page.goto(`${pageOrigin}/`);
+    await page.locator("[data-kurva-target='web']").waitFor();
+    await page.getByRole("button", { name: /Image → SVG/ }).click();
+    const dialog = page.getByRole("dialog", { name: "Vector asset" });
+    await dialog.waitFor();
+    const imageInput = dialog.getByLabel("Image to trace");
+    await imageInput.setInputFiles({ name: "dot.png", mimeType: "image/png", buffer: png(24, 24, [220, 40, 40]) });
+    await dialog.getByRole("button", { name: "Trace image", exact: true }).click();
+    await dialog.getByRole("status").filter({ hasText: "Trace ready" }).waitFor({ timeout: 60_000 });
+    const wasmRequests = requests.filter((url) => url.startsWith(pageOrigin) && url.includes(".wasm"));
+    const workerRequests = requests.filter((url) => url.startsWith(pageOrigin) && url.includes("traceImage.worker"));
+    assert.ok(wasmRequests.length > 0, "WebKit trace did not request WASM");
+    assert.ok(workerRequests.length > 0, "WebKit trace did not start the module worker");
+
+    await imageInput.setInputFiles({ name: "noise.png", mimeType: "image/png", buffer: png(640, 480) });
+    await dialog.getByRole("button", { name: /Trace again|Trace image/ }).click();
+    const cancel = dialog.getByRole("button", { name: "Cancel", exact: true });
+    await cancel.waitFor();
+    await page.waitForTimeout(250);
+    await cancel.click();
+    await dialog.getByRole("status").filter({ hasText: "Image tracing was cancelled." }).waitFor();
+
+    const violations = await page.evaluate(() => window.__kurvaCspViolations ?? []);
+    const origins = [...new Set(requests.map(requestOrigin))];
+    const allowed = new Set([pageOrigin]);
+    const unexpected = origins.filter((item) => !allowed.has(item));
+    const summary = {
+      exchange: "webkit-trace-only",
+      reply: null,
+      violations: violations.length,
+      origins: origins.sort(),
+      wasm: true,
+      worker: true,
+      cancelled: true,
+      pageErrors: pageErrors.length
+    };
+    appendLog("trace-csp.log", [
+      `browser: webkit ${browser.version()} run ${run}`,
+      `origin: ${pageOrigin}`,
+      `wasm requests: ${wasmRequests.length}`,
+      `worker requests: ${workerRequests.length}`,
+      "worker urls:",
+      ...workerRequests,
+      "result: WebKit compiled WASM, Trace ready, then Image tracing was cancelled. (PKCE not exercised on WebKit.)"
+    ]);
+    assert.deepEqual(unexpected, [], `unexpected request origins: ${unexpected.join(", ")}`);
+    assert.equal(violations.length, 0);
+    assert.deepEqual(pageErrors, []);
+    if (consoleNotes.length > 0) {
+      appendLog("csp-journey.log", [`webkit run ${run} console errors:`, ...consoleNotes]);
+    }
+    return { browserName: "webkit", summary };
+  } catch (error) {
+    const target = path.join(scratch, `webkit-run-${run}-failure.png`);
+    await page.screenshot({ path: target, fullPage: true }).catch(() => undefined);
+    writeFileSync(
+      path.join(scratch, `webkit-run-${run}-failure.txt`),
+      `${error instanceof Error ? error.stack : error}\nrequests:\n${requests.filter((url) => url.includes(".wasm") || url.includes("worker")).join("\n")}\n`
+    );
+    throw error;
+  } finally {
+    await browser.close();
+  }
 }
 
 async function runJourney(browserName, run, pageOrigin) {

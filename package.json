@@ -51,6 +51,12 @@
     "validate:notices": "node scripts/validate-notices.mjs",
     "audit:prod": "pnpm audit --prod",
     "test:web:csp": "node scripts/web-csp-journey.mjs",
+    "test:web:offline": "node scripts/web-offline.mjs",
+    "test:web:persist": "node scripts/web-canvas-persist.mjs",
+    "test:web:export": "node scripts/web-export.mjs",
+    "test:web:avatar-package": "node scripts/web-avatar-package.mjs",
+    "test:web:matrix": "node scripts/web-browser-matrix.mjs",
+    "test:web:visual": "node scripts/web-visual-e2e.mjs",
     "validate:vsix": "node scripts/validate-vsix.mjs",
     "package:vsix:pre": "node scripts/package-vsix.mjs --pre-release"
   },

@@ -210,6 +210,16 @@ async function downloadAvatarPackage(name: string, svg: string): Promise<void> {
     saveDownload(blob, match?.[1] || "avatar.codex-avatar.zip");
     return;
   }
+  if (isWebEdition()) {
+    const { buildBrowserAvatarPackage } = await import("../web/browserAvatarPackage.js");
+    const manifest = avatarPackageManifest(name);
+    const bytes = await buildBrowserAvatarPackage({ id: manifest.id, name: manifest.name, svg: safeSvg });
+    saveDownload(
+      new Blob([bytes.buffer as ArrayBuffer], { type: "application/zip" }),
+      `${manifest.id}.codex-avatar.zip`
+    );
+    return;
+  }
   const manifest = avatarPackageManifest(name);
   const payload = JSON.stringify({ manifest, svg: safeSvg }, null, 2);
   saveDownload(new Blob([payload], { type: "application/json" }), `${manifest.id}.avatar-package.json`);
@@ -220,6 +230,9 @@ function saveDownload(blob: Blob, fileName: string): void {
   const link = document.createElement("a");
   link.href = url;
   link.download = fileName;
+  link.rel = "noopener";
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
