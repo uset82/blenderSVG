@@ -1,6 +1,6 @@
 import type { StudioHostKind } from "@codex-avatar-studio/avatar-core";
 
-export const KURVA_DESKTOP_APP_URL = "https://kurva.agency";
+export const KURVA_DESKTOP_APP_URL = "https://github.com/uset82/blenderSVG/releases";
 export const DESKTOP_ONLY_REASON = "Available in the Kurva desktop app";
 
 export interface StudioCapabilities {

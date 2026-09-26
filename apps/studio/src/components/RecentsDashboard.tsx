@@ -177,6 +177,7 @@ export function RecentsDashboard({
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setDrawerOpen(false);
+        searchRef.current?.scrollIntoView({ block: "nearest" });
         searchRef.current?.focus();
       }
       if (event.key === "Escape") setDrawerOpen(false);
@@ -330,6 +331,7 @@ export function RecentsDashboard({
           type="button"
           onClick={() => {
             setDrawerOpen(false);
+            searchRef.current?.scrollIntoView({ block: "nearest" });
             searchRef.current?.focus();
           }}
           title="Search (Ctrl+K)"

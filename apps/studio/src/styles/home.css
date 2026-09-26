@@ -1540,6 +1540,11 @@
 .studio-settings-shortcuts kbd {
   font-family: var(--studio-font-mono, ui-monospace, monospace);
   font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--studio-border, rgba(27, 26, 23, 0.16));
+  border-radius: 6px;
+  background: var(--studio-surface-raised, rgba(27, 26, 23, 0.04));
+  white-space: nowrap;
 }
 @media (max-width: 720px) {
   .studio-settings-shortcuts {

@@ -578,7 +578,7 @@ export function StudioRouteNotice({
               {host === "web" ? (
                 <>
                   <p>
-                    <a href="/privacy.html">What Kurva stores</a> · <a href="/notices.html">Notices</a> ·{" "}
+                    <a href="/app/privacy.html">What Kurva stores</a> · <a href="/app/notices.html">Notices</a> ·{" "}
                     <a href="https://github.com/uset82/blenderSVG">GitHub</a> ·{" "}
                     <a href="https://github.com/uset82/blenderSVG/releases">Get the desktop app for Blender and MCP</a>
                   </p>
