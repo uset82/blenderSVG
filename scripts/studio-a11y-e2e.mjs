@@ -33,8 +33,13 @@ try {
   }
   assert.equal(opened, true, "keyboard focus reached New file");
   await page.waitForFunction(() => location.hash.startsWith("#/p/"));
+  await page.waitForFunction(() => {
+    const button = document.querySelector(".studio-canvas .studio-windowbar__labeled");
+    const box = button?.getBoundingClientRect();
+    return Boolean(box && box.height >= 44 && box.width >= 44);
+  });
   const metrics = await page.evaluate(() => {
-    const button = document.querySelector("button.studio-windowbar__labeled");
+    const button = document.querySelector(".studio-canvas .studio-windowbar__labeled");
     const box = button ? button.getBoundingClientRect() : null;
     const motion = getComputedStyle(document.querySelector(".studio-app") ?? document.body).animationDuration;
     const live = document.querySelector("[aria-live], [role='status']");

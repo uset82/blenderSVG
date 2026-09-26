@@ -108,6 +108,12 @@ try {
   await cdp.send("Page.enable");
   await cdp.send("Runtime.enable");
   await cdp.send("Network.enable");
+  await cdp.send("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  });
   await cdp.send("Page.navigate", { url: `${origin}/?studioToken=${launchToken}` });
   try {
     await waitUntil(async () => /Recents/.test((await evaluate(cdp, "document.body?.innerText")) ?? ""), "Studio Home");
@@ -122,15 +128,27 @@ try {
   }
   await evaluate(cdp, `document.querySelector(".recents__button--primary")?.click()`);
   await waitUntil(async () => /^#\/p\//.test((await evaluate(cdp, "location.hash")) ?? ""), "new Studio project");
-  await evaluate(cdp, `document.querySelector('summary[aria-label="Agents"]')?.click()`);
   await waitUntil(
-    async () => (await evaluate(cdp, "document.body?.innerText"))?.includes("Open conversation"),
-    "Agents menu"
+    async () =>
+      (await evaluate(cdp, `Boolean(document.querySelector('summary[aria-label="Agents"]'))`)) ||
+      (await evaluate(cdp, `Boolean(document.querySelector("#studio-chat-composer"))`)),
+    "Agents control"
   );
-  await evaluate(
-    cdp,
-    `([...document.querySelectorAll(".studio-windowbar__menu-popover button")].find((item) => item.innerText.trim() === "Open conversation"))?.click()`
-  );
+  if (!(await evaluate(cdp, `Boolean(document.querySelector("#studio-chat-composer"))`))) {
+    await evaluate(cdp, `document.querySelector('summary[aria-label="Agents"]')?.click()`);
+  }
+  await waitUntil(async () => {
+    if (await evaluate(cdp, `Boolean(document.querySelector("#studio-chat-composer"))`)) return true;
+    const text = (await evaluate(cdp, "document.body?.innerText")) ?? "";
+    return text.includes("Open conversation") || text.includes("Close conversation");
+  }, "Agents menu");
+  const composerAlreadyOpen = await evaluate(cdp, `Boolean(document.querySelector("#studio-chat-composer"))`);
+  if (!composerAlreadyOpen) {
+    await evaluate(
+      cdp,
+      `([...document.querySelectorAll(".studio-windowbar__menu-popover button")].find((item) => item.innerText.trim() === "Open conversation"))?.click()`
+    );
+  }
   try {
     await waitUntil(
       async () => await evaluate(cdp, `Boolean(document.querySelector("#studio-chat-composer"))`),

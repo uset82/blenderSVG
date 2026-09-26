@@ -12,5 +12,26 @@ if (csp.includes("connect-src 'self' https://openrouter.ai http")) {
   throw new Error("Web CSP connect-src is wider than the app origin and openrouter.ai.");
 }
 if (!caddy.includes("query delete")) throw new Error("Web access logs must drop query strings.");
-if (!caddy.includes("respond /health 200")) throw new Error("Web Caddyfile must answer /health.");
+if (!caddy.includes("handle /health") || !caddy.includes("respond 200")) {
+  throw new Error("Web Caddyfile must answer /health before the static fallback.");
+}
+for (const required of [
+  "Strict-Transport-Security",
+  "X-Content-Type-Options",
+  "Referrer-Policy",
+  "Permissions-Policy",
+  "Cross-Origin-Opener-Policy",
+  "Cross-Origin-Resource-Policy",
+  "precompressed br gzip",
+  "max-age=31536000, immutable",
+  'Cache-Control "no-cache"'
+]) {
+  if (!caddy.includes(required)) throw new Error(`Web Caddyfile is missing ${required}.`);
+}
+if (caddy.includes("require-trusted-types-for")) {
+  throw new Error("Trusted Types stay off until a licensed editor journey reports zero violations.");
+}
+if (caddy.includes("hide .*")) {
+  throw new Error("A blanket dotfile hide would block /.well-known/security.txt.");
+}
 console.log("Web headers file OK.");

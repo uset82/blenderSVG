@@ -21,9 +21,13 @@ describe("web shell", () => {
     const worker = readFileSync(new URL("apps/studio/public/sw.js", root), "utf8");
     expect(worker).toContain("openrouter.ai");
     expect(worker).toContain("caches.match");
+    expect(worker).toContain('cache.put(appPath("/index.html")');
     const kill = readFileSync(new URL("apps/studio/public/sw-kill.js", root), "utf8");
     expect(kill).toContain("unregister");
     expect(kill).toContain("caches.delete");
+    expect(kill).toContain("includeUncontrolled: true");
+    expect(kill).toContain("kurva-kill");
+    expect(kill).toContain("kurva-reset");
     const caddy = readFileSync(new URL("apps/studio/web/Caddyfile", root), "utf8");
     expect(caddy).toContain("connect-src 'self' https://openrouter.ai");
     const privacy = readFileSync(new URL("apps/studio/public/privacy.html", root), "utf8");

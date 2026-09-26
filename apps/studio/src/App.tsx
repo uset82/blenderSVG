@@ -93,6 +93,7 @@ import { rememberPersistentStorage } from "./web/BrowserStoragePanel.js";
 import { createBrowserAssetStore } from "./web/browserAssets.js";
 import { inlineAssetSources, storeInlinedAssets } from "./web/browserBackup.js";
 import {
+  createBrowserProjectIfAbsent,
   deleteBrowserConversation,
   ensureBrowserScratchpad,
   listBrowserConversations,
@@ -100,6 +101,7 @@ import {
   putBrowserThumbnail,
   readBrowserConversation,
   renameBrowserConversation,
+  openBrowserProject,
   writeBrowserConversation
 } from "./web/browserProjects.js";
 import { isWebEdition, WEB_LIBRARY_STATUS } from "./web/kurvaTarget.js";
@@ -392,16 +394,15 @@ export function App() {
   useEffect(() => {
     if (!webEdition || !("serviceWorker" in navigator)) return;
     const watch = (registration: ServiceWorkerRegistration) => {
-      if (registration.waiting) setAppUpdateWaiting(true);
+      const offer = () => {
+        if (registration.waiting && navigator.serviceWorker.controller) setAppUpdateWaiting(true);
+      };
+      offer();
       registration.addEventListener("updatefound", () => {
-        registration.installing?.addEventListener("statechange", () => {
-          if (registration.waiting) setAppUpdateWaiting(true);
-        });
+        registration.installing?.addEventListener("statechange", offer);
       });
     };
-    void navigator.serviceWorker.getRegistration().then((registration) => {
-      if (registration) watch(registration);
-    });
+    void navigator.serviceWorker.ready.then(watch);
   }, [webEdition]);
   const editorRef = useRef<Editor | null>(null);
   const mountedEditorRef = useRef<Editor | null>(null);
@@ -1205,30 +1206,39 @@ export function App() {
 
   const handleExportProject = () => {
     const editor = editorRef.current;
-    if (!editor) return;
     const title = projectTitleRef.current.trim() || "Untitled";
     const storedId = activeProjectId ?? projectIdRef.current;
     const id =
       storedId && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(storedId)
         ? storedId
         : crypto.randomUUID();
-    const rawSnapshot = JSON.stringify(editor.getSnapshot());
+    const rawSnapshot = editor ? Promise.resolve(JSON.stringify(editor.getSnapshot())) : null;
+    if (!rawSnapshot) {
+      if (!webEdition || !storedId) return;
+      void openBrowserProject(storedId)
+        .then((project) => inlineAssetSources(project.snapshot))
+        .then((snapshot) => downloadProjectExport(id, title, snapshot))
+        .catch(() => setProjectSaveStatus("The page could not be exported."));
+      return;
+    }
     const portableSnapshot = webEdition
-      ? inlineAssetSources(rawSnapshot)
+      ? rawSnapshot.then((snapshot) => inlineAssetSources(snapshot))
       : isStandaloneHost
-        ? inlineStandaloneAssetSources(rawSnapshot)
-        : Promise.resolve(rawSnapshot);
+        ? rawSnapshot.then((snapshot) => inlineStandaloneAssetSources(snapshot))
+        : rawSnapshot;
     void portableSnapshot
-      .then((snapshot) => {
-        const json = buildStudioProjectExport({ id, title, snapshot });
-        const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = studioExportFileName(title);
-        link.click();
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
-      })
+      .then((snapshot) => downloadProjectExport(id, title, snapshot))
       .catch(() => setProjectSaveStatus("The page could not be exported."));
+  };
+
+  const downloadProjectExport = (id: string, title: string, snapshot: string) => {
+    const json = buildStudioProjectExport({ id, title, snapshot });
+    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = studioExportFileName(title);
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const handleExportPage = (format: "png" | "svg" | "json", scale: 1 | 2) => {
@@ -1237,7 +1247,10 @@ export function App() {
       return;
     }
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor) {
+      setProjectSaveStatus("PNG and SVG export need the canvas. JSON export is available.");
+      return;
+    }
     const shapes = editor.getCurrentPageShapes();
     const frame = shapes.find((shape) => shape.type === "frame");
     const ids = (frame ? [frame.id] : shapes.map((shape) => shape.id)) as TLShapeId[];
@@ -1360,6 +1373,19 @@ export function App() {
         setProjectTitle("Untitled");
         routedProjectRef.current = nextProjectId;
         claimProjectLock(nextProjectId, true);
+        setInspectorOpen(window.innerWidth >= 1100);
+        if (webEdition) {
+          const snapshot = JSON.stringify({
+            document: { schema: { schemaVersion: 2, sequences: {} }, store: {} }
+          });
+          void createBrowserProjectIfAbsent(nextProjectId, "Untitled", snapshot)
+            .then(() => {
+              setProjectSaveStatus(WEB_LIBRARY_STATUS);
+              publishLibraryChange();
+              refreshProjectLibrary();
+            })
+            .catch(() => setProjectSaveStatus("The page could not be saved."));
+        }
         navigateRoute({ name: "project", projectId: nextProjectId });
       }
       return;
@@ -1979,7 +2005,7 @@ export function App() {
       return;
     }
     if ((libraryKind === "browser" || isStandaloneHost) && isProjectUuid(route.projectId)) {
-      if (!editorReady) return;
+      if (!editorReady && libraryKind !== "browser") return;
       routedProjectRef.current = route.projectId;
       if (projectIdRef.current && projectIdRef.current !== route.projectId) persistProjectNow();
       setProjectSaveStatus("Opening…");
@@ -1991,12 +2017,27 @@ export function App() {
           claimProjectLock(project.id);
           setActiveProjectId(project.id);
           projectTitleRef.current = project.title;
-          pendingSnapshotRef.current = JSON.parse(project.snapshot) as unknown;
+          const snapshot = JSON.parse(project.snapshot) as unknown;
+          pendingSnapshotRef.current = snapshot;
           setProjectTitle(project.title);
           setProjectSaveStatus(libraryKind === "browser" ? WEB_LIBRARY_STATUS : "Saved");
-          mountingRef.current = false;
-          mountedEditorRef.current = null;
-          setEditorGeneration((generation) => generation + 1);
+          const editor = editorRef.current;
+          if (editor && !editor.isDisposed && !isBlankCanvasSnapshot(snapshot)) {
+            try {
+              editor.loadSnapshot(snapshot as Parameters<Editor["loadSnapshot"]>[0]);
+              pendingSnapshotRef.current = null;
+              if (!webEdition) projectWritableRef.current = true;
+              refreshCanvases(editor);
+            } catch {
+              mountingRef.current = false;
+              mountedEditorRef.current = null;
+              setEditorGeneration((generation) => generation + 1);
+            }
+          } else {
+            mountingRef.current = false;
+            mountedEditorRef.current = null;
+            setEditorGeneration((generation) => generation + 1);
+          }
           refreshProjectLibrary();
         })
         .catch((error: unknown) => {
@@ -2368,7 +2409,7 @@ export function App() {
               }}
             >
               {projectReadOnly ? (
-                <p className="studio-desktop-only" role="status">
+                <p className="studio-project-lock" role="status">
                   This project is open in another tab.{" "}
                   <button
                     type="button"

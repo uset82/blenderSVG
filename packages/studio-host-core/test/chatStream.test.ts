@@ -31,7 +31,8 @@ function catalog(next?: string) {
           description: "Fixture",
           context_length: 8000,
           pricing: { prompt: "0", completion: "0" },
-          supported_parameters: ["max_tokens", "tools"]
+          supported_parameters: ["max_tokens", "tools"],
+          benchmarks: { artificial_analysis: {} }
         }
       ],
       ...(next ? { next } : {})
