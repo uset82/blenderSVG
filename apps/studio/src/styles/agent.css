@@ -930,25 +930,6 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
   color: var(--studio-text-primary);
 }
 
-.studio-model-picker-popover__filters {
-  margin: 0 10px 8px;
-  padding: 6px 8px;
-  border: 1px solid var(--studio-divider);
-  border-radius: 7px;
-}
-
-.studio-model-picker-popover__filters summary {
-  color: var(--studio-text-secondary);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.studio-model-picker-popover__filters .studio-agent__field {
-  min-height: 32px;
-  padding: 5px 7px;
-  font-size: 11px;
-}
-
 .studio-model-picker-popover__catalog-note {
   margin: 0 10px 8px;
   color: var(--studio-text-secondary);

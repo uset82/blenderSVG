@@ -29,9 +29,7 @@ import { DESIGN_SKILLS } from "./designSkills.js";
 import {
   filterStudioModels,
   MODEL_SORT_OPTIONS,
-  type ModalityFilter,
   type ModelSortOrder,
-  type PriceFilter,
   readCatalogPrice,
   sortStudioModels
 } from "./modelFilters.js";
@@ -225,12 +223,7 @@ export function AgentConversationPanel({
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  const [authorFilter, setAuthorFilter] = useState("all");
-  const [priceFilter, setPriceFilter] = useState<PriceFilter>("all");
-  const [modalityFilter, setModalityFilter] = useState<ModalityFilter>("all");
   const [minimumContext, setMinimumContext] = useState("all");
-  const [maximumInputPrice, setMaximumInputPrice] = useState("");
-  const [maximumOutputPrice, setMaximumOutputPrice] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("perf") !== "1") return;
@@ -490,31 +483,18 @@ export function AgentConversationPanel({
         ? "Trust this workspace before connecting an OpenRouter account."
         : connection.message || "Connect your own OpenRouter account through the VS Code host.";
 
-  const authors = useMemo(
-    () => [...new Set(modelCatalog.models.map((model) => model.author).filter(Boolean))].sort(),
-    [modelCatalog.models]
-  );
   const matchingModels = useMemo(
     () =>
       filterStudioModels(modelCatalog.models, {
         query: modelQuery,
-        author: authorFilter,
-        price: priceFilter,
-        modality: modalityFilter,
+        author: "all",
+        price: "all",
+        modality: "all",
         minimumContext: minimumContext === "all" ? null : Number(minimumContext),
-        maximumInputPricePerMillion: readOptionalNumber(maximumInputPrice),
-        maximumOutputPricePerMillion: readOptionalNumber(maximumOutputPrice)
+        maximumInputPricePerMillion: null,
+        maximumOutputPricePerMillion: null
       }),
-    [
-      authorFilter,
-      maximumInputPrice,
-      maximumOutputPrice,
-      minimumContext,
-      modelCatalog.models,
-      modelQuery,
-      modalityFilter,
-      priceFilter
-    ]
+    [minimumContext, modelCatalog.models, modelQuery]
   );
   const quickMatchingModels = useMemo(
     () => filterModelsByBadges(matchingModels, quickModelFilters),
@@ -1580,113 +1560,6 @@ export function AgentConversationPanel({
                     128K+
                   </button>
                 </fieldset>
-
-                <details className="studio-model-picker-popover__filters">
-                  <summary>More filters</summary>
-                  <div className="studio-agent__filter-grid">
-                    <label className="studio-agent__filter-label">
-                      Publisher
-                      <select
-                        aria-label="Filter by publisher"
-                        value={authorFilter}
-                        onChange={(event) => setAuthorFilter(event.target.value)}
-                        className="studio-agent__field"
-                      >
-                        <option value="all">All publishers</option>
-                        {authors.map((author) => (
-                          <option key={author} value={author}>
-                            {author}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="studio-agent__filter-label">
-                      Price
-                      <select
-                        aria-label="Filter by price"
-                        value={priceFilter}
-                        onChange={(event) => setPriceFilter(event.target.value as PriceFilter)}
-                        className="studio-agent__field"
-                      >
-                        <option value="all">Any price</option>
-                        <option value="free">Listed as free</option>
-                        <option value="paid">Paid</option>
-                        <option value="unknown">Price unavailable</option>
-                      </select>
-                    </label>
-                    <label className="studio-agent__filter-label">
-                      Capability
-                      <select
-                        aria-label="Filter by capability"
-                        value={modalityFilter}
-                        onChange={(event) => setModalityFilter(event.target.value as ModalityFilter)}
-                        className="studio-agent__field"
-                      >
-                        <option value="all">All capabilities</option>
-                        <option value="text">Text chat</option>
-                        <option value="vision">Text + image input</option>
-                        <option value="image-output">Image output</option>
-                      </select>
-                    </label>
-                    <label className="studio-agent__filter-label">
-                      Minimum context
-                      <select
-                        aria-label="Filter by minimum context"
-                        value={minimumContext}
-                        onChange={(event) => setMinimumContext(event.target.value)}
-                        className="studio-agent__field"
-                      >
-                        <option value="all">Any context</option>
-                        <option value="32000">32K or more</option>
-                        <option value="128000">128K or more</option>
-                        <option value="256000">256K or more</option>
-                      </select>
-                    </label>
-                    <label className="studio-agent__filter-label">
-                      Max input · $/1M tokens
-                      <input
-                        aria-label="Maximum input price per million tokens"
-                        type="number"
-                        min="0"
-                        max="1000000"
-                        step="0.01"
-                        value={maximumInputPrice}
-                        onChange={(event) => setMaximumInputPrice(event.target.value)}
-                        placeholder="Any"
-                        className="studio-agent__field"
-                      />
-                    </label>
-                    <label className="studio-agent__filter-label">
-                      Max output · $/1M tokens
-                      <input
-                        aria-label="Maximum output price per million tokens"
-                        type="number"
-                        min="0"
-                        max="1000000"
-                        step="0.01"
-                        value={maximumOutputPrice}
-                        onChange={(event) => setMaximumOutputPrice(event.target.value)}
-                        placeholder="Any"
-                        className="studio-agent__field"
-                      />
-                    </label>
-                    <label className="studio-agent__filter-label">
-                      Sort by
-                      <select
-                        aria-label="Sort models by"
-                        value={modelSortOrder}
-                        onChange={(event) => setModelSortOrder(event.target.value as ModelSortOrder)}
-                        className="studio-agent__field"
-                      >
-                        {MODEL_SORT_OPTIONS.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </details>
 
                 {modelCatalog.status === "loading" && (
                   <p className="studio-model-picker-popover__catalog-note" role="status">
