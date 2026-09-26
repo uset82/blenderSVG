@@ -110,7 +110,7 @@ async function traceSample(page, sample) {
   await page.getByRole("button", { name: /Image → SVG/ }).click();
   const input = page.locator('input[aria-label="Image to trace"]');
   await input.setInputFiles(sample);
-  const trace = page.getByRole("button", { name: "Trace image" });
+  const trace = page.getByRole("button", { name: "Trace image", exact: true });
   try {
     await trace.waitFor({ state: "visible" });
     await page.waitForFunction(

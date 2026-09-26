@@ -79,11 +79,10 @@ jobs:
       - name: Build web edition
         run: |
           pnpm --filter "@codex-avatar-studio/studio^..." build
-          if [ -z "${VITE_TLDRAW_LICENSE_KEY:-}" ]; then
-            KURVA_ALLOW_MISSING_TLDRAW_LICENSE=1 pnpm --filter @codex-avatar-studio/studio build:web
-          else
-            pnpm --filter @codex-avatar-studio/studio build:web
-          fi
+          # The canvas smokes below need a licensed canvas. Without a key the app shows the license
+          # notice instead of tldraw. The /app/ site key is public (it ships in the bundle), so reuse it.
+          export VITE_TLDRAW_LICENSE_KEY="${VITE_TLDRAW_LICENSE_KEY:-$(sed -n 's/^VITE_TLDRAW_LICENSE_KEY=//p' apps/studio/.env.web-site)}"
+          pnpm --filter @codex-avatar-studio/studio build:web
       - name: Web unit tests
         run: pnpm exec vitest run apps/studio/test/webOpenRouter.test.ts apps/studio/test/webShell.test.ts apps/studio/test/browserLibrary.test.ts apps/studio/test/browserAvatarPackage.test.ts apps/studio/test/webCspGates.test.ts packages/studio-host-core/test/openRouterPkce.test.ts
       - name: Web header file
