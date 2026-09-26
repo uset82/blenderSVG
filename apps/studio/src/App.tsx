@@ -115,7 +115,7 @@ import {
   subscribeLibraryChanges
 } from "./web/projectLock.js";
 import { shouldPollMcpApi, showDesktopOnlyNotice, studioCapabilities } from "./web/studioCapabilities.js";
-import { shouldOfferAppUpdate, webChatAvailability } from "./web/webShell.js";
+import { reloadIntoWaitingWorker, shouldOfferAppUpdate, webChatAvailability } from "./web/webShell.js";
 
 const StudioCanvas = React.lazy(() =>
   import("./editor/StudioCanvas.js").then((module) => ({ default: module.StudioCanvas }))
@@ -2293,8 +2293,7 @@ export function App() {
           <button
             type="button"
             onClick={() => {
-              navigator.serviceWorker.controller?.postMessage("kurva-reload");
-              window.location.reload();
+              void reloadIntoWaitingWorker(navigator.serviceWorker, () => window.location.reload());
             }}
           >
             Reload
