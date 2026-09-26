@@ -2,10 +2,11 @@ import type { StudioHostKind } from "@codex-avatar-studio/avatar-core";
 import { useEffect, useState } from "react";
 import { CONNECTOR_SNIPPETS, connectorSnippetsForLaunch } from "../components/connectorSnippets.js";
 import type { StudioRoute } from "../router/studioRoute.js";
+import { appPath } from "../web/appBase.js";
 import { BrowserStoragePanel } from "../web/BrowserStoragePanel.js";
 import { beginWebOpenRouterConnect, disconnectWebOpenRouter } from "../web/openRouterConnect.js";
 import { DesktopOnlyNotice } from "../web/DesktopOnlyNotice.js";
-import { showDesktopOnlyNotice, studioCapabilities } from "../web/studioCapabilities.js";
+import { KURVA_DESKTOP_APP_URL, showDesktopOnlyNotice, studioCapabilities } from "../web/studioCapabilities.js";
 import { INSTALL_GUIDANCE, WEB_APP_VERSION } from "../web/webShell.js";
 
 export function StudioRouteNotice({
@@ -578,9 +579,10 @@ export function StudioRouteNotice({
               {host === "web" ? (
                 <>
                   <p>
-                    <a href="/privacy.html">What Kurva stores</a> · <a href="/notices.html">Notices</a> ·{" "}
+                    <a href={appPath("/privacy.html")}>What Kurva stores</a> ·{" "}
+                    <a href={appPath("/notices.html")}>Notices</a> ·{" "}
                     <a href="https://github.com/uset82/blenderSVG">GitHub</a> ·{" "}
-                    <a href="https://github.com/uset82/blenderSVG/releases">Get the desktop app for Blender and MCP</a>
+                    <a href={KURVA_DESKTOP_APP_URL}>Get the desktop app for Blender and MCP</a>
                   </p>
                   <h3>Install</h3>
                   {INSTALL_GUIDANCE.map((line) => (

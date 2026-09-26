@@ -117,6 +117,9 @@ for (const file of files) {
     if (/from["']node:|require\(["']node:/.test(source)) {
       throw new Error(`Node import in the web bundle: ${path.relative(dist, file)}.`);
     }
+    if (source.includes("data:application/json")) {
+      throw new Error(`Inlined JSON data: URL in ${path.relative(dist, file)}. The CSP blocks fetching it.`);
+    }
   }
 }
 if (wasmCount !== 1) throw new Error(`Expected one VTracer WASM file, found ${wasmCount}.`);

@@ -1538,8 +1538,15 @@
   min-height: 32px;
 }
 .studio-settings-shortcuts kbd {
-  font-family: var(--studio-font-mono, ui-monospace, monospace);
-  font-size: 12px;
+  min-width: 24px;
+  padding: 2px 6px;
+  border: 1px solid var(--studio-divider);
+  border-radius: 4px;
+  color: var(--studio-text-primary);
+  background: var(--studio-surface-1);
+  font: 12px / 1.2 var(--studio-font-mono, ui-monospace, monospace);
+  text-align: center;
+  white-space: nowrap;
 }
 @media (max-width: 720px) {
   .studio-settings-shortcuts {
