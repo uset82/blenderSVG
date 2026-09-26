@@ -103,6 +103,13 @@ function rememberPreference(key: string, value: string): void {
   }
 }
 
+// The search field sits below the composer. Center it so a small screen does not leave it on the fold.
+function revealField(input: HTMLInputElement | null): void {
+  if (!input) return;
+  input.scrollIntoView({ block: "center" });
+  input.focus({ preventScroll: true });
+}
+
 function closeCardMenu(event: React.MouseEvent<HTMLButtonElement>): void {
   event.currentTarget.closest("details")?.removeAttribute("open");
 }
@@ -171,14 +178,37 @@ export function RecentsDashboard({
   useEffect(() => rememberPreference(LAYOUT_KEY, layout), [layout]);
   useEffect(() => rememberPreference(SORT_KEY, sortOrder), [sortOrder]);
 
+  // Connectors replace the home content, so the search field is not mounted there.
+  // Search goes home first and focuses the field once it renders.
+  const focusSearchAfterHomeRef = useRef(false);
+  const focusSearch = () => {
+    setDrawerOpen(false);
+    brandDetailsRef.current?.removeAttribute("open");
+    if (companion) {
+      if (!onNavigate) return;
+      focusSearchAfterHomeRef.current = true;
+      onNavigate("home");
+      return;
+    }
+    revealField(searchRef.current);
+  };
+  const focusSearchRef = useRef(focusSearch);
+  useEffect(() => {
+    focusSearchRef.current = focusSearch;
+  });
+  const showingCompanion = Boolean(companion);
+  useEffect(() => {
+    if (showingCompanion || !focusSearchAfterHomeRef.current) return;
+    focusSearchAfterHomeRef.current = false;
+    revealField(searchRef.current);
+  }, [showingCompanion]);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleShortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setDrawerOpen(false);
-        searchRef.current?.scrollIntoView({ block: "nearest" });
-        searchRef.current?.focus();
+        focusSearchRef.current();
       }
       if (event.key === "Escape") setDrawerOpen(false);
     };
@@ -329,11 +359,7 @@ export function RecentsDashboard({
         <button
           className="recents__nav-search"
           type="button"
-          onClick={() => {
-            setDrawerOpen(false);
-            searchRef.current?.scrollIntoView({ block: "nearest" });
-            searchRef.current?.focus();
-          }}
+          onClick={focusSearch}
           title="Search (Ctrl+K)"
           aria-keyshortcuts="Control+K"
         >

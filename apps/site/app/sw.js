@@ -2,8 +2,9 @@
 // HTML stored under script URLs, served while a deploy was switching over.
 const ASSET_CACHE = "kurva-assets-v2";
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(self.skipWaiting());
+self.addEventListener("install", () => {
+  // An update stays waiting so the page can offer Reload. The first visit has no
+  // controller, and the page tells this worker to skip waiting.
 });
 
 self.addEventListener("activate", (event) => {
@@ -36,7 +37,21 @@ self.addEventListener("fetch", (event) => {
     url.pathname === `${scopePath}/` ||
     url.pathname.endsWith(".html")
   ) {
-    event.respondWith(fetch(event.request).catch(() => caches.match(appPath("/index.html"))));
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(event.request);
+          if (response.ok) {
+            const cache = await caches.open(ASSET_CACHE);
+            await cache.put(appPath("/index.html"), response.clone());
+          }
+          return response;
+        } catch {
+          const cached = await caches.match(appPath("/index.html"));
+          return cached ?? Response.error();
+        }
+      })()
+    );
     return;
   }
   if (url.pathname.startsWith(appPath("/assets/"))) {

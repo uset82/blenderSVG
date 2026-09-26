@@ -511,6 +511,7 @@ A network log shows the key only in requests to `openrouter.ai`.
   - tldraw license pings are sent, if they apply
   - what Railway's access logs record (IP address, path, user agent) and how long they are kept
   - Evidence (2026-09-25): `apps/studio/public/privacy.html` states no accounts, no analytics, browser storage, direct OpenRouter requests, optional tldraw pings, and host access logs. Settings and the landing footer link to it. Legal review remains the owner's. Files: `apps/studio/public/privacy.html`, `apps/site/index.html`.
+  - Evidence (2026-09-26): the Settings link pointed at `/privacy.html`, which 404s on kurva.agency because the app is served under `/app/`. A first fix hardcoded `/app/`, which breaks the `web` build's `/` base. Settings now builds the Privacy and Notices links with `appPath()`, and `webSettingsLinks.test.tsx` checks `/app/privacy.html` and `/app/notices.html`. A local Caddyfile-equivalent serve of the rebuilt `apps/site` returned 200 for both. Files: `apps/studio/src/routes/StudioRoutePages.tsx`, `apps/studio/test/webSettingsLinks.test.tsx`.
 - [x] W7.6 A notices page for the web bundle: the MIT license, the third-party notices, and the tldraw license terms and any watermark requirement.
   - Evidence (2026-09-25): `apps/studio/public/notices.html` names the MIT license, `THIRD_PARTY_NOTICES.md`, and the tldraw license notice. Files: `apps/studio/public/notices.html`.
 - [x] W7.7 Optional: `/.well-known/security.txt` with a contact for vulnerability reports.

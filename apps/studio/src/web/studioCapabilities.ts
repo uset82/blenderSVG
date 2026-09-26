@@ -1,6 +1,7 @@
 import type { StudioHostKind } from "@codex-avatar-studio/avatar-core";
 
-export const KURVA_DESKTOP_APP_URL = "https://github.com/uset82/blenderSVG/releases";
+// There is no installer yet. The landing page's "run from source" steps are the desktop install.
+export const KURVA_DESKTOP_APP_URL = "https://kurva.agency/#try";
 export const DESKTOP_ONLY_REASON = "Available in the Kurva desktop app";
 
 export interface StudioCapabilities {

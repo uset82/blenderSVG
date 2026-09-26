@@ -86,6 +86,9 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: web ? "dist-web" : "dist",
       emptyOutDir: true,
+      // tldraw fetch()es its translation JSON by URL. An inlined data: URL is blocked by the
+      // web CSP's connect-src, so JSON always ships as a same-origin file.
+      assetsInlineLimit: (filePath: string) => (filePath.endsWith(".json") ? false : undefined),
       ...(web
         ? {
             manifest: true,
