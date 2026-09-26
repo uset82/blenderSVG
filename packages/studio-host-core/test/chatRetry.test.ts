@@ -22,7 +22,8 @@ function catalog() {
           description: "Fixture",
           context_length: 8000,
           pricing: { prompt: "0", completion: "0" },
-          supported_parameters: ["max_tokens"]
+          supported_parameters: ["max_tokens"],
+          benchmarks: { artificial_analysis: {} }
         }
       ]
     }),

@@ -24,7 +24,9 @@
 		}
 	}
 
-	respond /health 200
+	handle /health {
+		respond 200
+	}
 
 	header {
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://openrouter.ai; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
@@ -50,8 +52,11 @@
 	root * {{.StaticFileRoot}}
 
 	file_server {
-		hide .*
+		precompressed br gzip
+		hide .git
+		hide .env*
 		hide Caddyfile
+		hide *.map
 	}
 
 	try_files {path} /index.html

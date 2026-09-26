@@ -89,6 +89,7 @@ export default defineConfig(({ mode }) => {
       ...(web
         ? {
             manifest: true,
+            sourcemap: false,
             rollupOptions: {
               output: {
                 manualChunks: manualChunk

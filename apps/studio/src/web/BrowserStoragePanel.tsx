@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { downloadBrowserBackup, importBrowserBackup } from "./browserBackup.js";
 import { clearBrowserLibrary } from "./browserProjects.js";
+import { publishLibraryChange } from "./projectLock.js";
 
 const STORAGE_PERSIST_KEY = "kurva-storage-persist";
 
@@ -99,15 +100,14 @@ export function BrowserStoragePanel() {
               const file = event.currentTarget.files?.[0];
               event.currentTarget.value = "";
               if (!file) return;
-              void file
-                .arrayBuffer()
-                .then((buffer) =>
-                  importBrowserBackup(new Uint8Array(buffer)).then((result) =>
-                    setNotice(
-                      `Imported ${result.imported}. ${result.skipped} duplicate${result.skipped === 1 ? "" : "s"} saved as copies.`
-                    )
-                  )
-                );
+              void file.arrayBuffer().then((buffer) =>
+                importBrowserBackup(new Uint8Array(buffer)).then((result) => {
+                  publishLibraryChange();
+                  setNotice(
+                    `Imported ${result.imported}. ${result.skipped} duplicate${result.skipped === 1 ? "" : "s"} saved as copies.`
+                  );
+                })
+              );
             }}
           />
         </label>
@@ -118,6 +118,7 @@ export function BrowserStoragePanel() {
           if (confirmation !== "delete") return;
           void clearBrowserLibrary().then(() => {
             clearBrowserPreferences();
+            publishLibraryChange();
             setConfirmation("");
             setNotice("Cleared all Kurva data on this device.");
           });

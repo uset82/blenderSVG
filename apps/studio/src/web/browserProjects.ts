@@ -123,6 +123,51 @@ export async function saveBrowserProject(id: string, title: string, snapshot: st
   return toProjectMeta(document);
 }
 
+/** Create a Recents row without overwriting a canvas the editor already saved. */
+export async function createBrowserProjectIfAbsent(
+  id: string,
+  title: string,
+  snapshot: string
+): Promise<StudioProjectMeta> {
+  const safeId = validateProjectId(id);
+  const safeTitle = normalizeTitle(title);
+  validateSnapshot(snapshot);
+  const now = new Date().toISOString();
+  const document: StudioProjectDocument = {
+    id: safeId,
+    title: safeTitle,
+    createdAt: now,
+    updatedAt: now,
+    formatVersion: FORMAT_VERSION,
+    snapshot
+  };
+  if (utf8ByteLength(JSON.stringify(document)) > MAX_PROJECT_BYTES) {
+    throw new StudioProjectStoreError(
+      "too-large",
+      "This canvas is too large to save. Remove large embedded assets and try again."
+    );
+  }
+  const database = await openKurvaLibrary();
+  const transaction = database.transaction("projects", "readwrite");
+  const store = transaction.objectStore("projects");
+  try {
+    const existing = (await requestResult(store.get(safeId))) as StoredProjectRow | undefined;
+    if (existing && isProjectDocument(existing.document, safeId)) {
+      await transactionDone(transaction);
+      return toProjectMeta(existing.document);
+    }
+    await requestResult(store.put({ id: safeId, document } satisfies StoredProjectRow));
+    await transactionDone(transaction);
+  } catch (error) {
+    if (isQuotaError(error)) {
+      throw new StudioProjectStoreError("io", "This browser is out of space. Export a backup, then remove a project.");
+    }
+    if (error instanceof StudioProjectStoreError) throw error;
+    throw new StudioProjectStoreError("io", "Save failed – Retry");
+  }
+  return toProjectMeta(document);
+}
+
 export async function renameBrowserProject(id: string, title: string): Promise<StudioProjectMeta> {
   const project = await openBrowserProject(id);
   const safeTitle = validateRenameTitle(title);

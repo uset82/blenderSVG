@@ -15,8 +15,38 @@ const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Failed to find the root element in index.html");
 
 preloadHomeFonts();
+if (isWebEdition()) {
+  const current = new URL(window.location.href);
+  if (current.searchParams.has("kurva-reset")) {
+    current.searchParams.delete("kurva-reset");
+    window.history.replaceState(null, "", `${current.pathname}${current.search}${current.hash}`);
+  }
+}
 if (isWebEdition() && "serviceWorker" in navigator) {
-  void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => undefined);
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data !== "kurva-kill") return;
+    const reloadKey = "kurva-kill-reload";
+    try {
+      if (window.sessionStorage.getItem(reloadKey) === "1") return;
+      window.sessionStorage.setItem(reloadKey, "1");
+    } catch {
+      return;
+    }
+    const next = new URL(window.location.href);
+    next.searchParams.set("kurva-reset", "1");
+    window.location.replace(next.href);
+  });
+  void navigator.serviceWorker
+    .register(`${import.meta.env.BASE_URL}sw.js`)
+    .then((registration) => {
+      const activateFirstVisit = () => {
+        if (navigator.serviceWorker.controller || !registration.waiting) return;
+        registration.waiting.postMessage("kurva-reload");
+      };
+      registration.installing?.addEventListener("statechange", activateFirstVisit);
+      activateFirstVisit();
+    })
+    .catch(() => undefined);
 }
 // A tab opened before a deploy still references the previous build's chunks, which are
 // gone. Reload once to pick up the new build instead of failing to open the editor.

@@ -9,6 +9,7 @@ import { exportBrowserBackup, importBrowserBackup } from "../src/web/browserBack
 import { closeLibraryForTests, upgradeKurvaLibrary } from "../src/web/browserLibrary.js";
 import {
   assetIdsInSnapshot,
+  createBrowserProjectIfAbsent,
   deleteBrowserProject,
   ensureBrowserScratchpad,
   listBrowserProjects,
@@ -51,6 +52,18 @@ describe("browser library", () => {
     await expect(deleteBrowserProject(scratchpad.id)).rejects.toThrow(/permanent/);
     await deleteBrowserProject(projectId);
     await expect(openBrowserProject(projectId)).rejects.toThrow(/damaged|no longer|unreadable|unsupported/);
+  });
+
+  it("does not let a placeholder create clobber an editor save", async () => {
+    const drawn = JSON.stringify({
+      document: {
+        schema: { schemaVersion: 2, sequences: {} },
+        store: { shape: { type: "geo", props: { geo: "rectangle" } } }
+      }
+    });
+    await saveBrowserProject(projectId, "Untitled", drawn);
+    await createBrowserProjectIfAbsent(projectId, "Untitled", snapshot);
+    expect((await openBrowserProject(projectId)).snapshot).toBe(drawn);
   });
 
   it("keeps a corrupt record instead of overwriting it", async () => {

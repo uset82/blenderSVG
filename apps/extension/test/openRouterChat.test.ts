@@ -13,7 +13,8 @@ function createSecrets(): SecretStore {
   };
 }
 
-function model(id: string, input: string[], output: string[]) {  return {
+function model(id: string, input: string[], output: string[]) {
+  return {
     id,
     name: id.split("/").at(-1),
     architecture: {
@@ -76,9 +77,7 @@ describe("OpenRouter model catalog", () => {
     });
     expect(request.mock.calls[1]?.[0]).toBe("https://openrouter.ai/api/v1/models?output_modalities=all");
     expect(request.mock.calls[1]?.[1]?.headers).toEqual({ Accept: "application/json" });
-    expect(request.mock.calls[2]?.[0]).toBe(
-      "https://openrouter.ai/api/v1/benchmarks?source=artificial-analysis"
-    );
+    expect(request.mock.calls[2]?.[0]).toBe("https://openrouter.ai/api/v1/benchmarks?source=artificial-analysis");
     expect(JSON.stringify(catalog)).not.toContain(PRIVATE_API_KEY);
   });
 
@@ -107,9 +106,7 @@ describe("OpenRouter model catalog", () => {
     expect(catalog.message).toContain("account-available models");
     // Catalog, then the Artificial Analysis fetch that scores an unscored catalog.
     expect(request).toHaveBeenCalledTimes(2);
-    expect(request.mock.calls[1]?.[0]).toBe(
-      "https://openrouter.ai/api/v1/benchmarks?source=artificial-analysis"
-    );
+    expect(request.mock.calls[1]?.[0]).toBe("https://openrouter.ai/api/v1/benchmarks?source=artificial-analysis");
   });
 
   it("does not hide an invalid key behind the public catalog fallback", async () => {
@@ -162,9 +159,7 @@ describe("OpenRouter model catalog", () => {
     expect(catalog.models[0]?.intelligence).toBe(41.5);
     expect(catalog.models[0]?.codingIndex).toBe(38.2);
     expect(catalog.models[0]?.agenticIndex).toBeNull();
-    expect(request.mock.calls[1]?.[0]).toBe(
-      "https://openrouter.ai/api/v1/benchmarks?source=artificial-analysis"
-    );
+    expect(request.mock.calls[1]?.[0]).toBe("https://openrouter.ai/api/v1/benchmarks?source=artificial-analysis");
   });
 
   it("skips the benchmark fetch when the catalog already carries scores", async () => {

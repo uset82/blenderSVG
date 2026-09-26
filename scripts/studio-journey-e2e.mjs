@@ -92,9 +92,12 @@ try {
   await page.locator(".recents__button--primary").first().click();
   await page.waitForFunction(() => location.hash.startsWith("#/p/"));
   const composer = page.locator("#studio-chat-composer");
-  if ((await composer.count()) === 0) {
-    await page.getByRole("button", { name: "Open conversation" }).click();
-  }
+  const openConversation = page.getByRole("button", { name: "Open conversation" });
+  await Promise.race([
+    composer.waitFor({ state: "attached", timeout: 15_000 }),
+    openConversation.waitFor({ state: "visible", timeout: 15_000 })
+  ]);
+  if ((await composer.count()) === 0) await openConversation.click();
   await composer.waitFor({ state: "attached" });
   await page.locator(".studio-windowbar summary[aria-label='Settings']").click();
   await page.locator('input[name="openrouter-key"]').waitFor();

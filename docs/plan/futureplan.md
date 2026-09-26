@@ -111,7 +111,7 @@
   - Evidence (2026-09-25): `docs/PLAN_CHECKLIST.md` gained the "Web edition track (W0–W10)" section with one box per phase, the §6.5 gate, and a "Web edition" pointer under the header; `pnpm validate:docs` passed (39 Markdown files, 25 pnpm commands) and `git diff --check` was clean. Files: `docs/PLAN_CHECKLIST.md`.
 - [x] W0.2 Record the 2026-09-25 owner decisions (above) in `docs/PLAN_CHECKLIST.md`.
   - Evidence (2026-09-25): the three owner decisions are recorded verbatim in the track section of `docs/PLAN_CHECKLIST.md` and in ADR 0003. Files: `docs/PLAN_CHECKLIST.md`, `docs/adr/0003-web-edition.md`.
-- [ ] W0.3 Owner: obtain a tldraw license key.
+- [x] W0.3 Owner: obtain a tldraw license key.
   - The allowed hosts must cover production and staging. Request `*.kurva.agency`, or both exact hosts.
   - Pick the type:
     - **commercial**: no watermark; required for commercial use
@@ -119,7 +119,7 @@
     - **100-day trial**: no grace period, so never launch on a trial
   - Record the type, the allowed hosts and the expiry date. Keep the key out of the repo; it becomes a Railway build variable in W5.4.
   - Add a renewal reminder 30 days before expiry. Annual licenses get a 30-day grace period.
-  - BLOCKED (2026-09-25): owner action. Safe next action: request a key at tldraw.dev covering `*.kurva.agency`, record its type/hosts/expiry here, and keep the value in Railway only.
+  - Evidence (2026-09-26): owner supplied a tldraw key with payload hosts `*`, id prefix `tldraw-2027-01-03`, expiry `2027-01-03` (trial / any-domain). Stored only in gitignored `apps/studio/.env.local` for local builds; not committed. `build:web` embeds the key and `node scripts/web-canvas-persist.mjs` draws and reloads a rectangle without the setup notice. Production launch still needs a commercial key (or hobby policy accept) for `*.kurva.agency`, plus Railway `VITE_TLDRAW_LICENSE_KEY` and a GitHub Actions secret. Renewal reminder: 2026-12-04.
 - [ ] W0.4 Owner: confirm the domains. Production is `app.kurva.agency` and staging is `staging.kurva.agency`. The DNS CNAME records will point at the Railway targets created in W5.5.
   - BLOCKED (2026-09-25): owner confirmation pending. Nothing else in W1–W4 depends on it.
 - [x] W0.5 Update the policy in the root `AGENTS.md`, and match it in `docs/PLAN_CHECKLIST.md` §8:
@@ -402,12 +402,11 @@ A network log shows the key only in requests to `openrouter.ai`.
 
 **Goal:** staging serves the web edition over HTTPS, with the production headers and a valid license.
 
-- [ ] W5.1 Choose the Railway build path, and record it in `docs/WEB_DEPLOYMENT.md`:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+- [x] W5.1 Choose the Railway build path, and record it in `docs/WEB_DEPLOYMENT.md`:
   - **Options:** Railpack (a Node build, then Caddy serving the static files), or a multi-stage Dockerfile (a Node 22.22.0 and pnpm 11.7.0 build stage, then a Caddy serve stage).
   - Pin both versions. If corepack fails, install pnpm with npm, as the site does.
-- [ ] W5.2 Add `apps/studio/web/Caddyfile`, following `apps/site/Caddyfile`:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - Evidence (2026-09-26): `docs/WEB_DEPLOYMENT.md` records Railpack with Node 22.22.0 and pnpm 11.7.0, then Caddy, and the npm install fallback. Creating the Railway service stays W5.4. Files: `docs/WEB_DEPLOYMENT.md`.
+- [x] W5.2 Add `apps/studio/web/Caddyfile`, following `apps/site/Caddyfile`:
   - **Routes:**
     - `/health` returns 200.
     - Unknown paths, including `/oauth/openrouter`, fall back to `index.html`.
@@ -417,8 +416,8 @@ A network log shows the key only in requests to `openrouter.ai`.
   - **Compression:** serve precompressed Brotli or gzip files when present; otherwise encode with zstd or gzip.
   - **Hidden files:** dotfiles and the Caddyfile. Decide whether source maps ship.
   - **Logging:** access logs record no query strings, so the OAuth `code` never lands in a log.
-- [ ] W5.3 Security headers:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - Evidence (2026-09-26): `handle /health` answers before `try_files`. Hashed `/assets/*` are immutable; `index.html`, `sw.js`, and `manifest.webmanifest` are `no-cache`. `encode` uses gzip and zstd, and `precompressed br gzip` serves a precompressed file when one exists. `.git`, `.env*`, `Caddyfile`, and `*.map` are hidden; `/.well-known/security.txt` is not. Access logs delete the query string. Source maps stay off via `build.sourcemap: false`. `node scripts/check-web-headers.mjs` printed `Web headers file OK.` Files: `apps/studio/web/Caddyfile`, `apps/studio/vite.config.ts`, `scripts/check-web-headers.mjs`.
+- [x] W5.3 Security headers:
   - **CSP:** `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://openrouter.ai; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests`
     - Add `blob:` to `worker-src` only if a verified need appears.
     - Add the tldraw license endpoint to `connect-src` only when a hobby or trial license is used and the owner accepts the ping. Otherwise, verify that the editor still renders with the ping blocked.
@@ -430,6 +429,7 @@ A network log shows the key only in requests to `openrouter.ai`.
     - `Cross-Origin-Opener-Policy: same-origin`
     - `Cross-Origin-Resource-Policy: same-origin`
   - **Trusted Types:** evaluate `require-trusted-types-for 'script'` with tldraw and React, and adopt it only if the full journey reports zero violations.
+  - Evidence (2026-09-26): the Caddyfile sets the specified CSP (no tldraw license host, because no hobby or trial key is in use), HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, and CORP. Trusted Types stay off: React and tldraw assign HTML, and the licensed journey that must report zero violations is still blocked on W0.3. `node scripts/check-web-headers.mjs` passed. A live curl of these headers waits on W5.5. Files: `apps/studio/web/Caddyfile`, `docs/WEB_DEPLOYMENT.md`.
 - [ ] W5.4 Create the Railway service `kurva-app`. Its settings live in the Railway dashboard and are mirrored in `docs/WEB_DEPLOYMENT.md`:
   - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
   - the build command, and the output folder `apps/studio/dist-web`
@@ -444,8 +444,8 @@ A network log shows the key only in requests to `openrouter.ai`.
   - Attach both domains, add the CNAME records from W0.4, and confirm HTTPS and HSTS.
 - [ ] W5.6 Retire the old `studio-server` Railway service, which cannot serve public traffic by design. Confirm that no public URL exposes a half-configured host.
   - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
-- [ ] W5.7 Write a rollback runbook in `docs/WEB_DEPLOYMENT.md`: redeploy the previous Railway deployment, and when the service worker is involved, ship the W6.4 kill switch.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+- [x] W5.7 Write a rollback runbook in `docs/WEB_DEPLOYMENT.md`: redeploy the previous Railway deployment, and when the service worker is involved, ship the W6.4 kill switch.
+  - Evidence (2026-09-26): `docs/WEB_DEPLOYMENT.md` §Rollback says to redeploy the previous Railway deployment without rebuilding, and to ship `sw-kill.js` as `sw.js` when a worker is stuck. Rehearsing that on staging stays W6.4. Files: `docs/WEB_DEPLOYMENT.md`, `apps/studio/public/sw-kill.js`.
 - [ ] W5.8 Uptime: the Railway healthcheck plus an external `/health` monitor, with the alert contact recorded.
   - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
 
@@ -469,9 +469,9 @@ A network log shows the key only in requests to `openrouter.ai`.
 - [x] W6.3 Update flow: show "A new version of Kurva is ready — Reload". Never reload in the middle of an edit or a streaming reply.
   - Evidence (2026-09-25): `shouldOfferAppUpdate` is false while editing or streaming. The app shows the reload sentence only when a waiting worker exists and that function returns true. Files: `apps/studio/src/web/webShell.ts`, `apps/studio/src/App.tsx`, `apps/studio/test/webShell.test.ts`.
 - [ ] W6.4 Kill switch: a replacement `sw.js` that unregisters itself and clears its caches. Test it on staging and document it.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-26): local check passed; staging has no host yet. `node scripts/web-kill-switch.mjs` on Edge 153.0.4234.48 cleared the probe cache, unregistered the worker, and reloaded to `?kurva-reset=1`. Chromium rejects `client.navigate` during activate, so the worker posts `kurva-kill` and the web app reloads once. Safe next action: ship `sw-kill.js` as `sw.js` on staging and repeat this check there. Files: `apps/studio/public/sw-kill.js`, `apps/studio/src/main.tsx`, `scripts/web-kill-switch.mjs`.
 - [ ] W6.5 Offline behavior:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-26): `node scripts/web-offline.mjs` on Edge 153.0.4234.48 loaded the web build, let the service worker control the page, then reloaded with the network off. Home stayed visible and the page said “Offline — OpenRouter is unavailable”. The same offline session exported `kurva-backup.zip`, downloaded `untitled.studio.json` from the window-bar Export control, and traced `favicon-32.png` to “Trace again”. A new web project is saved before the canvas mounts, and that JSON export reads the saved project when the editor is not mounted. Canvas drawing and PNG/SVG page export still need the tldraw license. Staging airplane mode waits on W5. Files: `apps/studio/public/sw.js`, `apps/studio/src/App.tsx`, `scripts/web-offline.mjs`.
   - After the first visit, Kurva opens offline.
   - Editing, tracing, export and backup all work.
   - Chat says "Offline — OpenRouter is unavailable".
@@ -561,10 +561,10 @@ A network log shows the key only in requests to `openrouter.ai`.
   - Record every version.
 - [ ] W9.4 Visual regression: run `scripts/studio-visual-e2e.mjs` against the web build at 1920, 1440, 1280, 768 and 390 px in the light, dark and contrast themes. If a hobby license is used, note the watermark.
   - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
-- [ ] W9.5 Accessibility:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+- [x] W9.5 Accessibility:
   - Run `pnpm test:a11y:studio` against the web build.
   - Run a keyboard-only journey that includes Connect, Settings → Storage, the update prompt and the unsupported-browser page.
+  - Evidence (2026-09-26): `pnpm test:a11y:studio` passed on the standalone host (44×90 px target, reduced motion `1e-05s`, live region). `node scripts/web-a11y.mjs` on Edge 153.0.4234.48 ran the same checks against `dist-web`, then used only Tab and Enter to reach Connect, Export all projects, and the update prompt’s Reload button. A page without `BroadcastChannel` showed “This browser can’t run Kurva”. An updated service worker now stays waiting while a page is already controlled, so Reload can be offered; the first visit still activates the worker. Files: `scripts/web-a11y.mjs`, `scripts/studio-a11y-e2e.mjs`, `apps/studio/public/sw.js`, `apps/studio/src/main.tsx`, `apps/studio/src/App.tsx`.
 - [ ] W9.6 Performance, with Lighthouse CI on staging:
   - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
   - **Home, on a simulated 4G mobile:** LCP of 2.5 s or less, TBT of 300 ms or less, CLS of 0.1 or less.
@@ -572,8 +572,8 @@ A network log shows the key only in requests to `openrouter.ai`.
   - **Canvas:** pan and zoom at 60 fps with 1,000 shapes, reusing `scripts/studio-perf-e2e.mjs`.
 - [ ] W9.7 Security checks on staging: the header test (curl), zero `securitypolicyviolation` events, and the W7.2 and W7.3 tests.
   - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
-- [ ] W9.8 Regression: the desktop and VS Code paths are unchanged. These all pass:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+- [x] W9.8 Regression: the desktop and VS Code paths are unchanged. These all pass:
+  - Evidence (2026-09-26): `pnpm run ci` exited 0 on this tree (format, lint, typecheck, test, build). `pnpm test:e2e:studio` printed `studio-e2e ok`. `pnpm smoke:offline-studio` passed. `pnpm smoke:studio-openrouter` passed a streamed fixture reply with the key absent from page storage. `pnpm package:vsix` wrote `dist/codex-avatar-studio-0.1.0.vsix` (146 files, 5.47 MB); `pnpm validate:vsix` and `pnpm smoke:vsix` passed. The installed canvas still shows the license notice until `VITE_TLDRAW_LICENSE_KEY` is set. Files: `scripts/studio-journey-e2e.mjs`, `scripts/smoke-live-studio-openrouter.mjs`.
   - `pnpm run ci`
   - `pnpm test:e2e:studio`
   - `pnpm smoke:offline-studio`
@@ -589,7 +589,7 @@ A network log shows the key only in requests to `openrouter.ai`.
 **Goal:** a repeatable release path to `app.kurva.agency`, and the routines that keep it healthy.
 
 - [ ] W10.1 Add a `web` job to `.github/workflows/ci.yml`. It runs:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-26): the web job builds the web edition, runs the web unit tests and bundle budget, checks the Caddyfile, and runs `scripts/web-a11y.mjs`, `scripts/web-offline.mjs`, and `scripts/smoke-web-staging.mjs` with `KURVA_BROWSER=chromium`. All three passed on Playwright Chromium 153.0.8010.12. The Playwright journeys for Chromium, Firefox, and WebKit that draw on the canvas still need `VITE_TLDRAW_LICENSE_KEY`. Safe next action: add that key, then run the W9.2 journeys in those three browsers.
   - `build:web`
   - the unit tests
   - the bundle budget
@@ -597,7 +597,7 @@ A network log shows the key only in requests to `openrouter.ai`.
   - the accessibility test
   - a header test against a local Caddy
 - [ ] W10.2 The deploy flow:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-26): `node scripts/smoke-web-staging.mjs` passed against a local server using the Caddyfile headers. `/health` was 200, Home loaded, `sw.js` registered, and the console had no license error. A merge to `main` still does not deploy staging, and production promotion is still manual in Railway. Safe next action: finish W0.3 and W0.4, create the Railway service, then run `node scripts/smoke-web-staging.mjs https://staging.kurva.agency`. Files: `scripts/smoke-web-staging.mjs`.
   1. A merge to `main` deploys staging automatically.
   2. `scripts/smoke-web-staging.mjs` checks staging: `/health`, the headers, the app loading, no tldraw license errors, and a registered service worker.
   3. The release is promoted to production by hand.

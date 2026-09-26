@@ -88,3 +88,15 @@ jobs:
         run: pnpm exec vitest run apps/studio/test/webOpenRouter.test.ts apps/studio/test/webShell.test.ts apps/studio/test/browserLibrary.test.ts apps/studio/test/browserAvatarPackage.test.ts apps/studio/test/webCspGates.test.ts packages/studio-host-core/test/openRouterPkce.test.ts
       - name: Web header file
         run: node scripts/check-web-headers.mjs
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Web accessibility, offline, and header smoke
+        env:
+          KURVA_BROWSER: chromium
+        run: |
+          node scripts/web-a11y.mjs
+          node scripts/web-offline.mjs
+          node scripts/web-project-lock.mjs
+          node scripts/web-backup-clear.mjs
+          node scripts/web-canvas-persist.mjs
+          node scripts/smoke-web-staging.mjs

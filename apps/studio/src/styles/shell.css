@@ -1431,6 +1431,31 @@ textarea:focus-visible {
   color: var(--studio-text-secondary, #5a554b);
 }
 
+.studio-project-lock {
+  position: absolute;
+  top: 56px;
+  left: 16px;
+  right: 16px;
+  z-index: 90;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--studio-divider, #d8d2c6);
+  border-radius: 10px;
+  color: var(--studio-text-secondary, #5a554b);
+  background: var(--studio-surface-1, #fff);
+  box-shadow: 0 8px 24px rgb(20 18 14 / 8%);
+}
+
+.studio-project-lock button {
+  color: var(--k-vermilion, #d2461e);
+  text-decoration: underline;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
 .studio-desktop-only a {
   color: var(--k-vermilion, #d2461e);
 }
