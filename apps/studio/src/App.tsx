@@ -24,6 +24,7 @@ import {
   readPanelSize,
   writePanelSize
 } from "./components/panelSizing.js";
+import { hasPendingAgentSend } from "./components/pendingAgentSend.js";
 import {
   cancelFrameThumbnail,
   cancelScheduledFrameThumbnails,
@@ -484,6 +485,13 @@ export function App() {
     return window.innerWidth >= 1100 || window.innerWidth <= 700;
   });
   const [isAgentPanelCollapsed, setAgentPanelCollapsed] = useState(false);
+  // A message that waited for the OpenRouter sign-in reopens the agent panel, so it can send.
+  useEffect(() => {
+    if (route.name === "project" && hasPendingAgentSend(route.projectId)) {
+      setAgentSidebarOpen(true);
+      setAgentPanelCollapsed(false);
+    }
+  }, [route]);
   const [selectedModelId, setSelectedModelId] = useState(readStoredSelectedModelId);
   const [canvasEpoch, setCanvasEpoch] = useState(0);
   const [isInspectorOpen, setInspectorOpen] = useState(false);

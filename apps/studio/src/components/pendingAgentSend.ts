@@ -62,3 +62,13 @@ export function takePendingAgentSend(projectId: string, now = Date.now()): Pendi
     return null;
   }
 }
+
+/** Whether a message is waiting for this project, without taking it. */
+export function hasPendingAgentSend(projectId: string): boolean {
+  try {
+    const raw = storage()?.getItem(KEY);
+    return Boolean(raw && (JSON.parse(raw) as { projectId?: unknown }).projectId === projectId);
+  } catch {
+    return false;
+  }
+}

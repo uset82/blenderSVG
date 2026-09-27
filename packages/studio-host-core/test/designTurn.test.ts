@@ -1,4 +1,4 @@
-import type { StudioToHostMessage } from "@codex-avatar-studio/avatar-core";
+import { createHostToStudioMessage, type StudioToHostMessage } from "@codex-avatar-studio/avatar-core";
 import { describe, expect, it, vi } from "vitest";
 import { OpenRouterChatController } from "../src/openRouterChat.js";
 import { OPENROUTER_SECRET_KEY, type SecretStore } from "../src/openRouterConnection.js";
@@ -16,7 +16,7 @@ const secrets: SecretStore = {
 
 const PAGE = `<!doctype html><html><head><style>${".hero{display:grid;gap:24px}".repeat(4_200)}</style></head><body><main class="hero"><h1>Clay &amp; Kiln</h1></main></body></html>`;
 
-function request(mode: ChatRequest["mode"], requestId = "turn"): ChatRequest {
+function request(mode: ChatRequest["mode"], requestId = "design-turn"): ChatRequest {
   return {
     protocolVersion: 1,
     type: "studio:chatRequest",
@@ -52,6 +52,8 @@ function harness(
   const gateway: OpenRouterChatController = new OpenRouterChatController(
     secrets,
     (message) => {
+      // Validate every message against the protocol, as the web and desktop transports do.
+      createHostToStudioMessage(message);
       const emitted = message as unknown as Emitted;
       messages.push(emitted);
       const requestId = String(emitted.requestId);
@@ -103,7 +105,7 @@ describe("design turn harness", () => {
       { role: "tool", tool_call_id: "call-create", content: "Applied create_design_frame." }
     ]);
     expect(ofType(messages, "studio:chatComplete")).toHaveLength(1);
-    expect(gateway.turn("turn")?.state).toBe("done");
+    expect(gateway.turn("design-turn")?.state).toBe("done");
   });
 
   it("completes a turn whose last round has tool calls and no text", async () => {
@@ -314,7 +316,7 @@ describe("design turn harness", () => {
       model: toolModel({ supported_parameters: ["max_tokens"] })
     });
     await textOnly.gateway.refreshModels();
-    await textOnly.gateway.send(request("auto", "turn-text"));
+    await textOnly.gateway.send(request("auto", "design-turn-text"));
     const body = textOnly.bodies[0] as Body & { tools?: unknown };
     expect(body.tools).toBeUndefined();
     expect(String(body.messages[0]?.content)).toContain("kurva-frame");

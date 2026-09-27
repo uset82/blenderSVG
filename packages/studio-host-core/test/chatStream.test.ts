@@ -1,4 +1,4 @@
-import type { StudioToHostMessage } from "@codex-avatar-studio/avatar-core";
+import { createHostToStudioMessage, type StudioToHostMessage } from "@codex-avatar-studio/avatar-core";
 import { describe, expect, it, vi } from "vitest";
 import { OpenRouterChatController } from "../src/openRouterChat.js";
 import { OPENROUTER_SECRET_KEY, type SecretStore } from "../src/openRouterConnection.js";
@@ -47,7 +47,17 @@ function chat(requestId: string, modelId = "example/text"): ChatRequest {
 
 function controller(request: typeof fetch) {
   const messages: Emitted[] = [];
-  return { messages, chat: new OpenRouterChatController(secrets, (message) => messages.push(message), request) };
+  return {
+    messages,
+    chat: new OpenRouterChatController(
+      secrets,
+      (message) => {
+        createHostToStudioMessage(message);
+        messages.push(message);
+      },
+      request
+    )
+  };
 }
 
 describe("chat stream and errors", () => {
@@ -225,7 +235,7 @@ describe("chat stream and errors", () => {
         .mockResolvedValueOnce(new Response(body, { status: 200 }));
       const { messages, chat: gateway } = controller(request);
       await gateway.refreshModels();
-      await gateway.send(chat(`request-${expected}`));
+      await gateway.send(chat(`request-${expected.replace(/\W+/g, "-")}`));
       expect(messages.at(-1)?.message ?? "").toMatch(new RegExp(expected, "i"));
     }
   });

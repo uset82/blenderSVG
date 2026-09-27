@@ -652,7 +652,8 @@ export class OpenRouterChatController {
       requestId,
       callId: call.id,
       name: tool.name,
-      summary: tool.description,
+      // The protocol caps summaries at 500 characters; some tool descriptions are longer.
+      summary: tool.description.slice(0, 500),
       requiresApproval,
       arguments: argumentsJson
     });

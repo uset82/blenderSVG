@@ -44,6 +44,7 @@
     "smoke:studio-openrouter": "node scripts/smoke-live-studio-openrouter.mjs",
     "smoke:studio-avatar-package": "node --experimental-strip-types scripts/smoke-live-studio-avatar-package.mjs",
     "test:e2e:studio": "node scripts/studio-journey-e2e.mjs",
+    "test:web:design": "node scripts/web-design-frame.mjs && node scripts/web-design-agent.mjs",
     "test:a11y:studio": "node scripts/studio-a11y-e2e.mjs",
     "setup:blender-mcp": "node scripts/setup-blender-mcp.mjs",
     "verify:blender-mcp": "node scripts/setup-blender-mcp.mjs --verify-only",
