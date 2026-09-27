@@ -1237,7 +1237,28 @@ The owner's goal: type "Design a landing page for a neighborhood ceramics studio
     - **Tests.** `designPrompt.test.ts`, `designContext.test.ts`, the skill sync tests, and a host test that the request carries the prompt, the brief and the canvas, and sends no `tools` to a model without them.
     - **Still open:** real-model evidence (25.7).
 - [ ] 25.5 Lovable-style UX: Home send opens the editor and sends; Design mode is the default; changes apply instantly and one Undo reverts the whole turn; per-turn versions can be restored; consent once per browser; the full preview is opt-in; a default design model; Connect from the panel keeps the draft across the OAuth redirect.
+  - Evidence so far (2026-09-27, M4):
+    - **Home and modes.** Home's send opens the new file and sends in Design mode with the category's brief. Modes are named Design (the default, remembered), Review, Plan and Chat. The header shows what the mode does instead of "Tools off".
+    - **Consent and review.** Consent is asked once per browser and lists what is sent. Requests send directly; the full review is opt-in.
+    - **Default model.** A first-time user gets the strongest tool-capable design model (design-arena Elo, then coding index, then intelligence).
+    - **Connect.** The panel has a Connect button, and the waiting message survives the sign-in redirect and reopens the panel.
+    - **Undo.** One Undo reverts a whole reply, including designs placed from a text reply.
+    - **Feedback while it works.** The status line shows "Writing the design… 12.4k characters" while a long call streams, and tool cards summarize long HTML by size.
+    - **Menu.** The chat menu closes on an outside click or Escape.
+    - **Fixed on the way:** returning from the sign-in locked the project against its own tab ("open in another tab").
+    - **Still open:** per-turn version history with Restore, and a "Use a free model" action (the picker exists as `pickFreeDesignModel`).
 - [ ] 25.6 `scripts/web-design-agent.mjs` runs the whole journey in CI with a mocked OpenRouter (multi-round SSE, a failed patch corrected by the model, a mobile frame, one-Undo, restore, export, reload, no-tools fallback, zero CSP violations).
+  - Evidence so far (2026-09-27):
+    - **What it runs.** `scripts/web-design-agent.mjs` is in the CI `web` job and `pnpm test:web:design`. It runs the web build under the Caddyfile CSP with OpenRouter mocked:
+      - Home prompt, then the editor.
+      - Connect (PKCE), with the message kept across the redirect.
+      - Consent once, then a landing page designed into the empty starter frame. The request carries the Landing brief, the empty frame and a 32k output budget taken from the catalog.
+      - A patch that does not match: the error goes back, and the model fixes it and adds a 390 frame to the right.
+      - One keyboard Undo reverts the reply, and Redo restores it.
+      - A model without tools draws a cat from a fenced SVG block.
+    - **Assertions.** Zero CSP violations, only the page and openrouter.ai contacted, and every tool call answered. Chromium passed 6 of 6 runs.
+    - **Bugs it found.** Every frame-creating Design turn failed on the web (a 601-character tool description over the protocol's 500-character summary cap). The waiting message never sent after sign-in (panel closed). The project locked against its own tab after sign-in.
+    - **Not covered yet:** version restore and export in this journey (export is covered by `web-design-frame.mjs`).
 - [ ] 25.7 Live acceptance with real models: `pnpm live:design` on the owner's machine and the same journey on https://kurva.agency/app/, for at least one paid and one free tool-capable model: turn 1 produces a frame at least 1200 wide with at least 3 sections and real styles within 6 minutes and at most 2 tool errors; turn 2 changes the hero and adds a 390 ± 10 frame to the right; one Undo reverts the turn; the export has no scripts; a model without tools produces a frame through the fallback.
 
 **Done when:** the owner's journey above works on https://kurva.agency/app/ with a real model, recorded with model ids, cost and date.
