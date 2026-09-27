@@ -23,19 +23,23 @@ export interface ProposalEditor {
   createShape: (shape: { id: string; type: string; x: number; y: number; props: Record<string, unknown> }) => void;
 }
 
+/** Props that tldraw accepts for each previewed shape type; tldraw rejects unknown props. */
+function proposalProps(shape: ProposalShape): Record<string, unknown> {
+  if (shape.type === "design-frame") return { w: shape.w, h: shape.h, name: shape.label, html: shape.html ?? "" };
+  if (shape.type === "frame") return { w: shape.w, h: shape.h, name: shape.label };
+  if (shape.type === "text")
+    return {
+      w: Math.max(1, shape.w),
+      autoSize: false,
+      richText: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: shape.label }] }] }
+    };
+  return { geo: "rectangle", w: shape.w, h: shape.h };
+}
+
 export function applyProposal(editor: ProposalEditor, proposal: CanvasProposal): void {
   editor.markHistoryStoppingPoint(`apply ${proposal.id}`);
   for (const shape of proposal.shapes) {
-    editor.createShape({
-      id: shape.id,
-      type: shape.type === "geo" ? "geo" : shape.type,
-      x: shape.x,
-      y: shape.y,
-      props:
-        shape.type === "design-frame"
-          ? { w: shape.w, h: shape.h, name: shape.label, html: shape.html ?? "" }
-          : { w: shape.w, h: shape.h, name: shape.label }
-    });
+    editor.createShape({ id: shape.id, type: shape.type, x: shape.x, y: shape.y, props: proposalProps(shape) });
   }
 }
 
@@ -68,6 +72,8 @@ export function proposalFromTool(
     };
   }
   if (name === "create_design_frame") {
+    const w = typeof args.width === "number" ? args.width : 1440;
+    const h = typeof args.height === "number" ? args.height : 900;
     return {
       id,
       summary: `Add design frame ${String(args.name)}`,
@@ -75,10 +81,10 @@ export function proposalFromTool(
         {
           id: `shape:${crypto.randomUUID()}`,
           type: "design-frame",
-          x: origin.x - 400,
-          y: origin.y - 300,
-          w: 800,
-          h: 600,
+          x: origin.x - w / 2,
+          y: origin.y - h / 2,
+          w,
+          h,
           label: String(args.name),
           html: sanitizeDesignHtml(String(args.html))
         }

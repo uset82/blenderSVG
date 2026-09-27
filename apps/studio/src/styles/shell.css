@@ -200,6 +200,9 @@ textarea {
   z-index: 80;
   display: grid;
   min-width: 220px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 6px;
   border: 1px solid var(--studio-divider);
   border-radius: 12px;

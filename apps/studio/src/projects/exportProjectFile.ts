@@ -41,7 +41,7 @@ export function stableExportSvgIds(svg: string): string {
   return svg.replace(/_export_\d+_r_\d+__/g, "_export__");
 }
 
-export function safeExportFileName(title: string, extension: "svg" | "png" | "json"): string {
+export function safeExportFileName(title: string, extension: "svg" | "png" | "json" | "html"): string {
   const safe = title
     .trim()
     .toLowerCase()

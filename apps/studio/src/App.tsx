@@ -1031,7 +1031,12 @@ export function App() {
     mountedEditorRef.current = editor;
     editorRef.current = editor;
     if (new URLSearchParams(window.location.search).get("perf") === "1") {
-      (window as Window & { __studioEditor?: Editor }).__studioEditor = editor;
+      const testWindow = window as Window & {
+        __studioEditor?: Editor;
+        __kurvaRunCanvasTool?: (name: string, argumentsJson: string) => ReturnType<typeof executeCanvasTool>;
+      };
+      testWindow.__studioEditor = editor;
+      testWindow.__kurvaRunCanvasTool = (name, argumentsJson) => executeCanvasTool(editor, name, argumentsJson);
     }
     const pendingSnapshot = pendingSnapshotRef.current;
     if (pendingSnapshot && !isBlankCanvasSnapshot(pendingSnapshot)) {

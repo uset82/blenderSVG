@@ -18,6 +18,20 @@ describe("canvas context menu", () => {
     expect(two.find((item) => item.id === "undo")?.shortcut).toBe("Ctrl+Z");
   });
 
+  it("offers HTML export only for selected design frames", () => {
+    const none = canvasMenuItems({ selectedCount: 1, canPaste: false, snapEnabled: false });
+    expect(none.find((item) => item.id === "export-html")).toMatchObject({
+      enabled: false,
+      reason: "Select a design frame first."
+    });
+    const one = canvasMenuItems({ selectedCount: 1, canPaste: false, snapEnabled: false, designFrameCount: 1 });
+    expect(one.find((item) => item.id === "export-html")).toMatchObject({ enabled: true, label: "Export HTML" });
+    expect(one.find((item) => item.id === "copy-html")?.enabled).toBe(true);
+    const two = canvasMenuItems({ selectedCount: 2, canPaste: false, snapEnabled: false, designFrameCount: 2 });
+    expect(two.find((item) => item.id === "export-html")?.label).toBe("Export HTML (2 files)");
+    expect(two.find((item) => item.id === "copy-html")?.reason).toBe("Select one design frame.");
+  });
+
   it("describes the real selection for the agent composer", () => {
     expect(describeSelection([{ type: "frame", label: "Frame", w: 1080, h: 720 }])).toBe(
       "About this selection: frame “Frame” (1080×720)."

@@ -1,8 +1,20 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode
+} from "react";
 import type { Editor, TLContent, TLShape } from "tldraw";
 import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import { safeExportFileName, stableExportSvgIds } from "../projects/exportProjectFile.js";
+import { designFrameExportDocument } from "../shapes/designHtml.js";
 import { canvasMenuItems, describeSelection, type CanvasMenuAction } from "./canvasContextMenu.js";
+
+function frame0(frames: Array<{ name: string }>): string {
+  return frames[0]?.name ?? "the design";
+}
 
 function downloadExport(body: BlobPart, fileName: string, type: string): void {
   const url = URL.createObjectURL(new Blob([body], { type }));
@@ -25,9 +37,16 @@ export function StudioCanvasMenu({
   children: ReactNode;
 }) {
   const clipboardRef = useRef<TLContent | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const editStackRef = useRef<Array<{ before: TLShape[]; after: TLShape[] }>>([]);
   const redoStackRef = useRef<Array<{ before: TLShape[]; after: TLShape[] }>>([]);
-  const [menu, setMenu] = useState<{ x: number; y: number; selectedCount: number; snapEnabled: boolean } | null>(null);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    selectedCount: number;
+    designFrameCount: number;
+    snapEnabled: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (!editor) return;
@@ -57,13 +76,37 @@ export function StudioCanvasMenu({
     };
   }, [menu]);
 
+  // Keep the whole menu inside the window: opened low or near the right edge it would otherwise run
+  // off screen, leaving the last actions (exports) unreachable.
+  useLayoutEffect(() => {
+    const element = menuRef.current;
+    if (!menu || !element) return;
+    const rect = element.getBoundingClientRect();
+    const margin = 8;
+    const x = Math.max(margin, Math.min(menu.x, window.innerWidth - rect.width - margin));
+    const y = Math.max(margin, Math.min(menu.y, window.innerHeight - rect.height - margin));
+    if (x !== menu.x || y !== menu.y) setMenu({ ...menu, x, y });
+  }, [menu]);
+
   if (!editor) return children;
 
   const items = canvasMenuItems({
     selectedCount: menu?.selectedCount ?? 0,
     canPaste: clipboardRef.current !== null,
-    snapEnabled: menu?.snapEnabled ?? editor.user.getIsSnapMode()
+    snapEnabled: menu?.snapEnabled ?? editor.user.getIsSnapMode(),
+    designFrameCount: menu?.designFrameCount ?? 0
   });
+  const selectedDesignFrames = () =>
+    editor.getSelectedShapes().flatMap((shape) =>
+      shape.type === "design-frame"
+        ? [
+            {
+              name: String((shape.props as { name?: unknown }).name ?? "design"),
+              html: String((shape.props as { html?: unknown }).html ?? "")
+            }
+          ]
+        : []
+    );
 
   const run = async (action: CanvasMenuAction) => {
     if (editor.getCurrentToolId() !== "select") {
@@ -174,6 +217,32 @@ export function StudioCanvasMenu({
         });
         downloadExport(image.blob, safeExportFileName("selection", "png"), "image/png");
       }
+    } else if (action === "export-html") {
+      const frames = selectedDesignFrames();
+      if (!frames.length) {
+        onNotice("Select a design frame to export its HTML.");
+        return;
+      }
+      for (const frame of frames) {
+        downloadExport(
+          designFrameExportDocument(frame.html, frame.name),
+          safeExportFileName(frame.name, "html"),
+          "text/html;charset=utf-8"
+        );
+      }
+      onNotice(frames.length === 1 ? `Exported ${frame0(frames)}.` : `Exported ${frames.length} HTML files.`);
+    } else if (action === "copy-html") {
+      const [frame] = selectedDesignFrames();
+      if (!frame) {
+        onNotice("Select a design frame to copy its HTML.");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(designFrameExportDocument(frame.html, frame.name));
+        onNotice(`Copied the HTML of ${frame.name}.`);
+      } catch {
+        onNotice("The browser did not allow copying. Use Export HTML instead.");
+      }
     } else if (action === "ask-agent") {
       const summary = describeSelection(
         ids.flatMap((id) => {
@@ -219,6 +288,7 @@ export function StudioCanvasMenu({
       x: event.clientX,
       y: event.clientY,
       selectedCount: editor.getSelectedShapeIds().length,
+      designFrameCount: editor.getSelectedShapes().filter((shape) => shape.type === "design-frame").length,
       snapEnabled: editor.user.getIsSnapMode()
     });
   };
@@ -228,6 +298,7 @@ export function StudioCanvasMenu({
       {children}
       {menu && (
         <div
+          ref={menuRef}
           className="studio-canvas-menu"
           role="menu"
           aria-label="Canvas selection"

@@ -34,4 +34,21 @@ if (caddy.includes("require-trusted-types-for")) {
 if (caddy.includes("hide .*")) {
   throw new Error("A blanket dotfile hide would block /.well-known/security.txt.");
 }
+// Design frames render under the page CSP (see apps/studio/src/shapes/designFrameRenderer.ts), so the
+// directives they depend on must match between the web edition and the /app/ block of the site.
+const site = readFileSync(path.join(root, "apps/site/Caddyfile"), "utf8");
+const siteAppCsp = /Content-Security-Policy "([^"]+)"/.exec(site)?.[1] ?? "";
+const directive = (policy, name) =>
+  policy
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name} `)) ?? `${name} (missing)`;
+for (const name of ["style-src", "img-src", "font-src", "frame-src", "script-src", "worker-src"]) {
+  if (directive(csp, name) !== directive(siteAppCsp, name)) {
+    throw new Error(`${name} differs between apps/studio/web/Caddyfile and apps/site/Caddyfile /app/.`);
+  }
+}
+if (directive(csp, "style-src") !== "style-src 'self'") {
+  throw new Error("style-src must stay 'self'; design frames apply CSS through the CSSOM instead.");
+}
 console.log("Web headers file OK.");

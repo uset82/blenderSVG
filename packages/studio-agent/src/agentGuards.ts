@@ -1,4 +1,5 @@
 import { type CanvasToolParameter, canvasTool } from "./canvasTools.js";
+import { MAX_TOOL_ARGUMENT_CHARS } from "./limits.js";
 import { toolTimeoutMs } from "./turnMachine.js";
 
 /** Canvas text is quoted data. It is never treated as a tool name. */
@@ -28,7 +29,7 @@ export type ParsedCanvasToolArguments =
 export function parseCanvasToolArguments(name: string, json: string): ParsedCanvasToolArguments {
   const tool = canvasTool(name);
   if (!tool) return { success: false, error: "Unknown canvas tool." };
-  if (json.length > 16_384) return { success: false, error: "Tool arguments exceed the size limit." };
+  if (json.length > MAX_TOOL_ARGUMENT_CHARS) return { success: false, error: "Tool arguments exceed the size limit." };
   let value: unknown;
   try {
     value = JSON.parse(json) as unknown;
@@ -50,7 +51,8 @@ function validateObject(
   }
   for (const key of required) {
     const item = value[key];
-    if (item === undefined || item === null || item === "") return `Missing ${key}.`;
+    // An empty string is a value; the property's minLength decides whether it is allowed.
+    if (item === undefined || item === null) return `Missing ${key}.`;
   }
   for (const [key, item] of Object.entries(value)) {
     const schema = properties[key];

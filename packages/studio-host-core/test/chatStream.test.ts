@@ -81,14 +81,15 @@ describe("chat stream and errors", () => {
     await gateway.refreshModels();
     await gateway.send({ ...chat("request-plan"), mode: "plan" });
     const body = String(request.mock.calls.find((call) => String(call[0]).includes("/chat/completions"))?.[1]?.body);
-    expect(body).toContain("get_selection");
+    expect(body).toContain("get_design_frame");
     expect(body).not.toContain("delete_shapes");
+    expect(body).not.toContain("create_design_frame");
     expect(body).toContain('"tool_choice":"auto"');
   });
 
   it("waits for approval and canvas results, then continues with the selected model", async () => {
     const first =
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","function":{"name":"get_selection","arguments":"{}"}}]}}]}\n\ndata: [DONE]\n\n';
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","function":{"name":"get_canvas_summary","arguments":"{}"}}]}}]}\n\ndata: [DONE]\n\n';
     const final = 'data: {"choices":[{"delta":{"content":"The selection is empty."}}]}\n\ndata: [DONE]\n\n';
     const request = vi
       .fn<typeof fetch>()
@@ -136,7 +137,7 @@ describe("chat stream and errors", () => {
 
   it("cancels an agent that is waiting for tool approval", async () => {
     const first =
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-read","function":{"name":"get_selection","arguments":"{}"}}]}}]}\n\ndata: [DONE]\n\n';
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-read","function":{"name":"get_canvas_summary","arguments":"{}"}}]}}]}\n\ndata: [DONE]\n\n';
     const request = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(catalog())
@@ -153,7 +154,7 @@ describe("chat stream and errors", () => {
 
   it("auto-applies canvas writes but still requests approval before canvas reads", async () => {
     const write =
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-frame","function":{"name":"create_frame","arguments":"{\\"name\\":\\"Landing\\",\\"width\\":1440,\\"height\\":900}"}}]}}]}\n\ndata: [DONE]\n\n';
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-frame","function":{"name":"create_design_frame","arguments":"{\\"name\\":\\"Landing\\",\\"html\\":\\"<h1>Landing</h1>\\"}"}}]}}]}\n\ndata: [DONE]\n\n';
     const final = 'data: {"choices":[{"delta":{"content":"Frame created."}}]}\n\ndata: [DONE]\n\n';
     const request = vi
       .fn<typeof fetch>()
@@ -170,7 +171,7 @@ describe("chat stream and errors", () => {
     expect(messages.some((message) => message.type === "studio:chatComplete")).toBe(true);
 
     const read =
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-read","function":{"name":"get_selection","arguments":"{}"}}]}}]}\n\ndata: [DONE]\n\n';
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-read","function":{"name":"get_canvas_summary","arguments":"{}"}}]}}]}\n\ndata: [DONE]\n\n';
     const readRequest = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(catalog())

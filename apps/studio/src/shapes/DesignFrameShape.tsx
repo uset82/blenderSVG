@@ -1,5 +1,6 @@
-import { HTMLContainer, Rectangle2d, ShapeUtil, T, resizeBox, type TLResizeInfo } from "tldraw";
-import { designFrameSrcDoc } from "./designFrameHtml.js";
+import { useLayoutEffect, useRef } from "react";
+import { HTMLContainer, Rectangle2d, resizeBox, ShapeUtil, T, type TLResizeInfo } from "tldraw";
+import { mountDesignDocument } from "./designFrameRenderer.js";
 import type { DesignFrameShape } from "./types.js";
 
 export class DesignFrameShapeUtil extends ShapeUtil<DesignFrameShape> {
@@ -16,7 +17,7 @@ export class DesignFrameShapeUtil extends ShapeUtil<DesignFrameShape> {
   }
 
   getDefaultProps(): DesignFrameShape["props"] {
-    return { w: 800, h: 600, name: "Design", html: "" };
+    return { w: 1440, h: 900, name: "Design", html: "" };
   }
 
   getGeometry(shape: DesignFrameShape) {
@@ -28,15 +29,9 @@ export class DesignFrameShapeUtil extends ShapeUtil<DesignFrameShape> {
   }
 
   component(shape: DesignFrameShape) {
-    const srcDoc = designFrameSrcDoc(shape.props.html);
     return (
-      <HTMLContainer style={{ width: shape.props.w, height: shape.props.h }}>
-        <iframe
-          title={shape.props.name || "Design frame"}
-          sandbox=""
-          srcDoc={srcDoc}
-          style={{ width: "100%", height: "100%", border: 0, pointerEvents: "none" }}
-        />
+      <HTMLContainer style={{ width: shape.props.w, height: shape.props.h, background: "#fff", overflow: "hidden" }}>
+        <DesignFrameDocument html={shape.props.html} title={shape.props.name || "Design frame"} />
       </HTMLContainer>
     );
   }
@@ -46,4 +41,32 @@ export class DesignFrameShapeUtil extends ShapeUtil<DesignFrameShape> {
     path.rect(0, 0, shape.props.w, shape.props.h);
     return path;
   }
+}
+
+/**
+ * The design renders in a sandboxed iframe without `allow-scripts`. The page fills the iframe's DOM
+ * (see designFrameRenderer), so the design's CSS works under the host's `style-src 'self'` CSP.
+ */
+function DesignFrameDocument({ html, title }: { html: string; title: string }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  useLayoutEffect(() => {
+    const iframe = ref.current;
+    if (!iframe) return;
+    const mount = () => {
+      mountDesignDocument(iframe, html);
+    };
+    mount();
+    // Some engines replace the initial about:blank document once it "loads"; fill it again then.
+    iframe.addEventListener("load", mount);
+    return () => iframe.removeEventListener("load", mount);
+  }, [html]);
+  return (
+    <iframe
+      ref={ref}
+      title={title}
+      sandbox="allow-same-origin"
+      tabIndex={-1}
+      style={{ width: "100%", height: "100%", border: 0, pointerEvents: "none", display: "block" }}
+    />
+  );
 }

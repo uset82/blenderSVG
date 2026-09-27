@@ -15,6 +15,14 @@
     "./agentGuards": {
       "types": "./dist/src/agentGuards.d.ts",
       "import": "./dist/src/agentGuards.js"
+    },
+    "./designFrames": {
+      "types": "./dist/src/designFrames.d.ts",
+      "import": "./dist/src/designFrames.js"
+    },
+    "./limits": {
+      "types": "./dist/src/limits.d.ts",
+      "import": "./dist/src/limits.js"
     }
   },
   "scripts": {
