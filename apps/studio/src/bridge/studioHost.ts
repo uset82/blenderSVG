@@ -36,6 +36,8 @@ export interface StudioChatRun {
   message?: string;
   errorCode?: string;
   usage?: StudioChatUsage;
+  /** A tool call the model is still writing, such as a page of HTML, and how much it has written. */
+  writing?: { name?: string; chars: number };
 }
 
 export interface StudioToolCall extends ToolCallRecord {
@@ -223,6 +225,15 @@ function createDeferredWebTransport(): StudioTransport {
 function sendToHost(message: StudioToHostMessageInput): void {
   if (currentTransport().kind === "fixture" && !getVsCodeApi()) return;
   currentTransport().send(message);
+}
+
+/**
+ * Whether the panel may answer a tool approval. The web edition runs the agent in the page itself, so
+ * it has no workspace to trust; desktop hosts need a trusted workspace.
+ */
+export function canAnswerToolApproval(input: { host: string; workspaceTrusted: boolean }): boolean {
+  if (input.host === "web") return true;
+  return (input.host === "vscode" || input.host === "standalone") && input.workspaceTrusted;
 }
 
 /** Web chat is connected without a desktop workspace. Other hosts still need a trusted workspace. */
@@ -444,7 +455,19 @@ export function useStudioHost() {
             : current
         );
       }
+      if (message.type === "studio:toolProgress") {
+        setChatRun((current) =>
+          current?.requestId === message.requestId && current.status === "streaming"
+            ? { ...current, writing: { ...(message.name ? { name: message.name } : {}), chars: message.chars } }
+            : current
+        );
+      }
       if (message.type === "studio:toolProposed") {
+        setChatRun((current) => {
+          if (current?.requestId !== message.requestId || !current.writing) return current;
+          const { writing: _writing, ...rest } = current;
+          return rest;
+        });
         const id = `${message.requestId}::${message.callId}`;
         setToolCalls((current) =>
           [
@@ -636,8 +659,7 @@ export function useStudioHost() {
       if (
         !call?.requiresApproval ||
         call.status !== "proposed" ||
-        (hostState.host !== "vscode" && hostState.host !== "standalone") ||
-        !hostState.workspaceTrusted
+        !canAnswerToolApproval({ host: hostState.host, workspaceTrusted: hostState.workspaceTrusted })
       )
         return;
       setToolCalls((current) => current.map((item) => (item.id === id ? withToolTiming(item, "running") : item)));
@@ -652,8 +674,7 @@ export function useStudioHost() {
       if (
         !call?.requiresApproval ||
         call.status !== "proposed" ||
-        (hostState.host !== "vscode" && hostState.host !== "standalone") ||
-        !hostState.workspaceTrusted
+        !canAnswerToolApproval({ host: hostState.host, workspaceTrusted: hostState.workspaceTrusted })
       )
         return;
       setToolCalls((current) =>

@@ -6,18 +6,28 @@ import {
   type StudioModel,
   type StudioToHostMessage
 } from "@codex-avatar-studio/avatar-core";
-import { parseCanvasToolArguments } from "@codex-avatar-studio/studio-agent/agentGuards";
-import { canvasTool, toolsForComposerMode } from "@codex-avatar-studio/studio-agent/canvasTools";
+import { CANVAS_TOOLS, type CanvasTool, toolsForComposerMode } from "@codex-avatar-studio/studio-agent/canvasTools";
 import {
   MAX_DESIGN_RESULT_CHARS,
   MAX_SSE_EVENT_CHARS,
   MAX_TOOL_ARGUMENT_CHARS
 } from "@codex-avatar-studio/studio-agent/limits";
+import { prepareToolCall } from "@codex-avatar-studio/studio-agent/toolInput";
 import {
-  createTurn,
-  reduceTurn,
-  type TurnSnapshot,
-  toolTimeoutMs
+  affordableCompletionTokens,
+  type ComposerMode,
+  completionTokenBudget,
+  MAX_STREAMED_TOOL_CALLS,
+  toolNeedsApproval,
+  toolTimeoutMs,
+  turnLimits
+} from "@codex-avatar-studio/studio-agent/toolPolicy";
+import {
+  type StudioTurnState,
+  studioTurnState,
+  ToolScheduler,
+  TurnMachine,
+  TurnPhase
 } from "@codex-avatar-studio/studio-agent/turnMachine";
 import { OPENROUTER_SECRET_KEY, type SecretStore } from "./openRouterConnection.js";
 
@@ -26,11 +36,11 @@ const CATALOG_TIMEOUT_MS = 20_000;
 const CHAT_TIMEOUT_MS = 10 * 60_000;
 const MAX_CATALOG_BYTES = 5_000_000;
 const MAX_HISTORY_CHARS = 60_000;
-const MAX_REPLY_CHARS = 64_000;
-const MAX_TOOL_ROUNDS = 4;
-const MAX_TOOL_CALLS_PER_ROUND = 6;
 const MAX_TOOL_OUTPUT_CHARS = MAX_DESIGN_RESULT_CHARS;
 const TOOL_PERMISSION_TIMEOUT_MS = 120_000;
+/** A toolProgress message goes out each time a streaming call's arguments grow by this much. */
+const TOOL_PROGRESS_STEP_CHARS = 4_000;
+const READ_ONLY_CANVAS_TOOLS = new Set(CANVAS_TOOLS.filter((tool) => tool.readOnly).map((tool) => tool.name));
 
 type CatalogMessage = Extract<HostToStudioMessageInput, { type: "studio:modelCatalog" }>;
 type ChatRequest = Extract<StudioToHostMessage, { type: "studio:chatRequest" }>;
@@ -88,12 +98,19 @@ export class OpenRouterChatController {
   private availableModels = new Map<string, StudioModel>();
   private catalogController: AbortController | undefined;
   private catalogFlight: Promise<CatalogMessage> | null = null;
-  private readonly turns = new Map<string, TurnSnapshot>();
+  private readonly turns = new Map<string, TurnMachine>();
   private readonly pendingPermissions = new Map<string, PendingReply<boolean>>();
   private readonly pendingToolResults = new Map<string, PendingReply<ToolExecutionResult>>();
 
-  public turn(requestId: string): TurnSnapshot | undefined {
-    return this.turns.get(requestId);
+  /** The current state of a turn: its Studio state, its visible text and ZCode's turn phase. */
+  public turn(requestId: string): { state: StudioTurnState; text: string; phase: TurnPhase } | undefined {
+    const machine = this.turns.get(requestId);
+    if (!machine) return undefined;
+    return {
+      state: studioTurnState(machine.state.phase),
+      text: machine.state.finalResponse ?? machine.state.streamingContent,
+      phase: machine.state.phase
+    };
   }
 
   public resolveToolPermission(requestId: string, callId: string, granted: boolean): void {
@@ -292,16 +309,21 @@ export class OpenRouterChatController {
       return;
     }
 
+    const model = selectedModel;
+    const mode: ComposerMode = request.mode ?? "ask";
+    const limits = turnLimits(mode);
     const active: ActiveChat = { controller: new AbortController(), cancelled: false };
     this.activeChats.set(requestId, active);
     const timeout = setTimeout(() => active.controller.abort(), CHAT_TIMEOUT_MS);
+    const machine = TurnMachine.create(requestId, 1, request.userMessage, requestId);
+    this.turns.set(requestId, machine);
     try {
-      this.turns.set(requestId, reduceTurn(createTurn(), { type: "start" }));
-      this.emitTurnState(requestId, "model", "Sending the request to the selected model.");
-      const allowedTools = toolsForComposerMode(request.mode ?? "ask").filter(
-        (entry) => entry.function.name !== "screenshot_frame" || selectedModel.inputModalities.includes("image")
+      machine.state = machine.start();
+      const allowedTools = toolsForComposerMode(mode).filter(
+        (entry) => entry.function.name !== "screenshot_frame" || model.inputModalities.includes("image")
       );
-      const toolSupport = selectedModel.supportedParameters.includes("tools") && allowedTools.length > 0;
+      const toolSupport = model.supportedParameters.includes("tools") && allowedTools.length > 0;
+      const allowedNames = new Set(toolSupport ? allowedTools.map((entry) => entry.function.name) : []);
       const messages: Array<Record<string, unknown>> = [
         { role: "system", content: STUDIO_CHAT_SYSTEM_PROMPT },
         ...request.history.map((message: StudioChatHistoryMessage) => ({
@@ -318,13 +340,40 @@ export class OpenRouterChatController {
             : request.userMessage
         }
       ];
+      let budget = completionTokenBudget(model);
       let finalReason: string | undefined;
       let combinedUsage: StudioChatUsage | undefined;
       let totalTextLength = 0;
-      let finished = false;
+      let succeededCalls = 0;
+      let failedRounds = 0;
+      let toolsClosed = !toolSupport;
 
-      for (let round = 0; round <= MAX_TOOL_ROUNDS && !finished; round += 1) {
-        const response = await this.postChat(active, {
+      for (let round = 0; ; round += 1) {
+        if (round >= limits.maxToolRounds) toolsClosed = true;
+        machine.state = machine.startModelRequest(modelId, []);
+        this.emitTurnState(
+          requestId,
+          round === 0
+            ? "Sending the request to the selected model."
+            : toolsClosed && toolSupport
+              ? "Asking the model to sum up what it changed."
+              : "Continuing with the selected model."
+        );
+        const body = (maxTokens: number) =>
+          JSON.stringify({
+            model: modelId,
+            messages,
+            stream: true,
+            stream_options: { include_usage: true },
+            usage: { include: true },
+            ...(toolSupport ? { tools: allowedTools, tool_choice: toolsClosed ? "none" : "auto" } : {}),
+            ...(model.supportedParameters.includes("max_completion_tokens")
+              ? { max_completion_tokens: maxTokens }
+              : model.supportedParameters.includes("max_tokens")
+                ? { max_tokens: maxTokens }
+                : {})
+          });
+        const init = (maxTokens: number): RequestInit => ({
           method: "POST",
           headers: {
             Authorization: `Bearer ${key}`,
@@ -334,214 +383,150 @@ export class OpenRouterChatController {
           },
           redirect: "error",
           signal: active.controller.signal,
-          body: JSON.stringify({
-            model: modelId,
-            messages,
-            stream: true,
-            stream_options: { include_usage: true },
-            usage: { include: true },
-            ...(toolSupport ? { tools: allowedTools, tool_choice: "auto" } : {}),
-            ...(selectedModel.supportedParameters.includes("max_completion_tokens")
-              ? { max_completion_tokens: 2048 }
-              : selectedModel.supportedParameters.includes("max_tokens")
-                ? { max_tokens: 2048 }
-                : {})
-          })
+          body: body(maxTokens)
         });
+        let response = await this.postChat(active, init(budget));
+        if (response.status === 402) {
+          // A smaller output budget may still fit the account's credit; try once with what it can afford.
+          const affordable = affordableCompletionTokens(await readErrorText(response), budget);
+          if (affordable) {
+            await response.body?.cancel().catch(() => undefined);
+            budget = affordable;
+            response = await this.postChat(active, init(budget));
+          }
+        }
 
         if (!response.ok) {
-          await response.body?.cancel();
+          await response.body?.cancel().catch(() => undefined);
           const failure = chatStatus(response.status);
-          this.emitTurnState(requestId, "error", failure.message);
+          this.failTurn(requestId, failure.message);
           this.emitChatError(requestId, failure.code, failure.message);
           return;
         }
         if (!response.body) throw new OpenRouterStreamError();
 
-        this.emitTurnState(requestId, "streaming", "Receiving the model response.");
+        machine.state = machine.receiveModelResponse("");
+        this.emitTurnState(requestId, "Receiving the model response.");
+        let roundText = "";
+        const progress = new Map<number, { name: string; chars: number; sent: number }>();
         const result = await consumeChatStream(
           response.body,
           active.controller.signal,
+          limits.maxReplyChars,
           (delta) => {
             if (active.cancelled) return;
             totalTextLength += delta.length;
-            if (totalTextLength > MAX_REPLY_CHARS) throw new OpenRouterStreamError();
+            if (totalTextLength > limits.maxReplyChars) throw new OpenRouterStreamError();
+            roundText += delta;
             this.emit({ type: "studio:chatDelta", requestId, delta });
-            const current = this.turns.get(requestId);
-            if (current) this.turns.set(requestId, reduceTurn(current, { type: "text", text: delta }));
+            machine.state = machine.addStreamingContent(delta);
           },
           (delta) => {
             if (!active.cancelled) this.emit({ type: "studio:chatReasoning", requestId, delta });
           },
           (tool) => {
             if (active.cancelled) return;
-            const current = this.turns.get(requestId);
-            if (current) this.turns.set(requestId, reduceTurn(current, { type: "tool-delta", ...tool }));
+            const entry = progress.get(tool.index) ?? { name: "", chars: 0, sent: 0 };
+            if (tool.name) entry.name = (entry.name + tool.name).slice(0, 80);
+            if (tool.arguments) entry.chars += tool.arguments.length;
+            progress.set(tool.index, entry);
+            // Large design calls take a while to stream; report how much has been written so far.
+            if (entry.chars - entry.sent >= TOOL_PROGRESS_STEP_CHARS) {
+              entry.sent = entry.chars;
+              this.emit({
+                type: "studio:toolProgress",
+                requestId,
+                index: tool.index,
+                ...(entry.name ? { name: entry.name } : {}),
+                chars: entry.chars
+              });
+            }
           }
         );
         finalReason = result.finishReason ?? finalReason;
         combinedUsage = addUsage(combinedUsage, result.usage);
-        const current = this.turns.get(requestId);
-        if (current)
-          this.turns.set(
-            requestId,
-            reduceTurn(current, active.cancelled ? { type: "cancel" } : { type: "stream-end" })
-          );
-
         if (active.cancelled) throw new ToolTurnError("cancelled", "Generation stopped.");
-        if (result.toolCalls.length === 0) {
-          finished = true;
-          break;
-        }
-        if (!toolSupport || round >= MAX_TOOL_ROUNDS) {
-          throw new ToolTurnError(
-            "invalid-request",
-            "The model requested more canvas tool calls than this turn allows."
-          );
-        }
-        if (result.toolCalls.length > MAX_TOOL_CALLS_PER_ROUND) {
-          throw new ToolTurnError("invalid-request", "The model requested too many canvas actions at once.");
-        }
-        if (result.toolCalls.filter((call) => call.name === "screenshot_frame").length > 1) {
-          throw new ToolTurnError("invalid-request", "Approve at most one frame screenshot per model round.");
+
+        const calls = toolsClosed ? [] : result.toolCalls;
+        if (calls.length === 0) {
+          if (totalTextLength === 0 && succeededCalls === 0) {
+            const message =
+              result.finishReason === "length"
+                ? "The model reached its output limit before replying. Try again or choose another model."
+                : "The selected model returned an empty reply.";
+            this.failTurn(requestId, message);
+            this.emitChatError(requestId, "provider", message);
+            return;
+          }
+          machine.state = machine.complete(machine.state.streamingContent);
+          this.emitTurnState(requestId, "The model response is complete.");
+          const complete: ChatCompleteMessage = {
+            type: "studio:chatComplete",
+            requestId,
+            modelId,
+            ...(finalReason ? { finishReason: finalReason } : {}),
+            ...(combinedUsage ? { usage: combinedUsage } : {})
+          };
+          this.emit(complete);
+          return;
         }
 
-        this.emitTurnState(requestId, "schedule-tools", "Review the proposed canvas actions.");
+        // The assistant message keeps this round's text, so the model sees what it already said.
         messages.push({
           role: "assistant",
-          content: null,
-          tool_calls: result.toolCalls.map((call) => ({
+          content: roundText || null,
+          tool_calls: calls.map((call) => ({
             id: call.id,
             type: "function",
             function: { name: call.name, arguments: call.arguments }
           }))
         });
-
-        for (const call of result.toolCalls) {
-          if (!allowedTools.some((entry) => entry.function.name === call.name)) {
-            throw new ToolTurnError(
-              "invalid-request",
-              "The model requested an action that is not enabled in this mode."
-            );
-          }
-          const parsedArguments = parseCanvasToolArguments(call.name, call.arguments);
-          if (!parsedArguments.success) throw new ToolTurnError("invalid-request", parsedArguments.error);
-          const metadata = canvasTool(call.name);
-          if (!metadata) throw new ToolTurnError("invalid-request", "The model requested an unknown canvas action.");
-
-          const requiresApproval = metadata.readOnly || request.mode !== "auto";
-          if (requiresApproval)
-            this.emitTurnState(requestId, "await-permission", `Waiting for approval: ${call.name}.`);
-          this.emit({
-            type: "studio:toolProposed",
-            requestId,
-            callId: call.id,
-            name: call.name,
-            summary: metadata.description,
-            requiresApproval,
-            arguments: JSON.stringify(parsedArguments.data)
-          });
-          const granted = requiresApproval
-            ? await this.waitForReply(
-                this.pendingPermissions,
-                requestId,
-                call.id,
-                active.controller.signal,
-                TOOL_PERMISSION_TIMEOUT_MS
-              )
-            : true;
-          if (!granted) {
-            const content = "The user declined this action. No canvas changes were made.";
-            this.emit({
-              type: "studio:toolResult",
-              requestId,
-              callId: call.id,
-              ok: false,
-              summary: "Declined by user."
-            });
-            messages.push({ role: "tool", tool_call_id: call.id, content });
-            continue;
-          }
-
-          this.emitTurnState(
-            requestId,
-            "execute",
-            `${requiresApproval ? "Applying approved action" : "Auto mode applying canvas action"}: ${call.name}.`
-          );
-          this.emit({
-            type: "studio:toolExecute",
-            requestId,
-            callId: call.id,
-            name: call.name,
-            arguments: JSON.stringify(parsedArguments.data)
-          });
-          const execution = await this.waitForReply(
-            this.pendingToolResults,
-            requestId,
-            call.id,
-            active.controller.signal,
-            toolTimeoutMs(call.name)
-          );
-          const content = execution.content.slice(0, MAX_TOOL_OUTPUT_CHARS);
-          this.emit({
-            type: "studio:toolResult",
-            requestId,
-            callId: call.id,
-            ok: execution.ok,
-            summary: content.slice(0, 500) || (execution.ok ? "Completed." : "The canvas action failed.")
-          });
+        const outcomes = await this.runToolRound(requestId, active, machine, calls, {
+          mode,
+          allowedNames,
+          maxCalls: limits.maxCallsPerRound,
+          cutOff: result.finishReason === "length"
+        });
+        // Every call id gets exactly one answer, in the order the model sent them.
+        for (const call of calls) {
+          const outcome = outcomes.get(call.id) ?? { ok: false, content: "This call was not run." };
           messages.push({
             role: "tool",
             tool_call_id: call.id,
-            content: execution.imageDataUrl
+            content: outcome.imageDataUrl
               ? [
-                  { type: "text", text: content },
-                  { type: "image_url", image_url: { url: execution.imageDataUrl } }
+                  { type: "text", text: outcome.content },
+                  { type: "image_url", image_url: { url: outcome.imageDataUrl } }
                 ]
-              : content
+              : outcome.content
           });
         }
-        this.emitTurnState(requestId, "aggregate", "Sending approved canvas results to the selected model.");
-        this.emitTurnState(requestId, "model", "Continuing with the selected model.");
-      }
-
-      if (active.cancelled) {
-        this.emitChatError(requestId, "cancelled", "Generation stopped.");
-      } else if (!finished || totalTextLength === 0) {
-        const message =
-          totalTextLength === 0 ? "The selected model returned an empty reply." : "The turn did not finish.";
-        this.emitTurnState(requestId, "error", message);
-        this.emitChatError(requestId, "provider", message);
-      } else {
-        this.emitTurnState(requestId, "done", "The model response is complete.");
-        const complete: ChatCompleteMessage = {
-          type: "studio:chatComplete",
-          requestId,
-          modelId,
-          ...(finalReason ? { finishReason: finalReason } : {}),
-          ...(combinedUsage ? { usage: combinedUsage } : {})
-        };
-        this.emit(complete);
+        const succeeded = [...outcomes.values()].filter((outcome) => outcome.ok).length;
+        succeededCalls += succeeded;
+        failedRounds = succeeded === 0 ? failedRounds + 1 : 0;
+        if (failedRounds >= limits.maxFailedRounds) toolsClosed = true;
+        machine.state = machine.aggregateResults();
+        this.emitTurnState(requestId, "Sending the canvas results to the selected model.");
       }
     } catch (error) {
       if (active.cancelled) {
-        this.emitTurnState(requestId, "error", "Generation stopped.");
+        this.failTurn(requestId, "Generation stopped.");
         this.emitChatError(requestId, "cancelled", "Generation stopped.");
       } else if (active.controller.signal.aborted) {
-        this.emitTurnState(requestId, "error", "The model response timed out.");
+        this.failTurn(requestId, "The model response timed out.");
         this.emitChatError(requestId, "timeout", "The model response timed out. Try again.");
       } else if (error instanceof ToolTurnError) {
-        this.emitTurnState(requestId, "error", error.message);
+        this.failTurn(requestId, error.message);
         this.emitChatError(requestId, error.code, error.message);
       } else if (error instanceof OpenRouterStreamError) {
-        this.emitTurnState(requestId, "error", "OpenRouter interrupted the response stream.");
+        this.failTurn(requestId, "OpenRouter interrupted the response stream.");
         this.emitChatError(
           requestId,
           "provider",
           "OpenRouter interrupted the streaming response. Retry to start a fresh request."
         );
       } else {
-        this.emitTurnState(requestId, "error", "The OpenRouter request could not be completed.");
+        this.failTurn(requestId, "The OpenRouter request could not be completed.");
         this.emitChatError(
           requestId,
           "offline",
@@ -552,6 +537,172 @@ export class OpenRouterChatController {
       clearTimeout(timeout);
       this.activeChats.delete(requestId);
     }
+  }
+
+  /**
+   * Runs one round of tool calls. Each call is checked first; a bad call is answered with an error the
+   * model can correct. Valid calls follow ZCode's schedule: reads run together, changes one at a time.
+   */
+  private async runToolRound(
+    requestId: string,
+    active: ActiveChat,
+    machine: TurnMachine,
+    calls: ChatStreamResult["toolCalls"],
+    options: { mode: ComposerMode; allowedNames: ReadonlySet<string>; maxCalls: number; cutOff: boolean }
+  ): Promise<Map<string, ToolExecutionResult>> {
+    const outcomes = new Map<string, ToolExecutionResult>();
+    const ready: Array<{
+      call: ChatStreamResult["toolCalls"][number];
+      tool: CanvasTool;
+      input: Record<string, unknown>;
+    }> = [];
+    let screenshots = 0;
+    for (const [index, call] of calls.entries()) {
+      if (index >= options.maxCalls) {
+        outcomes.set(call.id, {
+          ok: false,
+          content: `<tool_use_error>Only ${options.maxCalls} tool calls run per round, so this one was skipped. Send it again in your next round.</tool_use_error>`
+        });
+        continue;
+      }
+      const prepared = prepareToolCall(call, {
+        allowed: options.allowedNames,
+        mode: options.mode,
+        cutOff: options.cutOff
+      });
+      if (!prepared.ok) {
+        outcomes.set(call.id, { ok: false, content: prepared.content });
+        continue;
+      }
+      if (prepared.tool.name === "screenshot_frame" && ++screenshots > 1) {
+        outcomes.set(call.id, {
+          ok: false,
+          content: "<tool_use_error>Only one frame screenshot runs per round.</tool_use_error>"
+        });
+        continue;
+      }
+      ready.push({ call, tool: prepared.tool, input: prepared.input });
+    }
+
+    const schedule = new ToolScheduler({ readOnlyTools: READ_ONLY_CANVAS_TOOLS }).schedule(
+      ready.map(({ call, tool }) => ({
+        toolCallId: call.id,
+        toolName: tool.name,
+        dependsOn: [],
+        readOnly: tool.readOnly,
+        destructive: tool.destructive,
+        concurrentSafe: tool.readOnly && !toolNeedsApproval(options.mode, tool),
+        sideEffectScope: tool.readOnly ? "none" : "canvas"
+      }))
+    );
+    machine.state = machine.scheduleTools(
+      ready.map(({ call, input }) => ({ id: call.id, name: call.name, input })),
+      schedule
+    );
+    this.emitTurnState(requestId, `Running ${ready.length} canvas ${ready.length === 1 ? "action" : "actions"}.`);
+    for (const call of calls) {
+      const outcome = outcomes.get(call.id);
+      if (!outcome) continue;
+      this.emit({
+        type: "studio:toolResult",
+        requestId,
+        callId: call.id,
+        ok: false,
+        summary: outcome.content.replace(/<\/?tool_use_error>/g, "").slice(0, 500)
+      });
+    }
+
+    const byId = new Map(ready.map((entry) => [entry.call.id, entry]));
+    for (const group of schedule.parallelGroups) {
+      await Promise.all(
+        group.map(async (callId) => {
+          const entry = byId.get(callId);
+          if (!entry) return;
+          const outcome = await this.runToolCall(requestId, active, machine, entry, options.mode);
+          outcomes.set(callId, outcome);
+          machine.state = machine.completeTool(callId, { success: outcome.ok, content: outcome.content });
+        })
+      );
+      if (active.cancelled) throw new ToolTurnError("cancelled", "Generation stopped.");
+    }
+    if (machine.state.phase === TurnPhase.SchedulingTools) machine.state = machine.startToolExecution();
+    return outcomes;
+  }
+
+  private async runToolCall(
+    requestId: string,
+    active: ActiveChat,
+    machine: TurnMachine,
+    entry: { call: ChatStreamResult["toolCalls"][number]; tool: CanvasTool; input: Record<string, unknown> },
+    mode: ComposerMode
+  ): Promise<ToolExecutionResult> {
+    const { call, tool, input } = entry;
+    const argumentsJson = JSON.stringify(input);
+    const requiresApproval = toolNeedsApproval(mode, tool);
+    this.emit({
+      type: "studio:toolProposed",
+      requestId,
+      callId: call.id,
+      name: tool.name,
+      summary: tool.description,
+      requiresApproval,
+      arguments: argumentsJson
+    });
+    if (requiresApproval) {
+      machine.state = machine.requestPermission({
+        toolCallId: call.id,
+        toolName: tool.name,
+        riskLevel: tool.destructive ? "high" : tool.readOnly ? "low" : "medium",
+        requestedAt: new Date()
+      });
+      this.emitTurnState(requestId, `Waiting for approval: ${tool.name}.`);
+      const granted = await this.waitForReply(
+        this.pendingPermissions,
+        requestId,
+        call.id,
+        active.controller.signal,
+        TOOL_PERMISSION_TIMEOUT_MS
+      ).catch((error: unknown) => {
+        if (error instanceof ToolTurnError && error.code === "timeout") return false;
+        throw error;
+      });
+      machine.state = machine.resolvePermission(call.id, granted ? "allow" : "deny");
+      if (!granted) {
+        this.emit({ type: "studio:toolResult", requestId, callId: call.id, ok: false, summary: "Declined by user." });
+        return { ok: false, content: "The user declined this action. No canvas changes were made." };
+      }
+    }
+    if (machine.state.phase !== TurnPhase.ExecutingTools) machine.state = machine.startToolExecution();
+    this.emitTurnState(
+      requestId,
+      `${requiresApproval ? "Applying approved action" : "Applying canvas action"}: ${tool.name}.`
+    );
+    this.emit({ type: "studio:toolExecute", requestId, callId: call.id, name: tool.name, arguments: argumentsJson });
+    const timeoutMs = toolTimeoutMs(tool.name);
+    const execution = await this.waitForReply(
+      this.pendingToolResults,
+      requestId,
+      call.id,
+      active.controller.signal,
+      timeoutMs
+    ).catch((error: unknown): ToolExecutionResult => {
+      if (error instanceof ToolTurnError && error.code === "timeout") {
+        return {
+          ok: false,
+          content: `The canvas did not finish ${tool.name} within ${Math.round(timeoutMs / 1000)} seconds. Check the canvas with get_canvas_summary before retrying.`
+        };
+      }
+      throw error;
+    });
+    const content = execution.content.slice(0, MAX_TOOL_OUTPUT_CHARS);
+    this.emit({
+      type: "studio:toolResult",
+      requestId,
+      callId: call.id,
+      ok: execution.ok,
+      summary: content.slice(0, 500) || (execution.ok ? "Completed." : "The canvas action failed.")
+    });
+    return { ...execution, content };
   }
 
   public cancel(requestId: string): void {
@@ -689,14 +840,23 @@ export class OpenRouterChatController {
     this.cancelAll();
   }
 
-  private emitTurnState(
-    requestId: string,
-    state: NonNullable<Extract<HostToStudioMessageInput, { type: "studio:turnEvent" }>["state"]>,
-    text: string
-  ): void {
-    const current = this.turns.get(requestId);
-    if (current) this.turns.set(requestId, { ...current, state });
-    this.emit({ type: "studio:turnEvent", requestId, state, text: text.slice(0, 8_000) });
+  /** Reports the turn machine's current phase to the panel. */
+  private emitTurnState(requestId: string, text: string): void {
+    const machine = this.turns.get(requestId);
+    if (!machine) return;
+    this.emit({
+      type: "studio:turnEvent",
+      requestId,
+      state: studioTurnState(machine.state.phase),
+      text: text.slice(0, 8_000)
+    });
+  }
+
+  private failTurn(requestId: string, message: string): void {
+    const machine = this.turns.get(requestId);
+    if (!machine) return;
+    machine.state = machine.fail({ type: "turn_error", message, recoverable: true });
+    this.emitTurnState(requestId, message);
   }
 
   private waitForReply<T>(
@@ -817,6 +977,13 @@ function normalizeModel(value: unknown): StudioModel | null {
     typeof value.context_length === "number" && Number.isFinite(value.context_length)
       ? Math.max(0, Math.min(Math.floor(value.context_length), 10_000_000))
       : 0;
+  const topProvider = isRecord(value.top_provider) ? value.top_provider : {};
+  const maxCompletionTokens =
+    typeof topProvider.max_completion_tokens === "number" &&
+    Number.isSafeInteger(topProvider.max_completion_tokens) &&
+    topProvider.max_completion_tokens > 0
+      ? Math.min(topProvider.max_completion_tokens, 10_000_000)
+      : null;
   const promptPrice = priceString(pricing.prompt);
   const completionPrice = priceString(pricing.completion);
   const created =
@@ -841,6 +1008,7 @@ function normalizeModel(value: unknown): StudioModel | null {
     inputModalities,
     outputModalities,
     contextLength,
+    maxCompletionTokens,
     promptPrice,
     completionPrice,
     supportedParameters,
@@ -902,6 +1070,16 @@ function readArtificialAnalysisRow(row: Record<string, unknown>): ArtificialAnal
 
 class OpenRouterStreamError extends Error {}
 
+/** Reads at most a few kilobytes of an error response, for the 402 "can only afford" hint. */
+async function readErrorText(response: Response): Promise<string> {
+  try {
+    const text = await response.clone().text();
+    return text.slice(0, 4_096);
+  } catch {
+    return "";
+  }
+}
+
 async function readBoundedJson(response: Response, maxBytes: number): Promise<unknown> {
   if (!response.body) throw new Error("OpenRouter returned an empty catalog response.");
   const reader = response.body.getReader();
@@ -930,6 +1108,7 @@ async function readBoundedJson(response: Response, maxBytes: number): Promise<un
 async function consumeChatStream(
   body: ReadableStream<Uint8Array>,
   signal: AbortSignal,
+  maxReplyChars: number,
   onDelta: (delta: string) => void,
   onReasoning: (delta: string) => void,
   onTool: (tool: { index: number; id?: string; name?: string; arguments?: string }) => void
@@ -967,7 +1146,7 @@ async function consumeChatStream(
         const reasoning = reasoningDelta(choice.delta);
         if (reasoning) {
           reasoningLength += reasoning.length;
-          if (reasoningLength > MAX_REPLY_CHARS) throw new OpenRouterStreamError();
+          if (reasoningLength > maxReplyChars) throw new OpenRouterStreamError();
           onReasoning(reasoning);
         }
         for (const tool of toolCallDeltas(choice.delta)) {
@@ -982,13 +1161,13 @@ async function consumeChatStream(
             if (existing.arguments.length > MAX_TOOL_ARGUMENT_CHARS) throw new OpenRouterStreamError();
           }
           toolCalls.set(tool.index, existing);
-          if (toolCalls.size > MAX_TOOL_CALLS_PER_ROUND) throw new OpenRouterStreamError();
+          if (toolCalls.size > MAX_STREAMED_TOOL_CALLS) throw new OpenRouterStreamError();
           onTool(tool);
         }
         const delta = extractText(choice.delta.content);
         if (delta) {
           textLength += delta.length;
-          if (textLength > MAX_REPLY_CHARS) throw new OpenRouterStreamError();
+          if (textLength > maxReplyChars) throw new OpenRouterStreamError();
           onDelta(delta);
         }
       }
@@ -1068,7 +1247,7 @@ export function toolCallDeltas(
       typeof item.index !== "number" ||
       !Number.isSafeInteger(item.index) ||
       item.index < 0 ||
-      item.index >= MAX_TOOL_CALLS_PER_ROUND
+      item.index >= MAX_STREAMED_TOOL_CALLS
     ) {
       return [];
     }

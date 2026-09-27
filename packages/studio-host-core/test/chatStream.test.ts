@@ -152,7 +152,7 @@ describe("chat stream and errors", () => {
     expect(gateway.turn("request-cancel-tool")?.state).toBe("error");
   });
 
-  it("auto-applies canvas writes but still requests approval before canvas reads", async () => {
+  it("applies canvas writes and reads in Design (auto) mode without approval", async () => {
     const write =
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-frame","function":{"name":"create_design_frame","arguments":"{\\"name\\":\\"Landing\\",\\"html\\":\\"<h1>Landing</h1>\\"}"}}]}}]}\n\ndata: [DONE]\n\n';
     const final = 'data: {"choices":[{"delta":{"content":"Frame created."}}]}\n\ndata: [DONE]\n\n';
@@ -179,8 +179,8 @@ describe("chat stream and errors", () => {
     const readRun = controller(readRequest);
     await readRun.chat.refreshModels();
     const readPending = readRun.chat.send({ ...chat("request-auto-read"), mode: "auto" });
-    await waitForType(readRun.messages, "studio:toolProposed");
-    expect(readRun.messages.find((message) => message.type === "studio:toolProposed")?.requiresApproval).toBe(true);
+    await waitForType(readRun.messages, "studio:toolExecute");
+    expect(readRun.messages.find((message) => message.type === "studio:toolProposed")?.requiresApproval).toBe(false);
     readRun.chat.cancel("request-auto-read");
     await readPending;
   });

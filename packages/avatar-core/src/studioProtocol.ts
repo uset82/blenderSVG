@@ -47,6 +47,8 @@ const model = z.strictObject({
   inputModalities: z.array(z.string().max(80)).max(32),
   outputModalities: z.array(z.string().max(80)).max(32),
   contextLength: z.number().int().nonnegative().max(10_000_000),
+  /** The provider's output-token limit, from the catalog's `top_provider.max_completion_tokens`. */
+  maxCompletionTokens: z.number().int().positive().max(10_000_000).nullable().optional(),
   promptPrice: z.string().max(64),
   completionPrice: z.string().max(64),
   supportedParameters: z.array(z.string().max(100)).max(256),
@@ -422,6 +424,14 @@ export const hostToStudioMessageSchema = z.discriminatedUnion("type", [
     callId: agentCallId,
     ok: z.boolean(),
     summary: z.string().max(500)
+  }),
+  z.strictObject({
+    protocolVersion: agentVersion,
+    type: z.literal("studio:toolProgress"),
+    requestId,
+    index: z.number().int().nonnegative().max(63),
+    name: z.string().trim().min(1).max(80).optional(),
+    chars: z.number().int().nonnegative().max(10_000_000)
   })
 ]);
 
@@ -446,7 +456,8 @@ const AGENT_MESSAGE_TYPES = new Set([
   "studio:toolExecute",
   "studio:turnEvent",
   "studio:toolProposed",
-  "studio:toolResult"
+  "studio:toolResult",
+  "studio:toolProgress"
 ]);
 
 export function migrateStudioMessage(value: unknown): unknown {
