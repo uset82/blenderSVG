@@ -1,13 +1,17 @@
-import {
-  STUDIO_CHAT_SYSTEM_PROMPT,
-  type StudioChatHistoryMessage,
-  type StudioModel
-} from "@codex-avatar-studio/avatar-core";
+import type { StudioChatHistoryMessage, StudioModel } from "@codex-avatar-studio/avatar-core";
+import { extractDesignBlocks, redactDesignBlocks } from "@codex-avatar-studio/studio-agent/designBlocks";
+import { buildSystemPrompt } from "@codex-avatar-studio/studio-agent/designPrompt";
 import { ArrowUp, Check, ChevronDown, Plus, RefreshCw, Search, Star, X } from "lucide-react";
 import type React from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "tldraw";
-import type { StudioChatRun, StudioImageAttachment, StudioModelCatalog, StudioToolCall } from "../bridge/studioHost.js";
+import type {
+  StudioChatExtras,
+  StudioChatRun,
+  StudioImageAttachment,
+  StudioModelCatalog,
+  StudioToolCall
+} from "../bridge/studioHost.js";
 import { assertChatImageAttachment } from "../projects/localAssets.js";
 import {
   type AgentConversation,
@@ -25,7 +29,8 @@ import { canStartSend, lastExchange } from "./chatActions.js";
 import { type ComposerMenuAction, composerMenuItems } from "./composerMenu.js";
 import { COMPOSER_MODES, type ComposerMode, modeDescription, nextComposerMode } from "./composerModes.js";
 import { compactHistory } from "./contextBudget.js";
-import { DESIGN_SKILLS } from "./designSkills.js";
+import { buildDesignContext } from "./designContext.js";
+import { DESIGN_SKILLS, designSkill } from "./designSkills.js";
 import {
   filterStudioModels,
   isDuplicateRoute,
@@ -38,6 +43,7 @@ import {
 } from "./modelFilters.js";
 import { filterModelsByBadges, groupCatalogModels, modelBadges, type QuickModelFilter } from "./modelPicker.js";
 import { nextModelOptionIndex } from "./modelPickerNavigation.js";
+import { placeDesignBlocks } from "./placeDesignBlocks.js";
 import { paidModelCue, sendContextLines } from "./privacyContext.js";
 import { hasProjectChatConsent, recordProjectChatConsent } from "./projectChatConsent.js";
 import { readProjectStyle, STYLE_PRESETS, withProjectStyle } from "./projectStyle.js";
@@ -78,7 +84,8 @@ export interface AgentConversationPanelProps {
     history: StudioChatHistoryMessage[],
     userMessage: string,
     attachment?: StudioImageAttachment,
-    mode?: "ask" | "plan" | "build" | "auto"
+    mode?: "ask" | "plan" | "build" | "auto",
+    extras?: StudioChatExtras
   ) => string | null;
   onCancelChat: (requestId: string) => void;
   onClearChatRun: () => void;
@@ -186,6 +193,10 @@ interface OutboundPreview {
   message: string;
   omittedMessages: number;
   attachment?: { file: File; dataUrl: string };
+  /** The system prompt this request will carry, shown in the full preview. */
+  systemPrompt: string;
+  extras: StudioChatExtras;
+  toolSupport: boolean;
 }
 
 export function AgentConversationPanel({
@@ -348,6 +359,10 @@ export function AgentConversationPanel({
   const [plusOpen, setPlusOpen] = useState(false);
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [skillMenuOpen, setSkillMenuOpen] = useState(false);
+  const [activeSkill, setActiveSkill] = useState<string | null>(null);
+  /** The mode and tool support of each request, to place text-only designs when it completes. */
+  const requestMetaRef = useRef(new Map<string, { mode: ComposerMode; toolSupport: boolean }>());
+  const placedRequestsRef = useRef(new Set<string>());
   const [variantMenuOpen, setVariantMenuOpen] = useState(false);
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
   const [, setFavoriteTick] = useState(0);
@@ -565,6 +580,27 @@ export function AgentConversationPanel({
     }
   }, [selectedModelId]);
 
+  // A model that answered a design request in text (no tools, or prose instead of tool calls) still
+  // gets its fenced html/svg placed on the canvas; the saved reply keeps a short note instead.
+  useEffect(() => {
+    if (chatRun?.status !== "complete" || !editor) return;
+    const { requestId, text } = chatRun;
+    const meta = requestMetaRef.current.get(requestId);
+    if (!meta || (meta.mode !== "auto" && meta.mode !== "build") || placedRequestsRef.current.has(requestId)) return;
+    placedRequestsRef.current.add(requestId);
+    const madeChanges = toolCalls.some(
+      (call) => call.requestId === requestId && !call.readOnly && call.status === "applied"
+    );
+    const blocks = extractDesignBlocks(text);
+    if (blocks.length === 0 || madeChanges) return;
+    void placeDesignBlocks(editor, blocks).then((notes) => {
+      const redacted = redactDesignBlocks(text, blocks, notes);
+      setMessages((current) =>
+        current.map((message) => (message.id === requestId ? { ...message, content: redacted } : message))
+      );
+    });
+  }, [chatRun, editor, toolCalls]);
+
   useEffect(() => {
     if (!chatRun) return;
     setMessages((current) => {
@@ -710,6 +746,23 @@ export function AgentConversationPanel({
     }
   };
 
+  /** The mode, skill, canvas snapshot and system prompt for a request to `model`. */
+  const outboundFor = (model: StudioModel) => {
+    const toolSupport = model.supportedParameters.includes("tools");
+    const mode = effectiveComposerMode(composerMode, toolSupport).mode;
+    const skill = activeSkill && mode !== "ask" ? activeSkill : undefined;
+    const designContext = editor
+      ? buildDesignContext(editor, { includeTarget: !toolSupport && (mode === "auto" || mode === "build") })
+      : undefined;
+    const extras: StudioChatExtras = { ...(skill ? { skill } : {}), ...(designContext ? { designContext } : {}) };
+    return {
+      mode,
+      toolSupport,
+      extras,
+      systemPrompt: buildSystemPrompt({ mode, toolSupport, skill, context: designContext })
+    };
+  };
+
   const requestPreview = async (skipConsent = false) => {
     if (
       !canSend ||
@@ -735,7 +788,7 @@ export function AgentConversationPanel({
     }
     setOutboundPreview({
       model: selectedModel,
-      mode: effectiveComposerMode(composerMode, selectedModel.supportedParameters.includes("tools")).mode,
+      ...outboundFor(selectedModel),
       history: bounded.history,
       message: draft.trim(),
       omittedMessages: bounded.omittedMessages,
@@ -756,7 +809,8 @@ export function AgentConversationPanel({
           outboundPreview.history,
           variantPrompt(outboundPreview.message, session.index, count),
           outboundPreview.attachment ? { dataUrl: outboundPreview.attachment.dataUrl } : undefined,
-          outboundPreview.mode
+          outboundPreview.mode,
+          outboundPreview.extras
         );
       });
     }
@@ -765,9 +819,11 @@ export function AgentConversationPanel({
       outboundPreview.history,
       count > 1 ? variantPrompt(outboundPreview.message, 0, count) : outboundPreview.message,
       outboundPreview.attachment ? { dataUrl: outboundPreview.attachment.dataUrl } : undefined,
-      outboundPreview.mode
+      outboundPreview.mode,
+      outboundPreview.extras
     );
     if (!requestId) return;
+    requestMetaRef.current.set(requestId, { mode: outboundPreview.mode, toolSupport: outboundPreview.toolSupport });
     setMessages((current) => [
       ...current,
       {
@@ -966,7 +1022,7 @@ export function AgentConversationPanel({
       .map(({ role, content }) => ({ role, content }) as StudioChatHistoryMessage);
     setOutboundPreview({
       model: selectedModel,
-      mode: effectiveComposerMode(composerMode, selectedModel.supportedParameters.includes("tools")).mode,
+      ...outboundFor(selectedModel),
       history: boundOutboundHistory(history, selectedModel.contextLength).history,
       message: last.user.content,
       omittedMessages: 0,
@@ -1274,9 +1330,10 @@ export function AgentConversationPanel({
                 <button
                   key={skill.id}
                   type="button"
-                  role="menuitem"
+                  role="menuitemcheckbox"
+                  aria-checked={activeSkill === skill.id}
                   onClick={() => {
-                    appendDraft(skill.prompt);
+                    setActiveSkill((current) => (current === skill.id ? null : skill.id));
                     setSkillMenuOpen(false);
                   }}
                 >
@@ -1317,6 +1374,17 @@ export function AgentConversationPanel({
               event.target.value = "";
             }}
           />
+          {activeSkill && (
+            <button
+              className="studio-agent__chip"
+              type="button"
+              title="The design brief sent with each message. Click to remove it."
+              aria-label={`Remove the ${designSkill(activeSkill)?.name ?? activeSkill} brief`}
+              onClick={() => setActiveSkill(null)}
+            >
+              {designSkill(activeSkill)?.name ?? activeSkill} <X size={12} aria-hidden="true" />
+            </button>
+          )}
           <div className="studio-agent__mode">
             <button
               className="studio-agent__chip"
@@ -2035,7 +2103,7 @@ function OutboundRequestDialog({
   onSend: () => void;
 }) {
   const outboundMessages = keyedOutboundMessages([
-    { kind: "system" as const, role: "assistant" as const, content: STUDIO_CHAT_SYSTEM_PROMPT },
+    { kind: "system" as const, role: "assistant" as const, content: preview.systemPrompt },
     ...preview.history.map((message) => ({ kind: "history" as const, ...message })),
     { kind: "draft" as const, role: "user" as const, content: preview.message }
   ]);

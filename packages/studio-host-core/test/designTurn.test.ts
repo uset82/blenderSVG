@@ -292,6 +292,35 @@ describe("design turn harness", () => {
     expect(bodies.map((body) => body.tool_choice)).toEqual(["auto", "auto", "auto", "none"]);
   });
 
+  it("sends the design prompt with the skill and canvas, and no tools to a model without them", async () => {
+    const designContext = {
+      pageName: "Scratchpad",
+      frames: [
+        { id: "shape:empty", name: "Frame", kind: "frame" as const, x: 0, y: 0, width: 1440, height: 1024, empty: true }
+      ],
+      selectedIds: []
+    };
+    const withTools = harness([{ text: "Done." }]);
+    await withTools.gateway.refreshModels();
+    await withTools.gateway.send({ ...request("auto"), skill: "landing", designContext });
+    const system = String(withTools.bodies[0]?.messages[0]?.content);
+    expect(withTools.bodies[0]?.messages[0]?.role).toBe("system");
+    expect(system).toContain("create_design_frame");
+    expect(system).toContain("Design brief: Landing page");
+    expect(system).toContain("(shape:empty), 1440×1024 at 0, 0, empty");
+    expect(system).not.toContain("cannot change the canvas");
+
+    const textOnly = harness([{ text: '```svg\n<svg viewBox="0 0 10 10"></svg>\n```' }], {
+      model: toolModel({ supported_parameters: ["max_tokens"] })
+    });
+    await textOnly.gateway.refreshModels();
+    await textOnly.gateway.send(request("auto", "turn-text"));
+    const body = textOnly.bodies[0] as Body & { tools?: unknown };
+    expect(body.tools).toBeUndefined();
+    expect(String(body.messages[0]?.content)).toContain("kurva-frame");
+    expect(ofType(textOnly.messages, "studio:chatComplete")).toHaveLength(1);
+  });
+
   it("reports a model that stops at its output limit without any reply", async () => {
     const { gateway, messages } = harness([{ finishReason: "length" }]);
     await gateway.refreshModels();

@@ -3,6 +3,7 @@ import type {
   StudioChatUsage,
   StudioConversationMeta,
   StudioConversationRecord,
+  StudioDesignContext,
   StudioModel,
   StudioProjectDocument,
   StudioProjectMeta,
@@ -47,6 +48,12 @@ export interface StudioToolCall extends ToolCallRecord {
   readOnly: boolean;
   requiresApproval: boolean;
   imageDataUrl?: string;
+}
+
+/** What a design request carries besides the message: the chosen skill and a snapshot of the canvas. */
+export interface StudioChatExtras {
+  skill?: string;
+  designContext?: StudioDesignContext;
 }
 
 export interface StudioToolExecution {
@@ -617,7 +624,8 @@ export function useStudioHost() {
       history: Array<{ role: "user" | "assistant"; content: string }>,
       userMessage: string,
       attachment?: StudioImageAttachment,
-      mode?: "ask" | "plan" | "build" | "auto"
+      mode?: "ask" | "plan" | "build" | "auto",
+      extras: StudioChatExtras = {}
     ) => {
       if (currentTransport().kind === "fixture") return null;
       const requestId = `chat-${crypto.randomUUID()}`;
@@ -629,7 +637,9 @@ export function useStudioHost() {
         history,
         userMessage,
         ...(attachment ? { attachment } : {}),
-        ...(mode ? { mode } : {})
+        ...(mode ? { mode } : {}),
+        ...(extras.skill ? { skill: extras.skill } : {}),
+        ...(extras.designContext ? { designContext: extras.designContext } : {})
       });
       return requestId;
     },
