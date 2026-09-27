@@ -9,10 +9,14 @@ const agentVersion = z.literal(2);
 export const STUDIO_AGENT_PROTOCOL_VERSION = 2 as const;
 const requestId = z.string().regex(/^[A-Za-z0-9-]{8,64}$/);
 const agentCallId = z.string().trim().min(1).max(80);
+// Equal to MAX_TOOL_ARGUMENT_CHARS / MAX_DESIGN_RESULT_CHARS in packages/studio-agent/src/limits.ts;
+// a test keeps them in step. Design frames carry whole HTML documents.
+export const STUDIO_TOOL_ARGUMENT_LIMIT = 262_144;
+export const STUDIO_TOOL_RESULT_LIMIT = 220_000;
 const boundedToolArguments = z
   .string()
   .min(2)
-  .max(16_384)
+  .max(STUDIO_TOOL_ARGUMENT_LIMIT)
   .refine((value) => {
     try {
       const parsed: unknown = JSON.parse(value);
@@ -216,7 +220,7 @@ export const studioToHostMessageSchema = z.discriminatedUnion("type", [
     requestId,
     callId: agentCallId,
     ok: z.boolean(),
-    content: z.string().max(16_384),
+    content: z.string().max(STUDIO_TOOL_RESULT_LIMIT),
     imageDataUrl: boundedToolImage.optional()
   })
 ]);

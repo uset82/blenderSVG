@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clay &amp; Kiln — Desktop</title>
+<style>
+  :root {
+    --paper: #f6f1ea;
+    --ink: #1d1a17;
+    --clay: #b5542d;
+    --clay-soft: #e8c9b3;
+    --muted: #6e645b;
+    --line: #e2d8cc;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: ui-serif, Georgia, "Times New Roman", serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--ink); background: #fffdf9; }
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 28px 80px; border-bottom: 1px solid var(--line); }
+  .brand { font-family: var(--serif); font-size: 26px; letter-spacing: 0.5px; }
+  .nav a { color: var(--muted); text-decoration: none; margin-left: 32px; font-size: 15px; }
+  .hero { background: var(--paper); padding: 120px 80px 110px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 64px; align-items: center; }
+  .eyebrow { text-transform: uppercase; letter-spacing: 3px; font-size: 13px; color: var(--clay); }
+  .hero h1 { font-family: var(--serif); font-size: 72px; line-height: 1.02; margin: 18px 0 24px; font-weight: 400; }
+  .hero p { font-size: 20px; line-height: 1.6; color: var(--muted); max-width: 560px; }
+  .cta { display: inline-block; margin-top: 32px; background: var(--ink); color: #fff; padding: 16px 30px; border-radius: 999px; font-size: 16px; }
+  .cta.secondary { background: transparent; color: var(--ink); border: 1px solid var(--ink); margin-left: 12px; }
+  .hero-art { height: 420px; border-radius: 220px 220px 24px 24px; background: radial-gradient(circle at 30% 30%, var(--clay-soft), var(--clay)); }
+  .classes { padding: 100px 80px; }
+  .section-title { font-family: var(--serif); font-size: 44px; font-weight: 400; margin: 0 0 40px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .card { border: 1px solid var(--line); border-radius: 20px; padding: 28px; background: #fff; }
+  .card h3 { margin: 16px 0 8px; font-size: 22px; }
+  .card p { color: var(--muted); line-height: 1.55; margin: 0; }
+  .price { margin-top: 20px; font-weight: 600; color: var(--clay); }
+  .gallery { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 20px; padding: 0 80px 100px; }
+  .tile { height: 260px; border-radius: 18px; }
+  footer { background: var(--ink); color: #e9e2d8; padding: 56px 80px; display: flex; justify-content: space-between; }
+  @media (max-width: 600px) {
+    .nav, .hero, .classes, footer { padding-left: 24px; padding-right: 24px; }
+    .hero { grid-template-columns: 1fr; padding-top: 64px; }
+    .hero h1 { font-size: 44px; }
+    .grid, .gallery { grid-template-columns: 1fr; }
+  }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">
+<script>window.parent.postMessage("pwned", "*")</script>
+</head>
+<body class="page">
+  <header class="nav">
+    <div class="brand">Clay &amp; Kiln</div>
+    <nav><a href="#classes">Classes</a><a href="#gallery">Gallery</a><a href="https://example.com/visit">Visit</a></nav>
+  </header>
+  <section class="hero">
+    <div>
+      <div class="eyebrow">Neighborhood ceramics studio</div>
+      <h1>Make something you’ll use every day.</h1>
+      <p>Wheel-throwing and hand-building classes for every level, open studio hours, and a quiet place to get your hands in the clay.</p>
+      <a class="cta" href="#classes">Book a class</a><a class="cta secondary" href="#gallery">See the work</a>
+    </div>
+    <div class="hero-art" role="img" aria-label="Glazed bowl"></div>
+  </section>
+  <section class="classes" id="classes">
+    <h2 class="section-title">This week’s classes</h2>
+    <div class="grid">
+      <article class="card"><img alt="" width="40" height="40" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='18' fill='%23b5542d'/%3E%3C/svg%3E"><h3>Wheel basics</h3><p>Center, open and pull your first cylinders in a small group of six.</p><div class="price">Tue · 6pm · $45</div></article>
+      <article class="card"><img alt="" width="40" height="40" src="https://example.com/tracker.png"><h3>Hand-building</h3><p>Pinch, coil and slab techniques for planters and serving dishes.</p><div class="price">Thu · 7pm · $40</div></article>
+      <article class="card" style="background: #fbf4ec; border-color: #e8c9b3"><h3>Open studio</h3><p>Members-only wheel time with kiln firing included.</p><div class="price">Sat · 10am · Members</div></article>
+    </div>
+  </section>
+  <section class="gallery" id="gallery">
+    <div class="tile" style="background: linear-gradient(135deg, #e8c9b3, #b5542d)"></div>
+    <div class="tile" style="background: #d9cbbb"></div>
+    <div class="tile" style="background: url('https://example.com/bg.jpg') center / cover, #c9b8a6"></div>
+  </section>
+  <footer><div>Clay &amp; Kiln · 214 Mill Street</div><div onclick="alert(1)">Open Tue–Sun · 10am–9pm</div></footer>
+</body>
+</html>

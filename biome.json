@@ -11,6 +11,7 @@
       "!**/dist-web/**",
       "!**/.kilo/**",
       "!apps/site/app/**",
+      "!scripts/fixtures/**",
       "!apps/extension/media/**",
       "!apps/webview/dist/**",
       "!apps/webview/src/renderers/WebGLAvatarRenderer.tsx"

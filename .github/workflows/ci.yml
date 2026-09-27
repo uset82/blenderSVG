@@ -103,4 +103,12 @@ jobs:
           node scripts/web-canvas-persist.mjs
           node scripts/web-export.mjs
           node scripts/web-avatar-package.mjs
+          node scripts/web-design-frame.mjs
           node scripts/smoke-web-staging.mjs
+      - name: Design frames render in Firefox and WebKit
+        run: |
+          pnpm exec playwright install --with-deps firefox webkit
+          status=0
+          KURVA_BROWSER=firefox node scripts/web-design-frame.mjs || status=1
+          KURVA_BROWSER=webkit node scripts/web-design-frame.mjs || status=1
+          exit $status

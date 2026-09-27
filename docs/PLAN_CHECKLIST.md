@@ -994,19 +994,22 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
   - **Write:** `create_frame`, `create_shapes`, `update_shapes`, `delete_shapes`, `insert_svg`, `set_text`, `apply_style`, `align`.
   - **Design:** `create_design_frame`.
   - Evidence (2026-09-24): `packages/studio-agent/src/canvasTools.ts` registers five read tools, eight write tools, and `create_design_frame`; nested schemas constrain required fields, enums, bounds and additional properties. `delete_shapes` is destructive and reads are marked read-only. `openAiTools()` returns 14 function tools with no provider-key field. Strict argument validation tests passed, and `apps/studio/src/components/executeCanvasTool.ts` now executes these operations against the live editor API with bounded results and one history stopping point per write call. The focused 32-test suite and package builds passed; live GUI drawing acceptance remains under the canvas/design-frame tasks.
-- [x] 20.5 A "Design frame" tldraw shape:
+- [ ] 20.5 A "Design frame" tldraw shape:
+  - Reopened (2026-09-27): on the web and standalone hosts the page CSP is `style-src 'self'`, and a `srcdoc` iframe inherits it, so every `<style>` block and `style=""` in agent HTML was refused ("Refused to apply inline style"). The sanitizer also stripped `data:` images. The 2026-09-24 evidence only rendered unstyled `<h1>Hello</h1>`. Tracked in Phase 25.1–25.2.
   - It renders agent-authored HTML+CSS inside a sandboxed `iframe srcdoc`, with no scripts, no network and sanitized markup.
   - It can be resized and exported to PNG or HTML.
   - This is how prompts like "landing page" or "dashboard" produce real layouts.
   - Evidence: `design-frame` is a resizable tldraw shape. Its HTML is shown in an iframe with `sandbox=""` and `srcDoc` from `designFrameSrcDoc`. Scripts, event handlers, and remote URLs are stripped. `apps/studio/test/designFrameHtml.test.ts` passed 1/1. On 2026-09-24 a live standalone canvas created a frame named Landing from `<h1>Hello</h1><script>alert(1)</script>`, resized it to 480×200, and exported a PNG. The mounted iframe had `sandbox=""`, included Hello, and did not include a script. The host asset store is memoized so a save no longer remounts the editor. `.codex-avatar/verify-181e.mjs` exited 0.
-- [x] 20.6 Composer modes (ZCode-style; Shift+Tab cycles them):
+- [ ] 20.6 Composer modes (ZCode-style; Shift+Tab cycles them):
+  - Reopened (2026-09-27): the panel defaults to Ask (no tools), the system prompt said "You cannot directly change the canvas" in every mode, Approve did nothing on the web host, and Auto stalled on any read. Evidence was mock-only. Tracked in Phase 25.3–25.5.
   - **Ask:** chat only.
   - **Plan:** read tools only, and returns a list of steps.
   - **Build:** write tools are previewed and applied only after approval.
   - **Auto:** canvas-only changes are applied automatically, each as one undo step.
   - File and Blender tools always ask for approval.
   - Evidence (2026-09-24): Ask offers no tools, Plan advertises read tools, Build waits for approval on writes, and Auto applies canvas writes as individual undoable tool actions; Auto reads still request permission. File and Blender tools are not registered in this canvas host yet. `composerModes.test.ts` and the host-mode cases in `chatStream.test.ts` cover the mode-specific contract, including that Auto write calls run without a permission prompt while read calls pause. Studio and host-core typechecks passed.
-- [x] 20.7 Proposal preview: pending changes show as a ghost layer with Apply and Reject. Apply is a single tldraw history mark, so one Undo reverts it.
+- [ ] 20.7 Proposal preview: pending changes show as a ghost layer with Apply and Reject. Apply is a single tldraw history mark, so one Undo reverts it.
+  - Reopened (2026-09-27): Apply for `create_shapes` passed props tldraw rejects (`name` on geo/text, `h` on text), the host only waited 8 s for Apply, and the owner chose instant apply with one Undo per agent turn instead. The prop bug is fixed in Phase 25.2; the turn-level Undo is Phase 25.5.
   - Evidence: An approved write tool becomes a proposal through `proposalFromTool` and is not written until Apply. The preview is a dashed overlay. Apply calls `markHistoryStoppingPoint` once, then creates each shape. Reject clears the proposal and does not touch the editor. `apps/studio/test/canvasProposal.test.ts` passed 2/2. On 2026-09-24 the live canvas showed a dashed ghost named Landing ghost with Apply and Reject. Apply added that design frame, and one Undo removed it (`applied: 1`, `afterUndo: 0`).
 - [x] 20.8 A tool-call card for each call: the tool name, a short argument summary, status, duration, the result or error, and Apply/Reject/Undo.
   - Evidence (2026-09-24): `ToolCallView.tsx` shows the tool name, argument summary, exact arguments, status, duration, bounded result or error, screenshot, privacy disclosure, Approve/Reject, and Undo after an applied write. `withToolTiming` records the start when a call is running and the elapsed milliseconds when it is applied, rejected, or fails. Undo calls `editor.undo()`. `apps/studio/test/toolCallCard.test.tsx` passed 1/1, including a 48 ms duration and an Undo button on an applied `create_frame` card. A live model call was not streamed, so the button was not clicked in the browser.
@@ -1042,6 +1045,7 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
 - "Design a landing page for X" in Build mode shows a preview.
 - Apply adds it, and one Undo removes it.
 - Every tool call is visible in the chat.
+- Note (2026-09-27): this was never shown with a real model; every run used a scripted fixture. Superseded by Phase 25's "Done when".
 
 ### Phase 21 — Creation engines: image → SVG, avatars, Blender, optional remote SVG · requested, required
 
@@ -1208,6 +1212,22 @@ The former Phases 17 (on-canvas agents) and 18 (acceptance) had no completed ite
 - [doop](https://github.com/kgoedecke/doop) (AGPL-3.0): ideas only, especially its MCP-first canvas. Never copy its code.
 - [vtracer](https://github.com/visioncortex/vtracer): local tracing.
 - [QuiverAI createSVGs](https://github.com/quiverai/quiverai-node/blob/main/docs/sdks/createsvgs/README.md): the optional remote SVG engine in Phase 21.3.
+
+### Phase 25 — Working design agent (Lovable/Bolt for design, on the ZCode harness) · requested 2026-09-27, required
+
+The owner's goal: type "Design a landing page for a neighborhood ceramics studio" on Home or in the Scratchpad agent panel, and a real, finished design appears on the canvas, then iterate by chat ("make the hero dark and add a mobile version"), undo a whole turn, restore an earlier version, and export the code. Owner decisions (2026-09-27): output is live HTML+CSS design frames (editable layers later); changes apply instantly with one Undo per agent turn and a per-turn version history; consent is asked once per browser and the full request preview is opt-in; the default model is the best design model in the user's catalog, with its price shown; drawing requests ("dibuja un gato") become detailed SVG illustrations; ZCode's harness pieces are ported with Apache-2.0 attribution after an audit. Evidence for this phase names real model ids, dates and costs; fixtures alone never check an item. Plan: `/root/.claude/plans/i-told-you-that-eager-bunny.md` (M1–M5).
+
+- [ ] 25.1 Design frames render agent HTML+CSS under every host CSP (`style-src 'self'`, `frame-src 'none'`), in Chromium, Firefox and WebKit, with no CSP violations.
+  - Evidence so far (2026-09-27): `scripts/web-design-frame.mjs` serves the web build with the Caddyfile headers over HTTPS. On current `main` it failed with 10 "Refused to apply inline style" errors and a transparent hero. With the new renderer (`designFrameRenderer.ts`: inert parse, CSS applied through a constructed stylesheet, `style=""` through `element.style.cssText`, iframe `sandbox="allow-same-origin"` without scripts) Chromium 141 shows the fixture's hero `rgb(246, 241, 234)`, inline styles, gradients and the 390 px media query, with zero CSP violations and no off-origin request. Firefox and WebKit run in the CI `web` job.
+- [ ] 25.2 Design tools on a real editor: `create_design_frame` (width 240–2560, measured height, `intoFrameId` fills an empty frame such as the Scratchpad/New file preset, `placement` right/below with no overlap), `get_design_frame`, `update_design_frame`, `patch_design_frame` (exact, all-or-nothing), `insert_svg` for illustrations; Export HTML and Copy HTML from the canvas menu. Invalid tldraw props fixed in `create_shapes`, `update_shapes` and proposals.
+  - Evidence so far (2026-09-27): `web-design-frame.mjs` runs every design tool against the live editor (fills the empty preset frame, patches the hero to `rgb(29, 26, 23)`, rejects an ambiguous patch, places a 390 frame to the right, inserts a sanitized SVG, renames) and downloads a script-free HTML export from the canvas menu. Fixed on the way: tldraw's own context menu opened over Kurva's and swallowed clicks, and the menu ran off the bottom of the window.
+- [ ] 25.3 ZCode harness port (turn state/machine, scheduler, JSON-schema validation and model-facing validation errors, tool input normalization) with per-file Apache-2.0 attribution; the loop feeds tool errors back to the model, allows tool-only turns, keeps round text, sizes the output budget from the model catalog, retries a 402 with an affordable budget, and approvals work on the web host.
+- [ ] 25.4 Design brain: a real design system prompt per mode, design skills, design context sent each turn, and a fenced-HTML fallback so models without tool support still produce frames.
+- [ ] 25.5 Lovable-style UX: Home send opens the editor and sends; Design mode is the default; changes apply instantly and one Undo reverts the whole turn; per-turn versions can be restored; consent once per browser; the full preview is opt-in; a default design model; Connect from the panel keeps the draft across the OAuth redirect.
+- [ ] 25.6 `scripts/web-design-agent.mjs` runs the whole journey in CI with a mocked OpenRouter (multi-round SSE, a failed patch corrected by the model, a mobile frame, one-Undo, restore, export, reload, no-tools fallback, zero CSP violations).
+- [ ] 25.7 Live acceptance with real models: `pnpm live:design` on the owner's machine and the same journey on https://kurva.agency/app/, for at least one paid and one free tool-capable model: turn 1 produces a frame at least 1200 wide with at least 3 sections and real styles within 6 minutes and at most 2 tool errors; turn 2 changes the hero and adds a 390 ± 10 frame to the right; one Undo reverts the turn; the export has no scripts; a model without tools produces a frame through the fallback.
+
+**Done when:** the owner's journey above works on https://kurva.agency/app/ with a real model, recorded with model ids, cost and date.
 
 ### Repository organization and rename track (R1–R7) · requested, runs between phases
 
@@ -1417,7 +1437,8 @@ The checked gates in 6.1–6.3 certify the existing avatar extension/pipeline on
   - Evidence (2026-09-25): Phase 23.5 found no `sk-or-` key and no OpenRouter URL in `apps/studio/dist`. `pnpm smoke:studio-openrouter` verified browser storage and protocol frames contain no provider key (19.8). Host SecretStorage holds the key (17.7).
 - [x] Any eligible live-catalog model can be chosen per conversation. Chat streams, stops, retries and persists, and shows cost and errors honestly.
   - Evidence (2026-09-25): Phase 19.4–19.10 load `/models/user` (public fallback on 403), persist the model per conversation, stream with Stop/Retry, and print token counts or “cost was not returned.” `pnpm smoke:studio-openrouter` completed a streamed reply against a fixture provider; isolated Edge completed a live catalog refresh and streaming chat. The VS Code Webview picker half of 19.4 stays open pending a live OpenRouter catalog pass in the installed Webview (canvas license is no longer the blocker).
-- [x] Agent tools are capability-gated, permissioned and visible. Canvas edits are previewed and undoable in one step, and unsupported variants stay disabled.
+- [ ] Agent tools are capability-gated, permissioned and visible. Canvas edits are previewed and undoable in one step, and unsupported variants stay disabled.
+  - Reopened (2026-09-27): see 20.5–20.7. No real model produced a design, and approvals did not work on the web host. Phase 25 carries the fix and live acceptance.
   - Evidence (2026-09-25): Phase 20.4–20.10 gate tools by capability, show tool-call cards, preview proposals as a ghost with Apply/Reject as one history mark, and keep the 1×–4× variants chip disabled with a reason until supported.
 - [x] At least two external IDEs connect over MCP with per-client tokens and permissions.
   - Evidence (2026-09-25): Phase 22.6 recorded passing read/write probes for Codex CLI 0.153.4, Claude Code 2.1.235, Qoder CLI 1.1.62, and Cursor Agent CLI 2026.09.23-86fc751. Each listed projects, read canvas state, and created a persisted design frame through a one-time client token. VS Code Agent Host and WorkBuddy remain open in 22.6 and are not required for this “at least two” gate.

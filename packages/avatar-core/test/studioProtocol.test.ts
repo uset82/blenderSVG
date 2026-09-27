@@ -4,7 +4,9 @@ import {
   createStudioToHostMessage,
   parseHostToStudioMessage,
   parseStudioToHostMessage,
-  STUDIO_PROTOCOL_VERSION
+  STUDIO_PROTOCOL_VERSION,
+  STUDIO_TOOL_ARGUMENT_LIMIT,
+  STUDIO_TOOL_RESULT_LIMIT
 } from "../src/studioProtocol.js";
 
 describe("Studio bridge protocol", () => {
@@ -130,7 +132,19 @@ describe("Studio bridge protocol", () => {
       content: "Frame created."
     });
     expect(parseStudioToHostMessage(result).success).toBe(true);
-    expect(parseStudioToHostMessage({ ...result, content: "x".repeat(16_385) }).success).toBe(false);
+    expect(parseStudioToHostMessage({ ...result, content: "x".repeat(STUDIO_TOOL_RESULT_LIMIT) }).success).toBe(true);
+    expect(parseStudioToHostMessage({ ...result, content: "x".repeat(STUDIO_TOOL_RESULT_LIMIT + 1) }).success).toBe(
+      false
+    );
+    const page = JSON.stringify({ name: "Landing", html: `<style>${"a{b:c}".repeat(20_000)}</style>` });
+    expect(page.length).toBeGreaterThan(100_000);
+    expect(parseHostToStudioMessage({ ...execute, name: "create_design_frame", arguments: page }).success).toBe(true);
+    expect(
+      parseHostToStudioMessage({
+        ...execute,
+        arguments: JSON.stringify({ html: "x".repeat(STUDIO_TOOL_ARGUMENT_LIMIT) })
+      }).success
+    ).toBe(false);
     expect(parseHostToStudioMessage({ ...proposal, arguments: "[]" }).success).toBe(false);
     expect(parseHostToStudioMessage({ ...execute, apiKey: "must-not-cross-the-bridge" }).success).toBe(false);
   });

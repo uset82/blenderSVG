@@ -9,6 +9,11 @@ import {
 import { parseCanvasToolArguments } from "@codex-avatar-studio/studio-agent/agentGuards";
 import { canvasTool, toolsForComposerMode } from "@codex-avatar-studio/studio-agent/canvasTools";
 import {
+  MAX_DESIGN_RESULT_CHARS,
+  MAX_SSE_EVENT_CHARS,
+  MAX_TOOL_ARGUMENT_CHARS
+} from "@codex-avatar-studio/studio-agent/limits";
+import {
   createTurn,
   reduceTurn,
   type TurnSnapshot,
@@ -24,7 +29,7 @@ const MAX_HISTORY_CHARS = 60_000;
 const MAX_REPLY_CHARS = 64_000;
 const MAX_TOOL_ROUNDS = 4;
 const MAX_TOOL_CALLS_PER_ROUND = 6;
-const MAX_TOOL_OUTPUT_CHARS = 16_384;
+const MAX_TOOL_OUTPUT_CHARS = MAX_DESIGN_RESULT_CHARS;
 const TOOL_PERMISSION_TIMEOUT_MS = 120_000;
 
 type CatalogMessage = Extract<HostToStudioMessageInput, { type: "studio:modelCatalog" }>;
@@ -974,7 +979,7 @@ async function consumeChatStream(
           }
           if (tool.arguments) {
             existing.arguments += tool.arguments;
-            if (existing.arguments.length > 16_384) throw new OpenRouterStreamError();
+            if (existing.arguments.length > MAX_TOOL_ARGUMENT_CHARS) throw new OpenRouterStreamError();
           }
           toolCalls.set(tool.index, existing);
           if (toolCalls.size > MAX_TOOL_CALLS_PER_ROUND) throw new OpenRouterStreamError();
@@ -1015,13 +1020,13 @@ async function consumeChatStream(
           const fieldValue = colon < 0 ? "" : line.slice(colon + 1).replace(/^ /, "");
           if (field === "data") {
             eventSize += fieldValue.length;
-            if (eventSize > 64_000) throw new OpenRouterStreamError();
+            if (eventSize > MAX_SSE_EVENT_CHARS) throw new OpenRouterStreamError();
             dataLines.push(fieldValue);
           }
         }
         lineBreak = buffer.indexOf("\n");
       }
-      if (buffer.length > 64_000) throw new OpenRouterStreamError();
+      if (buffer.length > MAX_SSE_EVENT_CHARS) throw new OpenRouterStreamError();
       if (done) {
         if (buffer.trim()) {
           dataLines.push(buffer.startsWith("data:") ? buffer.slice(5).trimStart() : buffer);

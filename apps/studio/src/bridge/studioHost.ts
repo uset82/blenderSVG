@@ -9,6 +9,7 @@ import type {
   StudioToHostMessage,
   StudioToHostMessageInput
 } from "@codex-avatar-studio/avatar-core";
+import { STUDIO_TOOL_RESULT_LIMIT } from "@codex-avatar-studio/avatar-core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type ToolCallRecord, withToolTiming } from "../components/toolCallCard.js";
 import { createInitialHostState } from "../web/initialHostState.js";
@@ -669,7 +670,7 @@ export function useStudioHost() {
 
   const completeToolExecution = useCallback(
     (requestId: string, callId: string, result: { ok: boolean; content: string; imageDataUrl?: string }) => {
-      const boundedContent = result.content.slice(0, 16_384);
+      const boundedContent = result.content.slice(0, STUDIO_TOOL_RESULT_LIMIT);
       setPendingToolExecutions((current) =>
         current.filter((call) => call.requestId !== requestId || call.callId !== callId)
       );

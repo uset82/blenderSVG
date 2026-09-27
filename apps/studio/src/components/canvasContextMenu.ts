@@ -21,6 +21,8 @@ export type CanvasMenuAction =
   | "export-svg"
   | "export-png-1"
   | "export-png-2"
+  | "export-html"
+  | "copy-html"
   | "ask-agent";
 
 export interface CanvasMenuItem {
@@ -47,7 +49,11 @@ export function canvasMenuItems(input: {
   selectedCount: number;
   canPaste: boolean;
   snapEnabled: boolean;
+  /** How many selected shapes are design frames (HTML designs). */
+  designFrameCount?: number;
 }): CanvasMenuItem[] {
+  const designFrames = input.designFrameCount ?? 0;
+  const designReason = "Select a design frame first.";
   const hasSelection = input.selectedCount > 0;
   const selectionReason = "Select something on the canvas first.";
   const alignReason = "Select at least two shapes.";
@@ -77,6 +83,13 @@ export function canvasMenuItems(input: {
     item("export-svg", "Export SVG", hasSelection, selectionReason),
     item("export-png-1", "Export PNG 1×", hasSelection, selectionReason),
     item("export-png-2", "Export PNG 2×", hasSelection, selectionReason),
+    item(
+      "export-html",
+      designFrames > 1 ? `Export HTML (${designFrames} files)` : "Export HTML",
+      designFrames > 0,
+      designReason
+    ),
+    item("copy-html", "Copy HTML", designFrames === 1, designFrames > 1 ? "Select one design frame." : designReason),
     item("ask-agent", "Ask agent about selection", hasSelection, selectionReason)
   ];
 }
