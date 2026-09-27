@@ -77,6 +77,8 @@ describe("web shell", () => {
     expect(privacy).toContain("OpenRouter");
     const notices = readFileSync(new URL("apps/studio/public/notices.html", root), "utf8");
     expect(notices).toContain("MIT");
+    expect(notices).toContain("ZCode");
+    expect(notices).toContain("Apache License, Version 2.0");
     const security = readFileSync(new URL("apps/studio/public/.well-known/security.txt", root), "utf8");
     expect(security).toContain("Contact:");
   });
