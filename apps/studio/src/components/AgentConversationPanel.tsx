@@ -67,6 +67,7 @@ import {
 import { readProjectStyle, STYLE_PRESETS, withProjectStyle } from "./projectStyle.js";
 import { chatRunStatusLabel } from "./shellStatus.js";
 import { ToolCallCard } from "./ToolCallView.js";
+import { writingLabel } from "./toolCallCard.js";
 import { effectiveComposerMode } from "./toolModeFallback.js";
 import {
   keepVariantFrame,
@@ -1225,7 +1226,9 @@ export function AgentConversationPanel({
           )}
           {chatRunStatusLabel(chatRun?.status) && (
             <p className="studio-agent__usage" role="status">
-              {chatRunStatusLabel(chatRun?.status)}
+              {chatRun?.status === "streaming" && chatRun.writing
+                ? writingLabel(chatRun.writing)
+                : chatRunStatusLabel(chatRun?.status)}
               {chatRun?.status === "error" && chatRun.message ? ` ${chatRun.message}` : ""}
             </p>
           )}

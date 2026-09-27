@@ -1,11 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ToolCallCard } from "../src/components/ToolCallView.js";
-import { argumentSummary, withToolTiming } from "../src/components/toolCallCard.js";
+import { argumentSummary, withToolTiming, writingLabel } from "../src/components/toolCallCard.js";
 
 describe("tool call card", () => {
   it("shows the exact proposed action and explicit privacy approval", () => {
     expect(argumentSummary(` ${"a".repeat(90)} `).endsWith("…")).toBe(true);
+    expect(argumentSummary(JSON.stringify({ name: "Landing", html: "x".repeat(38_212), width: 1440 }))).toBe(
+      'name: "Landing", html: 38,212 characters, width: 1440'
+    );
+    expect(writingLabel({ name: "create_design_frame", chars: 12_400 })).toBe("Writing the design… 12.4k characters");
+    expect(writingLabel({ name: "insert_svg", chars: 800 })).toBe("Writing the drawing… 800 characters");
     const html = renderToStaticMarkup(
       <ToolCallCard
         call={{
