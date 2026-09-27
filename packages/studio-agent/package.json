@@ -31,6 +31,18 @@
     "./toolInput": {
       "types": "./dist/src/toolInput.d.ts",
       "import": "./dist/src/toolInput.js"
+    },
+    "./designSkills": {
+      "types": "./dist/src/designSkills.d.ts",
+      "import": "./dist/src/designSkills.js"
+    },
+    "./designPrompt": {
+      "types": "./dist/src/designPrompt.d.ts",
+      "import": "./dist/src/designPrompt.js"
+    },
+    "./designBlocks": {
+      "types": "./dist/src/designBlocks.d.ts",
+      "import": "./dist/src/designBlocks.js"
     }
   },
   "scripts": {

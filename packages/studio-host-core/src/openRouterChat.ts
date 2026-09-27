@@ -1,12 +1,12 @@
-import {
-  type HostToStudioMessageInput,
-  STUDIO_CHAT_SYSTEM_PROMPT,
-  type StudioChatHistoryMessage,
-  type StudioChatUsage,
-  type StudioModel,
-  type StudioToHostMessage
+import type {
+  HostToStudioMessageInput,
+  StudioChatHistoryMessage,
+  StudioChatUsage,
+  StudioModel,
+  StudioToHostMessage
 } from "@codex-avatar-studio/avatar-core";
 import { CANVAS_TOOLS, type CanvasTool, toolsForComposerMode } from "@codex-avatar-studio/studio-agent/canvasTools";
+import { buildSystemPrompt } from "@codex-avatar-studio/studio-agent/designPrompt";
 import {
   MAX_DESIGN_RESULT_CHARS,
   MAX_SSE_EVENT_CHARS,
@@ -325,7 +325,15 @@ export class OpenRouterChatController {
       const toolSupport = model.supportedParameters.includes("tools") && allowedTools.length > 0;
       const allowedNames = new Set(toolSupport ? allowedTools.map((entry) => entry.function.name) : []);
       const messages: Array<Record<string, unknown>> = [
-        { role: "system", content: STUDIO_CHAT_SYSTEM_PROMPT },
+        {
+          role: "system",
+          content: buildSystemPrompt({
+            mode,
+            toolSupport,
+            skill: request.skill,
+            context: request.designContext
+          })
+        },
         ...request.history.map((message: StudioChatHistoryMessage) => ({
           role: message.role,
           content: message.content

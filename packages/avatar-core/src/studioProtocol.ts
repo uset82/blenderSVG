@@ -1,8 +1,12 @@
 import { z } from "zod";
 
 export const STUDIO_PROTOCOL_VERSION = 1 as const;
+/**
+ * The Chat-mode prompt. Design, Review and Plan requests get a per-mode prompt from
+ * `@codex-avatar-studio/studio-agent/designPrompt` instead.
+ */
 export const STUDIO_CHAT_SYSTEM_PROMPT =
-  "You are the Codex Avatar Studio design assistant. Help the user plan and refine their canvas. Describe suggestions clearly. You cannot directly change the canvas in this version; never claim to have applied edits, saved files, or inspected content that was not explicitly included in the conversation.";
+  "You are Kurva's design assistant, in Chat mode. Answer questions about design and about the user's canvas, and give concrete, practical advice. In Chat mode you cannot change the canvas. If the user wants something designed or drawn, say that Design mode makes it on the canvas. Never claim to have applied edits, saved files or inspected content that is not in this conversation.";
 
 const version = z.literal(STUDIO_PROTOCOL_VERSION);
 const agentVersion = z.literal(2);
@@ -58,6 +62,33 @@ const model = z.strictObject({
   codingIndex: z.number().nullable().optional(),
   agenticIndex: z.number().nullable().optional(),
   designArenaElo: z.number().nullable().optional()
+});
+const finiteCoordinate = z.number().finite().min(-10_000_000).max(10_000_000);
+const designContext = z.strictObject({
+  pageName: z.string().max(200),
+  frames: z
+    .array(
+      z.strictObject({
+        id: z.string().trim().min(1).max(80),
+        name: z.string().max(200),
+        kind: z.enum(["design-frame", "frame", "svg"]),
+        x: finiteCoordinate,
+        y: finiteCoordinate,
+        width: z.number().finite().nonnegative().max(100_000),
+        height: z.number().finite().nonnegative().max(100_000),
+        empty: z.boolean().optional()
+      })
+    )
+    .max(40),
+  selectedIds: z.array(z.string().trim().min(1).max(80)).max(20),
+  /** Only for models without tools: the frame they may return an updated document for. */
+  target: z
+    .strictObject({
+      id: z.string().trim().min(1).max(80),
+      name: z.string().max(200),
+      html: z.string().max(60_000)
+    })
+    .optional()
 });
 const chatHistoryMessage = z.strictObject({
   role: z.enum(["user", "assistant"]),
@@ -199,7 +230,13 @@ export const studioToHostMessageSchema = z.discriminatedUnion("type", [
     history: z.array(chatHistoryMessage).max(40),
     userMessage: z.string().trim().min(1).max(12_000),
     attachment: chatImageAttachment.optional(),
-    mode: z.enum(["ask", "plan", "build", "auto"]).optional()
+    mode: z.enum(["ask", "plan", "build", "auto"]).optional(),
+    /** A design skill id from skills/design; the host adds its guide to the prompt. */
+    skill: z
+      .string()
+      .regex(/^[a-z][a-z-]{1,31}$/)
+      .optional(),
+    designContext: designContext.optional()
   }),
   z.strictObject({ protocolVersion: version, type: z.literal("studio:chatCancel"), requestId }),
   z.strictObject({
@@ -438,6 +475,7 @@ export const hostToStudioMessageSchema = z.discriminatedUnion("type", [
 export type StudioToHostMessage = z.output<typeof studioToHostMessageSchema>;
 export type HostToStudioMessage = z.output<typeof hostToStudioMessageSchema>;
 export type StudioModel = z.output<typeof model>;
+export type StudioDesignContext = z.output<typeof designContext>;
 export type StudioChatHistoryMessage = z.output<typeof chatHistoryMessage>;
 export type StudioChatUsage = z.output<typeof usage>;
 export type StudioProjectMeta = z.output<typeof projectMeta>;
