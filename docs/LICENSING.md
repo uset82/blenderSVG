@@ -77,6 +77,10 @@ The following repositories are **references only**. HEAD SHAs were captured with
 | [TalkingHead](https://github.com/met4citizen/TalkingHead) | MIT | `eed58d198076a7e1e825f804802921c4d3804d46` | Architecture reference only; no assets copied |
 | [three-vrm](https://github.com/pixiv/three-vrm) | MIT | `ff42fae4fcee1fcbca2cd262c7f5f8cbddeaf5ab` | Deferred optional adapter dependency |
 
+## Ported source
+
+Seven files under `packages/studio-agent/src/zcode/` are ported from [ZCode](https://github.com/zai-org/ZCode) at commit `29628c9acdb81b703bbd4080c207a0e7ce5e276e` (tag `v3.14.3`), which is Apache-2.0. Copyright 2026 Z.AI Co., Ltd. They keep per-file headers, the license text sits next to them in `LICENSE`, and `THIRD_PARTY_NOTICES.md` lists each file with its changes. `pnpm validate:notices` fails if a header, a notice row, or the license file goes missing, or if a ported file imports Node built-ins or ZCode packages. [ADR 0002](adr/0002-agent-harness.md) records the audit and the allowlist.
+
 ## Proprietary and external-tool gates
 
 ### Live2D

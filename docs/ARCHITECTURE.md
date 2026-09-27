@@ -56,7 +56,7 @@ scripts/
 - Blender is an optional trusted-workspace process launched with argument arrays and `shell: false`.
 - Blender export modes validate and publish independently. A validated GLB is selectable only beside a package-local sanitized SVG fallback; otherwise the package stays SVG-only. The reverse handoff accepts only the current sanitized workspace SVG and creates a new staged `.blend` curve scene before returning to the export flow.
 - The Studio host binds to loopback, checks Host and Origin, and requires the launch token. Provider keys stay in the host keychain. The browser CSP does not allow a direct call to OpenRouter or QuiverAI.
-- The design agent is this repository's `packages/studio-agent`. [ADR 0002](adr/0002-agent-harness.md) pins ZCode `328c1a0` (Apache-2.0) as the only source that may be ported after an audit. No ZCode file is vendored. doop is AGPL-3.0 and is an idea reference only; its code is not copied.
+- The design agent is this repository's `packages/studio-agent`. Its turn machine, tool scheduler and tool-input validation are ported from ZCode `29628c9` (Apache-2.0) under `packages/studio-agent/src/zcode/`, with per-file headers; [ADR 0002](adr/0002-agent-harness.md) records the audit and the corrected pin. The OpenRouter loop that drives it is `packages/studio-host-core/src/openRouterChat.ts`. doop is AGPL-3.0 and is an idea reference only; its code is not copied.
 - No remote runtime downloads, telemetry, cloud asset service, or microphone permission is required.
 
 See [SECURITY_PRIVACY.md](SECURITY_PRIVACY.md) and [AVATAR_PACKAGE_SPEC.md](AVATAR_PACKAGE_SPEC.md) for the enforceable details.
