@@ -345,16 +345,16 @@
     "src": "../../node_modules/.pnpm/tldraw@5.4.2_@floating-ui+dom@1.8.0_@types+react-dom@19.2.3_@types+react@19.2.17__@type_8b74a63bfc355fe6f01a9c9b66495e05/node_modules/tldraw/dist-esm/lib/utils/svg/sanitizeSvg.mjs",
     "isDynamicEntry": true
   },
-  "_DesktopOnlyNotice-LlReoXnX.js": {
-    "file": "assets/DesktopOnlyNotice-LlReoXnX.js",
+  "_DesktopOnlyNotice-Kfo5Fhdk.js": {
+    "file": "assets/DesktopOnlyNotice-Kfo5Fhdk.js",
     "name": "DesktopOnlyNotice",
     "imports": [
       "_radix-BQUQsFX7.js",
       "index.html"
     ]
   },
-  "_index-BdWPsPMO.js": {
-    "file": "assets/index-BdWPsPMO.js",
+  "_index-B1_hVSRT.js": {
+    "file": "assets/index-B1_hVSRT.js",
     "name": "index",
     "imports": [
       "_radix-BQUQsFX7.js",
@@ -377,7 +377,7 @@
     "name": "radix"
   },
   "index.html": {
-    "file": "assets/index-DIAhJdcl.js",
+    "file": "assets/index-MkggYOGW.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -395,7 +395,7 @@
       "src/editor/setGeoTool.ts"
     ],
     "css": [
-      "assets/index-DG4Eg-98.css"
+      "assets/index-Cze4c4jC.css"
     ],
     "assets": [
       "assets/hanken-grotesk-latin-400-normal-BG6hkEXj.woff2",
@@ -421,7 +421,7 @@
     "src": "src/assets/brand-mark.svg"
   },
   "src/components/StudioLeftPanel.tsx": {
-    "file": "assets/StudioLeftPanel-BOLt80N_.js",
+    "file": "assets/StudioLeftPanel-DwwJweyJ.js",
     "name": "StudioLeftPanel",
     "src": "src/components/StudioLeftPanel.tsx",
     "isDynamicEntry": true,
@@ -429,40 +429,43 @@
       "_radix-BQUQsFX7.js",
       "index.html",
       "_markdown-BrHkn-La.js",
-      "_index-BdWPsPMO.js"
+      "_index-B1_hVSRT.js"
     ]
   },
   "src/components/StudioToolbar.tsx": {
-    "file": "assets/StudioToolbar-HF0q_mt0.js",
+    "file": "assets/StudioToolbar-DNAbwhiK.js",
     "name": "StudioToolbar",
     "src": "src/components/StudioToolbar.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
-      "_index-BdWPsPMO.js",
+      "_index-B1_hVSRT.js",
       "index.html"
     ]
   },
   "src/components/VectorAssetDialog.tsx": {
-    "file": "assets/VectorAssetDialog-otd05URb.js",
+    "file": "assets/VectorAssetDialog-CkpZck5b.js",
     "name": "VectorAssetDialog",
     "src": "src/components/VectorAssetDialog.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
       "index.html",
-      "_DesktopOnlyNotice-LlReoXnX.js"
+      "_DesktopOnlyNotice-Kfo5Fhdk.js"
     ]
   },
   "src/editor/StudioCanvas.tsx": {
-    "file": "assets/StudioCanvas-DzcWGmVW.js",
+    "file": "assets/StudioCanvas-DB2xRmeV.js",
     "name": "StudioCanvas",
     "src": "src/editor/StudioCanvas.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
-      "_index-BdWPsPMO.js",
+      "_index-B1_hVSRT.js",
       "index.html"
+    ],
+    "dynamicImports": [
+      "src/web/browserAvatarPackage.ts"
     ],
     "css": [
       "assets/StudioCanvas-DoqveH4K.css"
@@ -541,12 +544,12 @@
     ]
   },
   "src/editor/setGeoTool.ts": {
-    "file": "assets/setGeoTool-JUQNWpTv.js",
+    "file": "assets/setGeoTool-BDbgqJcP.js",
     "name": "setGeoTool",
     "src": "src/editor/setGeoTool.ts",
     "isDynamicEntry": true,
     "imports": [
-      "_index-BdWPsPMO.js",
+      "_index-B1_hVSRT.js",
       "_radix-BQUQsFX7.js",
       "index.html"
     ]
@@ -558,18 +561,28 @@
     "isDynamicEntry": true
   },
   "src/routes/StudioRoutePages.tsx": {
-    "file": "assets/StudioRoutePages-BIIPwBrK.js",
+    "file": "assets/StudioRoutePages-BDna2Pik.js",
     "name": "StudioRoutePages",
     "src": "src/routes/StudioRoutePages.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
       "index.html",
-      "_DesktopOnlyNotice-LlReoXnX.js"
+      "_DesktopOnlyNotice-Kfo5Fhdk.js"
+    ]
+  },
+  "src/web/browserAvatarPackage.ts": {
+    "file": "assets/browserAvatarPackage-DBBhhlQV.js",
+    "name": "browserAvatarPackage",
+    "src": "src/web/browserAvatarPackage.ts",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_radix-BQUQsFX7.js"
     ]
   },
   "src/web/webHostTransport.ts": {
-    "file": "assets/webHostTransport-DeXVY2zO.js",
+    "file": "assets/webHostTransport-oTJKUMaN.js",
     "name": "webHostTransport",
     "src": "src/web/webHostTransport.ts",
     "isDynamicEntry": true,

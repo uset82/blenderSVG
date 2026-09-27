@@ -1,1 +1,0 @@
-import{W as t}from"./index-BdWPsPMO.js";import"./radix-BQUQsFX7.js";import"./index-DIAhJdcl.js";function s(e,o){e.setStyleForNextShapes(t,o==="rectangle"?"rectangle":"ellipse"),e.setCurrentTool("geo")}export{s as setGeoTool};
