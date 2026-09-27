@@ -35,7 +35,7 @@ import { RecentsDashboard, SCRATCHPAD_PROJECT_ID, type SessionCanvas } from "./c
 import { readCanvasTimes, rememberCanvasTimes, stampCanvasTimes } from "./components/recentCanvas.js";
 import { StudioCanvasMenu } from "./components/StudioCanvasMenu.js";
 import { StudioCommandPalette } from "./components/StudioCommandPalette.js";
-import { HOME_CATEGORY_PRESETS } from "./components/StudioComposer.js";
+import { HOME_CATEGORY_PRESETS, HOME_CATEGORY_SKILLS } from "./components/StudioComposer.js";
 import {
   type GeometryProperty,
   type InspectedShape,
@@ -658,7 +658,12 @@ export function App() {
   const [currentCanvasId, setCurrentCanvasId] = useState<string | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState(readProjectThumbnails);
   const [hostThumbnailVersions, setHostThumbnailVersions] = useState<Record<string, number>>({});
-  const [draftPrefill, setDraftPrefill] = useState<{ id: string; text: string } | null>(null);
+  const [draftPrefill, setDraftPrefill] = useState<{
+    id: string;
+    text: string;
+    send?: boolean;
+    skill?: string;
+  } | null>(null);
   const [draftImagePrefill, setDraftImagePrefill] = useState<{ id: string; file: File } | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const panelResizeRef = useRef<ActivePanelResize | null>(null);
@@ -1518,10 +1523,12 @@ export function App() {
     navigateRoute({ name: "project", projectId: String(page.id) });
   };
 
+  /** Home's send: open a new file, then the agent designs the prompt in Design mode right away. */
   const handleStartDesign = (categoryId: string, prompt: string) => {
     if (!prompt.trim()) return;
     handleNewCanvas(categoryId);
-    setDraftPrefill({ id: crypto.randomUUID(), text: prompt.trim() });
+    const skill = HOME_CATEGORY_SKILLS[categoryId];
+    setDraftPrefill({ id: crypto.randomUUID(), text: prompt.trim(), send: true, ...(skill ? { skill } : {}) });
     setAgentSidebarOpen(true);
   };
 

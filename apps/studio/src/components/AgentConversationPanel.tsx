@@ -38,6 +38,7 @@ import {
   storeComposerMode
 } from "./composerModes.js";
 import { compactHistory } from "./contextBudget.js";
+import { pickDefaultDesignModel } from "./defaultDesignModel.js";
 import { buildDesignContext } from "./designContext.js";
 import { DESIGN_SKILLS, designSkill } from "./designSkills.js";
 import {
@@ -52,6 +53,7 @@ import {
 } from "./modelFilters.js";
 import { filterModelsByBadges, groupCatalogModels, modelBadges, type QuickModelFilter } from "./modelPicker.js";
 import { nextModelOptionIndex } from "./modelPickerNavigation.js";
+import { clearPendingAgentSend, savePendingAgentSend, takePendingAgentSend } from "./pendingAgentSend.js";
 import { placeDesignBlocks } from "./placeDesignBlocks.js";
 import { paidModelCue, sendContextLines } from "./privacyContext.js";
 import {
@@ -79,7 +81,8 @@ export type OpenRouterConnectionAction = "connect" | "replace" | "test" | "disco
 export interface AgentConversationPanelProps {
   className?: string;
   isOpen: boolean;
-  draftPrefill?: { id: string; text: string } | null;
+  /** Text for the composer. With `send`, it goes out in Design mode as soon as a model is ready. */
+  draftPrefill?: { id: string; text: string; send?: boolean; skill?: string } | null;
   draftImagePrefill?: { id: string; file: File } | null;
   onClose: () => void;
   connectionHost: "vscode" | "standalone" | "browser" | "web";
@@ -362,6 +365,10 @@ export function AgentConversationPanel({
   useEffect(() => storeComposerMode(composerMode), [composerMode]);
   const [skillMenuOpen, setSkillMenuOpen] = useState(false);
   const [activeSkill, setActiveSkill] = useState<string | null>(null);
+  /** The latest requestPreview, for effects declared before it. */
+  const requestPreviewRef = useRef<((skipConsent?: boolean) => Promise<void>) | null>(null);
+  /** Set when a message should send by itself (from Home, or after sign-in) once a model is ready. */
+  const pendingAutoSendRef = useRef<string | null>(null);
   /** The mode and tool support of each request, to place text-only designs when it completes. */
   const requestMetaRef = useRef(new Map<string, { mode: ComposerMode; toolSupport: boolean }>());
   const placedRequestsRef = useRef(new Set<string>());
@@ -471,7 +478,23 @@ export function AgentConversationPanel({
     if (!draftPrefill || draftPrefill.id === lastDraftPrefillIdRef.current) return;
     lastDraftPrefillIdRef.current = draftPrefill.id;
     setDraft(draftPrefill.text);
+    if (draftPrefill.send) {
+      setActiveSkill(draftPrefill.skill ?? null);
+      setComposerMode("auto");
+      pendingAutoSendRef.current = draftPrefill.id;
+    }
   }, [draftPrefill]);
+
+  // A message that was waiting when the page left for the OpenRouter sign-in comes back here.
+  useEffect(() => {
+    if (!projectId) return;
+    const pending = takePendingAgentSend(projectId);
+    if (!pending) return;
+    setDraft(pending.text);
+    setActiveSkill(pending.skill ?? null);
+    setComposerMode("auto");
+    pendingAutoSendRef.current = `restored-${pending.savedAt}`;
+  }, [projectId]);
 
   useEffect(() => {
     if (!draftImagePrefill || draftImagePrefill.id === lastImagePrefillIdRef.current) return;
@@ -573,6 +596,13 @@ export function AgentConversationPanel({
     !!draft.trim() &&
     !isChatBusy(chatRun);
 
+  // A first-time user starts with the strongest design model in their catalog. A saved choice is kept.
+  useEffect(() => {
+    if (selectedModelId || modelCatalog.status !== "ready") return;
+    const pick = pickDefaultDesignModel(modelCatalog.models);
+    if (pick) setSelectedModelId(pick.id);
+  }, [modelCatalog, selectedModelId]);
+
   useEffect(() => {
     try {
       if (selectedModelId) window.localStorage.setItem("codex-avatar-studio-selected-model", selectedModelId);
@@ -673,6 +703,26 @@ export function AgentConversationPanel({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [outboundPreview]);
+
+  // Sends a waiting message once a model is ready. While OpenRouter is not connected, the message is
+  // kept so it survives the sign-in redirect and sends when the user comes back.
+  useEffect(() => {
+    if (!isOpen || !pendingAutoSendRef.current) return;
+    if (!canChat) {
+      if (projectId && draft.trim())
+        savePendingAgentSend({ projectId, text: draft, ...(activeSkill ? { skill: activeSkill } : {}) });
+      return;
+    }
+    if (!canSend || !editor) return;
+    const pending = pendingAutoSendRef.current;
+    const timer = window.setTimeout(() => {
+      if (pendingAutoSendRef.current !== pending) return;
+      pendingAutoSendRef.current = null;
+      clearPendingAgentSend();
+      void requestPreviewRef.current?.();
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, canChat, canSend, editor, draft, activeSkill, projectId]);
 
   if (!isOpen) return null;
 
@@ -800,8 +850,12 @@ export function AgentConversationPanel({
     else sendPreview(preview);
   };
 
+  requestPreviewRef.current = requestPreview;
+
   const sendPreview = (outboundPreview: OutboundPreview) => {
     if (isChatBusy(chatRun)) return;
+    pendingAutoSendRef.current = null;
+    clearPendingAgentSend();
     const count = Math.min(4, Math.max(1, variantScale));
     if (count > 1 && editor) {
       const sessions = placeVariantFrames(adaptEditorForVariants(editor), count);
