@@ -32,12 +32,22 @@ try {
     timeout: 30_000
   });
 
-  const reveal = (id) =>
-    page.evaluate((shapeId) => {
-      const editor = window.__studioEditor;
-      const bounds = editor.getShapePageBounds(shapeId);
-      editor.zoomToBounds(bounds, { inset: 32, animation: { duration: 0 } });
-    }, id);
+  // Moves the camera to a shape and waits until tldraw stops culling it.
+  const reveal = async (id) => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const visible = await page.evaluate(async (shapeId) => {
+        const editor = window.__studioEditor;
+        const bounds = editor.getShapePageBounds(shapeId);
+        editor.zoomToBounds(bounds, { inset: 32, animation: { duration: 0 } });
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return !editor.getCulledShapes().has(shapeId);
+      }, id);
+      if (visible) return;
+      await page.waitForTimeout(250);
+    }
+    throw new Error(`${id} stayed off screen after revealing it`);
+  };
+  const isCulled = (id) => page.evaluate((shapeId) => window.__studioEditor.getCulledShapes().has(shapeId), id);
 
   const messages = await page.evaluate(() => {
     window.__kurvaFrameMessages = [];
@@ -75,10 +85,22 @@ try {
   // tldraw hides off-screen shapes with display:none, and Firefox reports empty computed styles
   // inside a hidden iframe. Bring each frame on screen before reading what it renders.
   await reveal(desktopFrameId);
-  const styles = await waitForFrame(page, "Clay & Kiln — Desktop", () => true);
+  const styles = await waitForFrame(
+    page,
+    "Clay & Kiln — Desktop",
+    () => true,
+    () => reveal(desktopFrameId)
+  );
   const culled = await page.evaluate(() => [...window.__studioEditor.getCulledShapes()]);
   await reveal(mobileFrameId);
-  const mobileColumns = (await waitForFrame(page, "Clay & Kiln — Mobile", () => true)).heroColumns;
+  const mobileColumns = (
+    await waitForFrame(
+      page,
+      "Clay & Kiln — Mobile",
+      () => true,
+      () => reveal(mobileFrameId)
+    )
+  ).heroColumns;
 
   if (process.env.KURVA_DESIGN_SHOT) {
     await page.evaluate(
@@ -132,6 +154,51 @@ try {
     [],
     "design frames must not trip the page CSP"
   );
+
+  // Design frames survive a reload and render again. Reopening a project turns auto-fit on; once a design
+  // has been revealed, a resize must not snap the camera back to the empty starter frame.
+  const projectId = await page.evaluate(() => location.hash.replace(/^#\/p\//, "").split(/[?#]/)[0]);
+  const savedDeadline = Date.now() + 20_000;
+  let saved = false;
+  while (!saved && Date.now() < savedDeadline) {
+    saved = await page.evaluate(async (id) => {
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open("kurva-library");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      const row = await new Promise((resolve, reject) => {
+        const get = db.transaction("projects").objectStore("projects").get(id);
+        get.onerror = () => reject(get.error);
+        get.onsuccess = () => resolve(get.result);
+      });
+      db.close();
+      return String(row?.document?.snapshot ?? "").includes("clay-kiln-mobile");
+    }, projectId);
+    if (!saved) await page.waitForTimeout(250);
+  }
+  assert.ok(saved, "the project with both design frames was not saved");
+  await page.goto(`${server.origin}/?perf=1#/p/${encodeURIComponent(projectId)}`);
+  await page.waitForFunction(
+    (id) => window.__studioEditor?.getShape(id) && window.__kurvaRunCanvasTool,
+    desktopFrameId,
+    { timeout: 30_000 }
+  );
+  await page.waitForTimeout(1_000);
+  await reveal(desktopFrameId);
+  const reopened = await waitForFrame(
+    page,
+    "Clay & Kiln — Desktop",
+    () => true,
+    () => reveal(desktopFrameId)
+  );
+  assert.equal(reopened.heroBackground, "rgb(246, 241, 234)", "a reopened design frame lost its styles");
+  const viewport = page.viewportSize();
+  await page.setViewportSize({ width: viewport.width - 160, height: viewport.height - 60 });
+  await page.waitForTimeout(800);
+  assert.equal(await isCulled(desktopFrameId), false, "a resize moved the camera off the revealed design");
+  await page.setViewportSize(viewport);
+  await page.waitForTimeout(400);
 
   // The design tools against the real tldraw editor.
   const run = (name, args) =>
@@ -188,7 +255,12 @@ try {
   });
   assert.ok(patched.ok, patched.error);
   await reveal(desktopId);
-  await waitForFrame(page, "Clay & Kiln — Tools", (state) => state.heroBackground === "rgb(29, 26, 23)");
+  await waitForFrame(
+    page,
+    "Clay & Kiln — Tools",
+    (state) => state.heroBackground === "rgb(29, 26, 23)",
+    () => reveal(desktopId)
+  );
 
   const mobileTool = await run("create_design_frame", {
     name: "Clay & Kiln — Tools Mobile",
@@ -200,7 +272,12 @@ try {
   assert.equal(mobileTool.value.width, 390);
   assert.ok(mobileTool.value.x >= created.value.x + created.value.width, "the mobile frame sits to the right");
   await reveal(mobileTool.value.id);
-  await waitForFrame(page, "Clay & Kiln — Tools Mobile", (state) => state.heroColumns === 1);
+  await waitForFrame(
+    page,
+    "Clay & Kiln — Tools Mobile",
+    (state) => state.heroColumns === 1,
+    () => reveal(mobileTool.value.id)
+  );
 
   const cat = await run("insert_svg", {
     svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160"><ellipse cx="100" cy="110" rx="60" ry="42" fill="#e0a370"/><circle cx="100" cy="62" r="38" fill="#e0a370"/><path d="M68 40 L74 8 L92 30 Z M132 40 L126 8 L108 30 Z" fill="#c9844f"/><circle cx="86" cy="60" r="5" fill="#1d1a17"/><circle cx="114" cy="60" r="5" fill="#1d1a17"/><script>alert(1)</script></svg>',
@@ -307,13 +384,18 @@ function readFrame(page, title) {
   }, title);
 }
 
-/** Polls a frame until it has rendered and `ready(state)` holds; on timeout, fails with what it saw. */
-async function waitForFrame(page, title, ready, timeout = 15_000) {
+/**
+ * Polls a frame until it has rendered and `ready(state)` holds, calling `onHidden` while tldraw culls
+ * it. On timeout it fails with what it saw.
+ */
+async function waitForFrame(page, title, ready, onHidden, timeout = 15_000) {
   const deadline = Date.now() + timeout;
   let state;
   while (Date.now() < deadline) {
     state = await readFrame(page, title);
     if (state.rendered && ready(state)) return state;
+    // The app may still move the camera while a project finishes opening; bring the frame back.
+    if (state.shapeDisplay === "none" && onHidden) await onHidden();
     await page.waitForTimeout(150);
   }
   const culled = await page.evaluate(() => [...window.__studioEditor.getCulledShapes()]);

@@ -98,10 +98,10 @@ import {
   ensureBrowserScratchpad,
   listBrowserConversations,
   listBrowserProjects,
+  openBrowserProject,
   putBrowserThumbnail,
   readBrowserConversation,
   renameBrowserConversation,
-  openBrowserProject,
   writeBrowserConversation
 } from "./web/browserProjects.js";
 import { isWebEdition, WEB_LIBRARY_STATUS } from "./web/kurvaTarget.js";
@@ -151,7 +151,30 @@ function readStandaloneHostMode(): boolean {
   }
 }
 
+/** The camera each editor was left at by its last auto-fit. */
+const fittedCameras = new WeakMap<Editor, { x: number; y: number; z: number }>();
+
 function fitCurrentFrame(editor: Editor): number {
+  const zoom = fitFrameCamera(editor);
+  const { x, y, z } = editor.getCamera();
+  fittedCameras.set(editor, { x, y, z });
+  return zoom;
+}
+
+/**
+ * True once anything other than an auto-fit has moved the camera: the user, or the agent revealing a
+ * design it just made. A later resize must not snap the view back to the starter frame then.
+ */
+function cameraMovedSinceFit(editor: Editor): boolean {
+  const fitted = fittedCameras.get(editor);
+  if (!fitted) return false;
+  const camera = editor.getCamera();
+  return (
+    Math.abs(camera.x - fitted.x) > 0.5 || Math.abs(camera.y - fitted.y) > 0.5 || Math.abs(camera.z - fitted.z) > 1e-4
+  );
+}
+
+function fitFrameCamera(editor: Editor): number {
   try {
     const viewport = editor.getViewportScreenBounds();
     if (!viewport || viewport.w < 2 || viewport.h < 2) return editor.getZoomLevel();
@@ -986,7 +1009,8 @@ export function App() {
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
             const editor = editorRef.current;
-            if (editor && shouldAutoFitRef.current) setZoomLevel(fitCurrentFrame(editor));
+            if (editor && shouldAutoFitRef.current && !cameraMovedSinceFit(editor))
+              setZoomLevel(fitCurrentFrame(editor));
           })
         );
       }, 120);
@@ -1132,7 +1156,7 @@ export function App() {
     });
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        if (shouldAutoFitRef.current) setZoomLevel(fitCurrentFrame(editor));
+        if (shouldAutoFitRef.current && !cameraMovedSinceFit(editor)) setZoomLevel(fitCurrentFrame(editor));
       })
     );
     if (hostState.host !== "vscode" || isStandaloneHost) {
