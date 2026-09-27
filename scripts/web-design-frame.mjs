@@ -75,36 +75,10 @@ try {
   // tldraw hides off-screen shapes with display:none, and Firefox reports empty computed styles
   // inside a hidden iframe. Bring each frame on screen before reading what it renders.
   await reveal(desktopFrameId);
-  const desktop = await renderedFrame(page, "Clay & Kiln — Desktop");
-  const styles = await desktop.evaluate(() => {
-    const css = (selector, property) => {
-      const element = document.querySelector(selector);
-      return element ? getComputedStyle(element).getPropertyValue(property) : null;
-    };
-    const tracks = (value) => (value ? value.trim().split(/\s+/).length : 0);
-    const images = [...document.querySelectorAll("img")].map((image) => image.getAttribute("src") ?? "");
-    return {
-      heroBackground: css(".hero", "background-color"),
-      heroColumns: tracks(css(".hero", "grid-template-columns")),
-      headingFont: css(".hero h1", "font-family"),
-      bodyMargin: css("body", "margin-top"),
-      inlineCardBackground: css(".card:nth-child(3)", "background-color"),
-      tileGradient: css(".tile", "background-image"),
-      scripts: document.querySelectorAll("script").length,
-      links: document.querySelectorAll("link").length,
-      handlers: document.querySelectorAll("[onclick]").length,
-      images,
-      bodyClass: document.body.className,
-      text: document.body.textContent.includes("This week’s classes")
-    };
-  });
+  const styles = await waitForFrame(page, "Clay & Kiln — Desktop", () => true);
   const culled = await page.evaluate(() => [...window.__studioEditor.getCulledShapes()]);
   await reveal(mobileFrameId);
-  const mobile = await renderedFrame(page, "Clay & Kiln — Mobile");
-  const mobileColumns = await mobile.evaluate(() => {
-    const value = getComputedStyle(document.querySelector(".hero")).getPropertyValue("grid-template-columns");
-    return value ? value.trim().split(/\s+/).length : 0;
-  });
+  const mobileColumns = (await waitForFrame(page, "Clay & Kiln — Mobile", () => true)).heroColumns;
 
   if (process.env.KURVA_DESIGN_SHOT) {
     await page.evaluate(
@@ -214,12 +188,7 @@ try {
   });
   assert.ok(patched.ok, patched.error);
   await reveal(desktopId);
-  const toolsFrame = await renderedFrame(page, "Clay & Kiln — Tools");
-  await toolsFrame.waitForFunction(
-    () => getComputedStyle(document.querySelector(".hero")).backgroundColor === "rgb(29, 26, 23)",
-    undefined,
-    { timeout: 10_000 }
-  );
+  await waitForFrame(page, "Clay & Kiln — Tools", (state) => state.heroBackground === "rgb(29, 26, 23)");
 
   const mobileTool = await run("create_design_frame", {
     name: "Clay & Kiln — Tools Mobile",
@@ -231,15 +200,7 @@ try {
   assert.equal(mobileTool.value.width, 390);
   assert.ok(mobileTool.value.x >= created.value.x + created.value.width, "the mobile frame sits to the right");
   await reveal(mobileTool.value.id);
-  const mobileToolFrame = await renderedFrame(page, "Clay & Kiln — Tools Mobile");
-  await mobileToolFrame.waitForFunction(
-    () => {
-      const value = getComputedStyle(document.querySelector(".hero")).gridTemplateColumns;
-      return value !== "" && value.trim().split(/\s+/).length === 1;
-    },
-    undefined,
-    { timeout: 10_000 }
-  );
+  await waitForFrame(page, "Clay & Kiln — Tools Mobile", (state) => state.heroColumns === 1);
 
   const cat = await run("insert_svg", {
     svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160"><ellipse cx="100" cy="110" rx="60" ry="42" fill="#e0a370"/><circle cx="100" cy="62" r="38" fill="#e0a370"/><path d="M68 40 L74 8 L92 30 Z M132 40 L126 8 L108 30 Z" fill="#c9844f"/><circle cx="86" cy="60" r="5" fill="#1d1a17"/><circle cx="114" cy="60" r="5" fill="#1d1a17"/><script>alert(1)</script></svg>',
@@ -307,15 +268,65 @@ async function frameFor(page, title) {
 }
 
 /**
- * The frame once its design is mounted and the iframe is on screen: computed styles are real values,
- * not the empty strings Firefox returns for a hidden iframe.
+ * Reads a design frame from the page through the iframe's same-origin contentWindow, the way the app
+ * reaches it, so no test code has to run inside the script-less sandboxed frame.
  */
-async function renderedFrame(page, title) {
-  const frame = await frameFor(page, title);
-  await frame.waitForFunction(
-    () => document.body?.textContent?.includes("Make something") && getComputedStyle(document.body).marginTop !== "",
-    undefined,
-    { timeout: 15_000 }
-  );
-  return frame;
+function readFrame(page, title) {
+  return page.evaluate((frameTitle) => {
+    const iframe = document.querySelector(`iframe[title="${frameTitle}"]`);
+    const doc = iframe?.contentDocument;
+    const win = iframe?.contentWindow;
+    if (!iframe || !doc?.body || !win) return { found: Boolean(iframe), hasDocument: Boolean(doc?.body) };
+    const css = (selector, property) => {
+      const element = doc.querySelector(selector);
+      return element ? win.getComputedStyle(element).getPropertyValue(property) : null;
+    };
+    const tracks = (value) => (value ? value.trim().split(/\s+/).length : 0);
+    const shape = iframe.closest(".tl-shape");
+    return {
+      found: true,
+      url: doc.URL,
+      readyState: doc.readyState,
+      shapeDisplay: shape ? getComputedStyle(shape).display : null,
+      frameWidth: Math.round(iframe.getBoundingClientRect().width),
+      adoptedSheets: doc.adoptedStyleSheets?.length ?? -1,
+      rendered: doc.body.textContent.includes("Make something") && css("body", "margin-top") !== "",
+      heroBackground: css(".hero", "background-color"),
+      heroColumns: tracks(css(".hero", "grid-template-columns")),
+      headingFont: css(".hero h1", "font-family"),
+      bodyMargin: css("body", "margin-top"),
+      inlineCardBackground: css(".card:nth-child(3)", "background-color"),
+      tileGradient: css(".tile", "background-image"),
+      scripts: doc.querySelectorAll("script").length,
+      links: doc.querySelectorAll("link").length,
+      handlers: doc.querySelectorAll("[onclick]").length,
+      images: [...doc.querySelectorAll("img")].map((image) => image.getAttribute("src") ?? ""),
+      bodyClass: doc.body.className,
+      text: doc.body.textContent.includes("This week’s classes")
+    };
+  }, title);
+}
+
+/** Polls a frame until it has rendered and `ready(state)` holds; on timeout, fails with what it saw. */
+async function waitForFrame(page, title, ready, timeout = 15_000) {
+  const deadline = Date.now() + timeout;
+  let state;
+  while (Date.now() < deadline) {
+    state = await readFrame(page, title);
+    if (state.rendered && ready(state)) return state;
+    await page.waitForTimeout(150);
+  }
+  const culled = await page.evaluate(() => [...window.__studioEditor.getCulledShapes()]);
+  let insideFrame;
+  try {
+    const frame = await frameFor(page, title);
+    insideFrame = await frame.evaluate(() => ({
+      url: document.URL,
+      textLength: document.body?.textContent?.length ?? 0,
+      bodyMargin: getComputedStyle(document.body).marginTop
+    }));
+  } catch (error) {
+    insideFrame = String(error);
+  }
+  throw new Error(`${title} did not render: ${JSON.stringify({ state, insideFrame, culled }, null, 2)}`);
 }

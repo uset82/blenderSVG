@@ -108,5 +108,7 @@ jobs:
       - name: Design frames render in Firefox and WebKit
         run: |
           pnpm exec playwright install --with-deps firefox webkit
-          KURVA_BROWSER=firefox node scripts/web-design-frame.mjs
-          KURVA_BROWSER=webkit node scripts/web-design-frame.mjs
+          status=0
+          KURVA_BROWSER=firefox node scripts/web-design-frame.mjs || status=1
+          KURVA_BROWSER=webkit node scripts/web-design-frame.mjs || status=1
+          exit $status
