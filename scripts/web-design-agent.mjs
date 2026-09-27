@@ -57,6 +57,11 @@ try {
   await consent.click();
   await page.getByText("I designed a warm landing page for Clay & Kiln").waitFor({ timeout: 30_000 });
   assert.equal(await page.locator("#studio-outbound-title").count(), 0, "no review dialog by default");
+  assert.equal(
+    await page.locator(".studio-project-lock").count(),
+    0,
+    "returning from the sign-in must not lock the project against its own tab"
+  );
 
   const desktop = await waitForFrame(
     page,

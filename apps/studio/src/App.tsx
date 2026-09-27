@@ -112,6 +112,7 @@ import { assertPortableAssetSources } from "./web/portableAssets.js";
 import {
   acquireProjectLock,
   listenForLockRelease,
+  type ProjectLock,
   publishLibraryChange,
   requestProjectLockRelease,
   subscribeLibraryChanges
@@ -438,7 +439,10 @@ export function App() {
   const projectIdRef = useRef<string | null>(null);
   const projectTitleRef = useRef("Untitled");
   const projectWritableRef = useRef(false);
-  const heldLockRef = useRef<{ release(): void } | null>(null);
+  const heldLockRef = useRef<ProjectLock | null>(null);
+  /** The project whose lock this tab holds, and the lock request still in flight, if any. */
+  const heldLockProjectRef = useRef<string | null>(null);
+  const lockClaimRef = useRef<{ projectId: string; saveAfter: boolean } | null>(null);
   const lockListenerRef = useRef<(() => void) | null>(null);
   const pendingSnapshotRef = useRef<unknown>(null);
   const initialBlankSnapshotRef = useRef<string | null>(null);
@@ -832,30 +836,56 @@ export function App() {
 
   const claimProjectLock = React.useCallback(
     (projectId: string, saveAfter = false) => {
-      lockListenerRef.current?.();
-      lockListenerRef.current = null;
-      heldLockRef.current?.release();
-      heldLockRef.current = null;
       if (libraryKind !== "browser") {
+        lockListenerRef.current?.();
+        lockListenerRef.current = null;
+        heldLockRef.current?.release();
+        heldLockRef.current = null;
         projectWritableRef.current = true;
         setProjectReadOnly(null);
         return;
       }
+      // Never ask twice for this tab's own lock. A project can open twice in a row (for example after
+      // the OpenRouter sign-in reload), and a second ifAvailable request while the first holds the lock
+      // comes back read-only, which locked the project against the tab that owns it.
+      const pending = lockClaimRef.current;
+      if (pending?.projectId === projectId) {
+        pending.saveAfter ||= saveAfter;
+        return;
+      }
+      if (heldLockProjectRef.current === projectId && heldLockRef.current && !heldLockRef.current.readonly) {
+        projectWritableRef.current = true;
+        setProjectReadOnly(null);
+        if (saveAfter) scheduleProjectSaveRef.current();
+        return;
+      }
+      lockListenerRef.current?.();
+      lockListenerRef.current = null;
+      heldLockRef.current?.release();
+      heldLockRef.current = null;
+      heldLockProjectRef.current = null;
+      const claim = { projectId, saveAfter };
+      lockClaimRef.current = claim;
       projectWritableRef.current = false;
       void acquireProjectLock(projectId).then((lock) => {
+        if (lockClaimRef.current === claim) lockClaimRef.current = null;
         if (projectIdRef.current !== projectId) {
           lock.release();
           return;
         }
         heldLockRef.current = lock;
+        heldLockProjectRef.current = projectId;
         projectWritableRef.current = !lock.readonly;
         setProjectReadOnly(lock.readonly ? projectId : null);
         if (!lock.readonly) {
           lockListenerRef.current = listenForLockRelease(projectId, () => {
             lock.release();
-            if (heldLockRef.current === lock) heldLockRef.current = null;
+            if (heldLockRef.current === lock) {
+              heldLockRef.current = null;
+              heldLockProjectRef.current = null;
+            }
           });
-          if (saveAfter) scheduleProjectSaveRef.current();
+          if (claim.saveAfter) scheduleProjectSaveRef.current();
         }
       });
     },
