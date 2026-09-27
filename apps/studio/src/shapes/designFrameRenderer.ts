@@ -102,6 +102,8 @@ export function measureDesignHtml(html: string, width: number, fallback = 900): 
   iframe.style.cssText = `position:fixed;left:-100000px;top:0;width:${width}px;height:200px;border:0;visibility:hidden;pointer-events:none`;
   document.body.append(iframe);
   try {
+    // Lay the iframe out first so every engine has built the frame's layout before we read its height.
+    iframe.getBoundingClientRect();
     if (!mountDesignDocument(iframe, html)) return fallback;
     const doc = iframe.contentDocument;
     const height = Math.max(doc?.documentElement.scrollHeight ?? 0, doc?.body.scrollHeight ?? 0);
