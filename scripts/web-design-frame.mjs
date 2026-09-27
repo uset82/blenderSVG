@@ -311,6 +311,37 @@ try {
   assert.match(exported, /\.hero \{ background: #1d1a17;/);
   assert.doesNotMatch(exported, /<script|onclick|https:\/\//i);
 
+  // One agent reply is one undo step: the app marks history once, then runs the reply's tools without
+  // their own marks. Undo removes both frames of the turn; Redo brings both back.
+  const turn = await page.evaluate(async (html) => {
+    const editor = window.__studioEditor;
+    const count = () => editor.getCurrentPageShapes().filter((shape) => shape.type === "design-frame").length;
+    const before = count();
+    editor.markHistoryStoppingPoint("agent-turn:e2e");
+    const first = JSON.parse(
+      (
+        await window.__kurvaRunCanvasTool("create_design_frame", JSON.stringify({ name: "Turn A", html }), {
+          turn: true
+        })
+      ).content
+    );
+    await window.__kurvaRunCanvasTool(
+      "create_design_frame",
+      JSON.stringify({ name: "Turn B", html, placement: { relativeTo: first.id, side: "right" } }),
+      { turn: true }
+    );
+    const during = count();
+    editor.undo();
+    const undone = count();
+    editor.redo();
+    return { before, during, undone, redone: count() };
+  }, "<main><h1>Turn</h1></main>");
+  assert.deepEqual(
+    turn,
+    { before: turn.before, during: turn.before + 2, undone: turn.before, redone: turn.before + 2 },
+    `one undo per agent turn: ${JSON.stringify(turn)}`
+  );
+
   const renamed = await run("update_design_frame", { frameId: desktopId, name: "Clay & Kiln — Final" });
   assert.ok(renamed.ok, renamed.error);
   const missing = await run("get_design_frame", { frameId: "shape:nope" });

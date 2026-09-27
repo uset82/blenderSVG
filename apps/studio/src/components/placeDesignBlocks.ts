@@ -10,12 +10,21 @@ import { executeCanvasTool } from "./executeCanvasTool.js";
 export async function placeDesignBlocks(editor: Editor, blocks: DesignBlock[]): Promise<string[]> {
   const notes: string[] = [];
   let emptyFrameUsed = false;
+  // Everything placed from one reply is one undo step, like a tool-using reply.
+  editor.markHistoryStoppingPoint("agent-text-designs");
+  const turn = { turn: true };
   for (const block of blocks) {
     try {
       if (block.kind === "svg") {
         const outcome = JSON.parse(
-          (await executeCanvasTool(editor, "insert_svg", JSON.stringify({ svg: block.content, width: block.width })))
-            .content
+          (
+            await executeCanvasTool(
+              editor,
+              "insert_svg",
+              JSON.stringify({ svg: block.content, width: block.width }),
+              turn
+            )
+          ).content
         ) as { id?: string };
         notes.push(`Placed the drawing “${block.name}” on the canvas${outcome.id ? ` (${outcome.id})` : ""}`);
         continue;
@@ -25,7 +34,8 @@ export async function placeDesignBlocks(editor: Editor, blocks: DesignBlock[]): 
         await executeCanvasTool(
           editor,
           "update_design_frame",
-          JSON.stringify({ frameId: block.target, html: block.content, name: block.name })
+          JSON.stringify({ frameId: block.target, html: block.content, name: block.name }),
+          turn
         );
         notes.push(`Updated “${block.name}” (${block.target}) on the canvas`);
         continue;
@@ -40,7 +50,8 @@ export async function placeDesignBlocks(editor: Editor, blocks: DesignBlock[]): 
               name: block.complete ? block.name : `${block.name} (cut off)`,
               html: block.content,
               ...(empty ? { intoFrameId: empty } : { width: block.width })
-            })
+            }),
+            turn
           )
         ).content
       ) as { id?: string; width?: number; height?: number };

@@ -6,6 +6,7 @@ import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import { type StudioProjectsState, useStudioHost } from "./bridge/studioHost.js";
 import type { AgentConversation, StoredAgentConversation } from "./components/agentConversations.js";
 import { stopRunningReply } from "./components/agentSessions.js";
+import { beginAgentTurnChange } from "./components/agentTurnHistory.js";
 import { CanvasLicenseNotice } from "./components/CanvasLicenseNotice.js";
 import { decodeAssetDrag, placeCanvasAsset } from "./components/canvasAssets.js";
 import { applyProposal, type CanvasProposal, proposalFromTool } from "./components/canvasProposal.js";
@@ -496,6 +497,7 @@ export function App() {
   const pagePropertiesRef = useRef(pageProperties);
   pagePropertiesRef.current = pageProperties;
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const agentTurnMarksRef = useRef(new Set<string>());
 
   useEffect(() => {
     if (!editorReady) return;
@@ -521,7 +523,9 @@ export function App() {
         setCanvasProposal(preview);
         continue;
       }
-      void executeCanvasTool(editor, execution.name, execution.arguments)
+      // Every change in one agent reply shares a single undo step.
+      if (!call?.readOnly) beginAgentTurnChange(editor, agentTurnMarksRef.current, execution.requestId);
+      void executeCanvasTool(editor, execution.name, execution.arguments, { turn: true })
         .then((result) => completeToolExecution(execution.requestId, execution.callId, { ok: true, ...result }))
         .catch((error: unknown) =>
           completeToolExecution(execution.requestId, execution.callId, {
@@ -1062,10 +1066,15 @@ export function App() {
     if (new URLSearchParams(window.location.search).get("perf") === "1") {
       const testWindow = window as Window & {
         __studioEditor?: Editor;
-        __kurvaRunCanvasTool?: (name: string, argumentsJson: string) => ReturnType<typeof executeCanvasTool>;
+        __kurvaRunCanvasTool?: (
+          name: string,
+          argumentsJson: string,
+          options?: { turn?: boolean }
+        ) => ReturnType<typeof executeCanvasTool>;
       };
       testWindow.__studioEditor = editor;
-      testWindow.__kurvaRunCanvasTool = (name, argumentsJson) => executeCanvasTool(editor, name, argumentsJson);
+      testWindow.__kurvaRunCanvasTool = (name, argumentsJson, options) =>
+        executeCanvasTool(editor, name, argumentsJson, options);
     }
     const pendingSnapshot = pendingSnapshotRef.current;
     if (pendingSnapshot && !isBlankCanvasSnapshot(pendingSnapshot)) {
