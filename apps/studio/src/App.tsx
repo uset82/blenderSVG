@@ -1532,6 +1532,35 @@ export function App() {
     navigateRoute({ name: "project", projectId: String(page.id) });
   };
 
+  /** Connect, replace or disconnect OpenRouter, for the window bar and the agent panel. */
+  const handleOpenRouterConnection = (action: Parameters<typeof onConnectionAction>[0]) => {
+    if (webEdition && (action === "connect" || action === "replace")) {
+      persistProjectNow();
+      void beginWebOpenRouterConnect({
+        remember: rememberOpenRouter,
+        returnHash: window.location.hash || "#/",
+        origin: window.location.origin
+      });
+      return;
+    }
+    if (webEdition && action === "disconnect") {
+      void disconnectWebOpenRouter().then((links) => {
+        setOpenRouterRevoke(links);
+        onConnectionAction("disconnect");
+      });
+      return;
+    }
+    if (!isStandaloneHost) {
+      onConnectionAction(action);
+      return;
+    }
+    if (action === "connect" || action === "replace") {
+      document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus();
+      return;
+    }
+    onConnectionAction(action);
+  };
+
   /** Home's send: open a new file, then the agent designs the prompt in Design mode right away. */
   const handleStartDesign = (categoryId: string, prompt: string) => {
     if (!prompt.trim()) return;
@@ -2405,6 +2434,7 @@ export function App() {
                 editor={editorReady ? editorRef.current : null}
                 onRefreshModels={requestModelCatalog}
                 onSendChat={sendChat}
+                onConnectOpenRouter={() => handleOpenRouterConnection("connect")}
                 onCancelChat={cancelChat}
                 onClearChatRun={clearChatRun}
                 onApproveToolCall={approveToolCall}
@@ -2520,33 +2550,7 @@ export function App() {
                 onRememberOpenRouter={setRememberOpenRouter}
                 openRouterRevoke={openRouterRevoke}
                 connected={hostState.connection.status === "connected" || hostKeyConfigured}
-                onConnectionAction={(action) => {
-                  if (webEdition && (action === "connect" || action === "replace")) {
-                    persistProjectNow();
-                    void beginWebOpenRouterConnect({
-                      remember: rememberOpenRouter,
-                      returnHash: window.location.hash || "#/",
-                      origin: window.location.origin
-                    });
-                    return;
-                  }
-                  if (webEdition && action === "disconnect") {
-                    void disconnectWebOpenRouter().then((links) => {
-                      setOpenRouterRevoke(links);
-                      onConnectionAction("disconnect");
-                    });
-                    return;
-                  }
-                  if (!isStandaloneHost) {
-                    onConnectionAction(action);
-                    return;
-                  }
-                  if (action === "connect" || action === "replace") {
-                    document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus();
-                    return;
-                  }
-                  onConnectionAction(action);
-                }}
+                onConnectionAction={handleOpenRouterConnection}
                 {...(isStandaloneHost
                   ? {
                       onSaveHostKey: (key: string) => {

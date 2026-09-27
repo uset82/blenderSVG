@@ -108,6 +108,8 @@ export interface AgentConversationPanelProps {
     extras?: StudioChatExtras
   ) => string | null;
   onCancelChat: (requestId: string) => void;
+  /** Starts the OpenRouter connection (the web sign-in, or the host's key field). */
+  onConnectOpenRouter?: () => void;
   onClearChatRun: () => void;
   onApproveToolCall: (id: string) => void;
   onRejectToolCall: (id: string) => void;
@@ -236,6 +238,7 @@ export function AgentConversationPanel({
   editor = null,
   onRefreshModels,
   onSendChat,
+  onConnectOpenRouter,
   onCancelChat,
   onClearChatRun,
   onApproveToolCall,
@@ -313,6 +316,7 @@ export function AgentConversationPanel({
   ]);
   const [activeConversationId, setActiveConversationId] = useState(() => conversationList[0]?.id ?? "");
   const [conversationMenuOpen, setConversationMenuOpen] = useState(false);
+  const conversationPickerRef = useRef<HTMLDivElement>(null);
   const [conversationLoadMessage, setConversationLoadMessage] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -686,6 +690,23 @@ export function AgentConversationPanel({
   useEffect(() => {
     if (!isOpen) setModelPickerOpen(false);
   }, [isOpen]);
+
+  // The conversation menu closes on a click outside it or on Escape, like the other menus.
+  useEffect(() => {
+    if (!conversationMenuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!conversationPickerRef.current?.contains(event.target as Node)) setConversationMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setConversationMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [conversationMenuOpen]);
 
   useEffect(() => {
     if (!modelPickerOpen) return;
@@ -1108,7 +1129,7 @@ export function AgentConversationPanel({
       }
     >
       <header className="studio-agent__header">
-        <div className="studio-agent__conversation-picker">
+        <div className="studio-agent__conversation-picker" ref={conversationPickerRef}>
           <button
             className="studio-agent__button"
             type="button"
@@ -2079,8 +2100,19 @@ export function AgentConversationPanel({
         </div>
         {!canChat && connectionHost === "web" ? (
           <div className="studio-agent__composer-help">
-            Saved in this browser. Connect OpenRouter from this browser. Requests go directly to OpenRouter. Kurva has
-            no server.
+            <span>
+              Connect OpenRouter to start designing. Requests go directly from this browser to OpenRouter; Kurva has no
+              server. Your message stays here and sends when you are back.
+            </span>
+            {onConnectOpenRouter ? (
+              <button
+                className="studio-agent__button studio-agent__button--primary"
+                type="button"
+                onClick={onConnectOpenRouter}
+              >
+                Connect OpenRouter
+              </button>
+            ) : null}
           </div>
         ) : !canChat && connectionHost === "browser" ? (
           <div className="studio-agent__composer-help">Use the VS Code editor tab to connect and chat.</div>
