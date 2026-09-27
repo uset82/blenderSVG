@@ -170,7 +170,39 @@ try {
   assert.match(svg, /<svg/i);
   assert.doesNotMatch(svg, /<script/i);
 
-  console.log("web-export ok");
+  // Home → Open file → import JSON; web edition forces a document navigation to #/p/<id>.
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await page.getByRole("heading", { name: "Home" }).waitFor({ timeout: 15_000 });
+  const beforeIds = await page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("kurva-library");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const rows = await new Promise((resolve, reject) => {
+      const get = db.transaction("projects").objectStore("projects").getAll();
+      get.onerror = () => reject(get.error);
+      get.onsuccess = () => resolve(get.result ?? []);
+    });
+    db.close();
+    return rows.map((row) => row.id);
+  });
+  await page.getByLabel("Import Studio project JSON").setInputFiles(jsonPath);
+  await page.waitForFunction(
+    (known) => {
+      const id = location.hash.replace(/^#\/p\//, "").split(/[?#]/)[0];
+      return Boolean(id && !known.includes(id) && window.__studioEditor && !window.__studioEditor.isDisposed);
+    },
+    beforeIds,
+    { timeout: 45_000 }
+  );
+  await page.waitForFunction(
+    () => window.__studioEditor.getCurrentPageShapes().some((shape) => shape.type === "geo"),
+    undefined,
+    { timeout: 30_000 }
+  );
+
+  console.log("web-export ok (json/png/svg + Home Open file import)");
 } finally {
   await browser.close();
   server.close();

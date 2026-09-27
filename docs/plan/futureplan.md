@@ -433,23 +433,23 @@ A network log shows the key only in requests to `openrouter.ai`.
   - **Trusted Types:** evaluate `require-trusted-types-for 'script'` with tldraw and React, and adopt it only if the full journey reports zero violations.
   - Evidence (2026-09-27): Caddyfile CSP is `connect-src 'self' https://openrouter.ai data:` (trial key makes the licensed canvas fetch `data:` JSON; no separate tldraw license host was required in the CSP journey). HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, and CORP unchanged. `node scripts/check-web-headers.mjs` passed. Files: `apps/studio/web/Caddyfile`, `docs/WEB_DEPLOYMENT.md`.
 - [ ] W5.4 Create the Railway service `kurva-app`. Its settings live in the Railway dashboard and are mirrored in `docs/WEB_DEPLOYMENT.md`:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
   - the build command, and the output folder `apps/studio/dist-web`
   - the `VITE_TLDRAW_LICENSE_KEY` build variable
   - watch paths `apps/studio/**`, `packages/**` and `pnpm-lock.yaml`
   - the `/health` healthcheck
   - sleep turned off in production, to avoid cold starts
 - [ ] W5.5 Environments and domains:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
   - **staging:** deploys `main` automatically to `staging.kurva.agency`.
   - **production:** promoted manually to `app.kurva.agency`.
   - Attach both domains, add the CNAME records from W0.4, and confirm HTTPS and HSTS.
 - [ ] W5.6 Retire the old `studio-server` Railway service, which cannot serve public traffic by design. Confirm that no public URL exposes a half-configured host.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [x] W5.7 Write a rollback runbook in `docs/WEB_DEPLOYMENT.md`: redeploy the previous Railway deployment, and when the service worker is involved, ship the W6.4 kill switch.
   - Evidence (2026-09-26): `docs/WEB_DEPLOYMENT.md` §Rollback says to redeploy the previous Railway deployment without rebuilding, and to ship `sw-kill.js` as `sw.js` when a worker is stuck. Rehearsing that on staging stays W6.4. Files: `docs/WEB_DEPLOYMENT.md`, `apps/studio/public/sw-kill.js`.
 - [ ] W5.8 Uptime: the Railway healthcheck plus an external `/health` monitor, with the alert contact recorded.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 
 **Done when:** staging serves the web edition over HTTPS with exactly these headers (curl evidence), shows no tldraw license errors in the console, and reaches `/oauth/openrouter` through the fallback.
 
@@ -473,7 +473,7 @@ A network log shows the key only in requests to `openrouter.ai`.
 - [ ] W6.4 Kill switch: a replacement `sw.js` that unregisters itself and clears its caches. Test it on staging and document it.
   - BLOCKED (2026-09-26): local check passed; staging has no host yet. `node scripts/web-kill-switch.mjs` on Edge 153.0.4234.48 cleared the probe cache, unregistered the worker, and reloaded to `?kurva-reset=1`. Chromium rejects `client.navigate` during activate, so the worker posts `kurva-kill` and the web app reloads once. Safe next action: ship `sw-kill.js` as `sw.js` on staging and repeat this check there. Files: `apps/studio/public/sw-kill.js`, `apps/studio/src/main.tsx`, `scripts/web-kill-switch.mjs`.
 - [ ] W6.5 Offline behavior:
-  - PARTIAL (2026-09-27): `node scripts/web-offline.mjs` on Edge 153.0.4234.48 loaded the web build, let the service worker control the page, then reloaded with the network off. Home stayed visible and the page said “Offline — OpenRouter is unavailable”. The same offline session exported `kurva-backup.zip`, downloaded `untitled.studio.json` from the window-bar Export control, and traced `favicon-32.png` to “Trace again”. With the trial key, licensed canvas drawing and PNG/SVG/JSON page export also pass online via `web-canvas-persist` / `web-export`. Staging airplane mode waits on W5. Files: `apps/studio/public/sw.js`, `apps/studio/src/App.tsx`, `scripts/web-offline.mjs`.
+  - PARTIAL (2026-09-27): `node scripts/web-offline.mjs` on Edge 153.0.4234.48 loaded the web build (`?perf=1`), let the service worker control the page, then reloaded with the network off. Home Image→SVG opened a project; offline reload kept the editor, drew a geo rectangle via `__studioEditor`, exported `.studio.json` and a PNG page export, then still exported `kurva-backup.zip` and traced `favicon-32.png` to “Trace again” while offline. Banner: “Offline — OpenRouter is unavailable”. Staging airplane mode waits on W5. Files: `apps/studio/public/sw.js`, `apps/studio/src/App.tsx`, `scripts/web-offline.mjs`.
   - After the first visit, Kurva opens offline.
   - Editing, tracing, export and backup all work.
   - Chat says "Offline — OpenRouter is unavailable".
@@ -551,14 +551,14 @@ A network log shows the key only in requests to `openrouter.ai`.
 - [x] W9.1 Unit tests (Vitest) for the storage backends, the web transport, PKCE, the key store, the capability map and the bundle-budget script.
   - Evidence (2026-09-25): `browserLibrary.test.ts`, `webOpenRouter.test.ts`, `openRouterPkce.test.ts`, `webEdition.test.ts`, and `webShell.test.ts` drive those paths. `build:web` runs `scripts/check-web-bundle.mjs`. Files: `apps/studio/test/webOpenRouter.test.ts`, `packages/studio-host-core/test/openRouterPkce.test.ts`.
 - [ ] W9.2 End-to-end tests (Playwright) against `dist-web`, served with the production headers:
-  - PARTIAL (2026-09-27): with the local trial `VITE_TLDRAW_LICENSE_KEY`, Playwright Chromium, Firefox, and WebKit against `dist-web` passed `web-canvas-persist` and `web-export` via `node scripts/web-browser-matrix.mjs` (`KURVA_BROWSERS=chromium,firefox,webkit`). Chromium alone also still passes `web-project-lock`, `web-backup-clear`, `web-offline` (including Image→SVG trace of `favicon-32.png`, Edge 153.0.4234.48), and `web-a11y`. `node scripts/web-csp-journey.mjs` passed twice each on Chromium and Firefox under the Caddyfile CSP (PKCE exchange + mocked chat stream + local WASM trace; zero `securitypolicyviolation` after allowing `data:` in `connect-src` for the licensed canvas). `node scripts/web-avatar-package.mjs` opened New file → Assets → Add avatar → Save as avatar package and downloaded `kurva-svg-avatar.codex-avatar.zip`; `readStoredZip` confirmed `avatar.manifest.json` + sanitized `svg/avatar.svg` with a SHA-256 checksum (web download now uses `buildBrowserAvatarPackage` instead of a JSON stub). Reopen race fixed: library open waits for IndexedDB and skips blank placeholder remounts for in-session New file. Still open: staging host and W0.4/W5. Safe next action: optional GitHub/Railway key for CI; staging when DNS exists.
+  - PARTIAL (2026-09-27): with the local trial `VITE_TLDRAW_LICENSE_KEY`, Playwright Chromium, Firefox, and WebKit against `dist-web` passed `web-canvas-persist` and `web-export` via `node scripts/web-browser-matrix.mjs` (`KURVA_BROWSERS=chromium,firefox,webkit`). Chromium alone also still passes `web-project-lock`, `web-backup-clear`, `web-offline` (licensed offline draw + JSON/PNG export after SW airplane mode; Edge 153.0.4234.48), and `web-a11y`. `node scripts/web-csp-journey.mjs` passed twice each on Chromium and Firefox under the Caddyfile CSP (PKCE + mocked chat + WASM trace) and twice on Playwright WebKit (trace-only; WebKit stalls on OAuth so PKCE stays Chromium/Firefox); zero `securitypolicyviolation` after allowing `data:` in `connect-src`. `node scripts/web-avatar-package.mjs` downloaded `kurva-svg-avatar.codex-avatar.zip`, validated ZIP entries, then `AvatarPackageRegistry.importPackage` + `activateAvatar` on the same bytes. `web-export` Home → Open file import: saves to IndexedDB then full document navigation (`?imported=` + `#/p/<id>`), and `web-export ok (json/png/svg + Home Open file import)` restores geo after reopen. Open mounts keep `pendingSnapshotRef` through React Strict Mode remounts (cleared on leaving the project or a newer open). Still open: staging host and W0.4/W5. Safe next action: confirm CI web job on Actions after merge; staging when DNS exists.
   - Home → New → draw → reload, and the content persists.
   - Image → SVG → insert → export SVG and PNG; export the project JSON, then import it.
   - Download an avatar ZIP, then import it into the registry.
   - Connect through PKCE, with OpenRouter mocked by route interception → chat stream → proposal → Apply → Undo → Disconnect.
   - An offline reload through the service worker; the two-tab lock; a simulated quota error; the unsupported-browser notice.
 - [ ] W9.3 Browser matrix:
-  - PARTIAL (2026-09-27): Playwright Chromium, Firefox, and WebKit completed `web-canvas-persist` + `web-export` on `dist-web` with the trial key (`web-browser-matrix ok (chromium, firefox, webkit)`; WebKit also 6/6 consecutive persist and export). Engines: Playwright 1.63.0 — Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6. Manual Safari macOS/iOS and Chrome Android still open.
+  - PARTIAL (2026-09-27): Playwright Chromium, Firefox, and WebKit completed `web-canvas-persist` + `web-export` (including Home Open file import restoring geo) on `dist-web` with the trial key (`web-browser-matrix ok (chromium, firefox, webkit)`; WebKit also 6/6 consecutive persist and export). Engines: Playwright 1.63.0 — Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6. Manual Safari macOS/iOS and Chrome Android still open.
   - Playwright Chromium, Firefox and WebKit.
   - A manual pass on Safari for macOS, Safari for iOS, and Chrome for Android.
   - Record every version.
@@ -569,12 +569,12 @@ A network log shows the key only in requests to `openrouter.ai`.
   - Run a keyboard-only journey that includes Connect, Settings → Storage, the update prompt and the unsupported-browser page.
   - Evidence (2026-09-26): `pnpm test:a11y:studio` passed on the standalone host (44×90 px target, reduced motion `1e-05s`, live region). `node scripts/web-a11y.mjs` on Edge 153.0.4234.48 ran the same checks against `dist-web`, then used only Tab and Enter to reach Connect, Export all projects, and the update prompt’s Reload button. A page without `BroadcastChannel` showed “This browser can’t run Kurva”. An updated service worker now stays waiting while a page is already controlled, so Reload can be offered; the first visit still activates the worker. Files: `scripts/web-a11y.mjs`, `scripts/studio-a11y-e2e.mjs`, `apps/studio/public/sw.js`, `apps/studio/src/main.tsx`, `apps/studio/src/App.tsx`.
 - [ ] W9.6 Performance, with Lighthouse CI on staging:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - PARTIAL (2026-09-27): local `node scripts/web-perf.mjs` against licensed `dist-web` (Edge/Chromium 153 headless): Home heading 431ms, editor interactive 1048ms (plan target ≤4s), 1001 shapes pan 59fps / zoom 59fps (plan target 60fps). Staging Lighthouse on 4G still waits on W5. Files: `scripts/web-perf.mjs`.
   - **Home, on a simulated 4G mobile:** LCP of 2.5 s or less, TBT of 300 ms or less, CLS of 0.1 or less.
   - **Editor:** interactive in 4 s or less on a mid-tier mobile profile.
   - **Canvas:** pan and zoom at 60 fps with 1,000 shapes, reusing `scripts/studio-perf-e2e.mjs`.
 - [ ] W9.7 Security checks on staging: the header test (curl), zero `securitypolicyviolation` events, and the W7.2 and W7.3 tests.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [x] W9.8 Regression: the desktop and VS Code paths are unchanged. These all pass:
   - Evidence (2026-09-26): `pnpm run ci` exited 0 on this tree (format, lint, typecheck, test, build). `pnpm test:e2e:studio` printed `studio-e2e ok`. `pnpm smoke:offline-studio` passed. `pnpm smoke:studio-openrouter` passed a streamed fixture reply with the key absent from page storage. `pnpm package:vsix` wrote `dist/codex-avatar-studio-0.1.0.vsix` (146 files, 5.47 MB); `pnpm validate:vsix` and `pnpm smoke:vsix` passed. The installed canvas still shows the license notice until `VITE_TLDRAW_LICENSE_KEY` is set. Files: `scripts/studio-journey-e2e.mjs`, `scripts/smoke-live-studio-openrouter.mjs`.
   - `pnpm run ci`
@@ -592,7 +592,7 @@ A network log shows the key only in requests to `openrouter.ai`.
 **Goal:** a repeatable release path to `app.kurva.agency`, and the routines that keep it healthy.
 
 - [ ] W10.1 Add a `web` job to `.github/workflows/ci.yml`. It runs:
-  - PARTIAL (2026-09-27): the web job builds the web edition, runs the web unit tests and bundle budget, checks the Caddyfile, and runs `web-a11y`, `web-offline`, `web-project-lock`, `web-backup-clear`, `web-canvas-persist`, `web-export`, `web-avatar-package`, and `smoke-web-staging` with `KURVA_BROWSER=chromium`. Local trial key embeds via `apps/studio/.env.local`; CI still needs `VITE_TLDRAW_LICENSE_KEY` as a repository secret for licensed canvas journeys on Actions. Firefox/WebKit matrix stays local via `web-browser-matrix.mjs`. Safe next action: add the GitHub Actions secret, then confirm the web job’s persist/export/avatar steps on Actions.
+  - PARTIAL (2026-09-27): the web job builds the web edition (trial key from `apps/studio/.env.web-site` or `VITE_TLDRAW_LICENSE_KEY` secret), builds the extension for avatar registry import, runs the web unit tests and bundle budget, checks the Caddyfile, and runs `web-a11y`, `web-offline`, `web-project-lock`, `web-backup-clear`, `web-canvas-persist`, `web-export`, `web-avatar-package`, and `smoke-web-staging` with `KURVA_BROWSER=chromium`. Firefox/WebKit matrix stays local via `web-browser-matrix.mjs`. Safe next action: confirm the web job’s persist/export/avatar steps on Actions after merge.
   - `build:web`
   - the unit tests
   - the bundle budget
@@ -600,7 +600,7 @@ A network log shows the key only in requests to `openrouter.ai`.
   - the accessibility test
   - a header test against a local Caddy
 - [ ] W10.2 The deploy flow:
-  - BLOCKED (2026-09-26): `node scripts/smoke-web-staging.mjs` passed against a local server using the Caddyfile headers. `/health` was 200, Home loaded, `sw.js` registered, and the console had no license error. A merge to `main` still does not deploy staging, and production promotion is still manual in Railway. Safe next action: finish W0.3 and W0.4, create the Railway service, then run `node scripts/smoke-web-staging.mjs https://staging.kurva.agency`. Files: `scripts/smoke-web-staging.mjs`.
+  - BLOCKED (2026-09-26): `node scripts/smoke-web-staging.mjs` passed against a local server using the Caddyfile headers. `/health` was 200, Home loaded, `sw.js` registered, and the console had no license error. A merge to `main` still does not deploy staging, and production promotion is still manual in Railway. Safe next action: finish W0.4 (DNS) and create the Railway service, then run `node scripts/smoke-web-staging.mjs https://staging.kurva.agency`. W0.3 trial key is already accepted for non-production. Files: `scripts/smoke-web-staging.mjs`.
   1. A merge to `main` deploys staging automatically.
   2. `scripts/smoke-web-staging.mjs` checks staging: `/health`, the headers, the app loading, no tldraw license errors, and a registered service worker.
   3. The release is promoted to production by hand.
@@ -612,7 +612,7 @@ A network log shows the key only in requests to `openrouter.ai`.
   - Update `README.md`, `docs/USER_GUIDE.md`, `docs/ARCHITECTURE.md`, `docs/DEVELOPER_SETUP.md`, `docs/RELEASE_CHECKLIST.md` and `THIRD_PARTY_NOTICES.md`.
   - Evidence (2026-09-25): `docs/WEB_EDITION.md` already describes browser storage and the Safari note. `docs/WEB_DEPLOYMENT.md` records the Railpack plus Caddy path. `docs/SECURITY_PRIVACY.md` records the browser key. `pnpm validate:docs` is run with this change. Files: `docs/WEB_DEPLOYMENT.md`, `docs/SECURITY_PRIVACY.md`, `docs/WEB_EDITION.md`.
 - [ ] W10.5 Launch checklist:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
   - the license is valid for the domain, with its expiry recorded
   - DNS and TLS
   - the headers
@@ -620,15 +620,15 @@ A network log shows the key only in requests to `openrouter.ai`.
   - backup and restore verified
   - the kill switch and the rollback rehearsed
 - [ ] W10.6 Launch: promote to `app.kurva.agency`, run the staging smoke against production, and record the evidence.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [ ] W10.7 Operations:
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
   - uptime alerts
   - a Railway cost check after 30 days
   - the tldraw renewal reminder
   - a monthly cadence for dependency updates
 - [ ] W10.8 Record per-task evidence here and in `docs/PLAN_CHECKLIST.md`. Check the web edition gate only when every required journey passes.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 
 **Done when:** production passes the smoke run and every gate item below is checked.
 
@@ -637,23 +637,23 @@ A network log shows the key only in requests to `openrouter.ai`.
 ## Web edition gate (all boxes must be checked before announcing)
 
 - [ ] `app.kurva.agency` serves Kurva over HTTPS, with the production headers and a valid tldraw license for the domain.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [ ] A visitor with no account can create, edit, reload, close and reopen a project, and a network log shows no project data leaving the browser.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [ ] Image → SVG, import, PNG/SVG/JSON export and the avatar ZIP all work in the browser.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [ ] OpenRouter connects through OAuth PKCE, and the key is sent only to `openrouter.ai`. Chat streams, stops and retries, and a proposal applies and undoes in one step.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [ ] Backup export and import, and "Clear all data", work. Persistent storage is requested, and quota errors are handled.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [ ] Kurva opens offline after the first visit, and the update prompt and the kill switch are verified.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [ ] Chromium, Firefox and Safari (macOS and iOS) pass the E2E journey, and the accessibility and performance budgets are met.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [ ] The desktop, standalone-host and VS Code regression suites still pass.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 - [ ] The landing page opens the web app, and the privacy and notices pages are live.
-  - BLOCKED (2026-09-25): this step needs the tldraw license, DNS confirmation, a Railway project, or a live staging or production host. Safe next action: finish W0.3 and W0.4, then run this step on that host.
+  - BLOCKED (2026-09-25): this step needs DNS confirmation (W0.4), a Railway project, or a live staging or production host (trial tldraw key is accepted for non-production). Safe next action: finish W0.4 (DNS) and create the Railway service, then run this step on that host. W0.3 trial key is already accepted for non-production.
 
 ## Later (not required for launch)
 

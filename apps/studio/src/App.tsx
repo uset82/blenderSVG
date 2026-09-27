@@ -1039,13 +1039,15 @@ export function App() {
         editor.loadSnapshot(pendingSnapshot as Parameters<Editor["loadSnapshot"]>[0]);
         if (!webEdition) projectWritableRef.current = true;
       } catch {
+        pendingSnapshotRef.current = null;
         projectIdRef.current = null;
         setActiveProjectId(null);
         setProjectSaveStatus("Could not open project");
         setOpenFailureNotice(projectOpenFailureMessage(projectTitleRef.current));
         navigateRoute({ name: "home" });
       }
-      pendingSnapshotRef.current = null;
+      // Keep pendingSnapshotRef set so React Strict Mode's remount can re-apply the same
+      // snapshot. Cleared when leaving the project route or when a newer open overwrites it.
     } else {
       // A saved project with an empty canvas (the web Scratchpad placeholder) opens as a
       // fresh canvas; the first save replaces the placeholder with a real snapshot.
@@ -1900,31 +1902,29 @@ export function App() {
       setImportNotice("Choose a Studio project JSON file.");
       return;
     }
-    const editor = editorRef.current;
-    if (!editor) {
-      setImportNotice("The editor is still starting. Try Open file again.");
-      return;
-    }
     try {
       const imported = parseImportedStudioProject(await file.text());
-      const snapshot = webEdition ? await storeInlinedAssets(imported.snapshot) : imported.snapshot;
-      if (webEdition) assertPortableAssetSources(snapshot);
-      editor.loadSnapshot(JSON.parse(snapshot) as Parameters<Editor["loadSnapshot"]>[0]);
       if (webEdition) {
+        const snapshot = await storeInlinedAssets(imported.snapshot);
+        assertPortableAssetSources(snapshot);
         const saved = await browserProjectBackend.save(crypto.randomUUID(), imported.title, snapshot);
-        projectIdRef.current = saved.id;
-        setActiveProjectId(saved.id);
-        projectTitleRef.current = saved.title;
-        setProjectTitle(saved.title);
-        setProjectSaveStatus(WEB_LIBRARY_STATUS);
-        claimProjectLock(saved.id);
         publishLibraryChange();
         refreshProjectLibrary();
-        routedProjectRef.current = saved.id;
-        navigateRoute({ name: "project", projectId: saved.id });
-        setImportNotice(undefined);
+        localCreatedProjectRef.current = null;
+        // Full document navigation (not hash-only) matches web-canvas-persist and avoids an
+        // in-session remount racing a blank autosave over the just-saved snapshot.
+        const next = new URL(window.location.href);
+        next.searchParams.set("imported", saved.id.slice(0, 8));
+        next.hash = `#/p/${encodeURIComponent(saved.id)}`;
+        window.location.assign(next.href);
         return;
       }
+      const editor = editorRef.current;
+      if (!editor) {
+        setImportNotice("The editor is still starting. Try Open file again.");
+        return;
+      }
+      editor.loadSnapshot(JSON.parse(imported.snapshot) as Parameters<Editor["loadSnapshot"]>[0]);
       projectIdRef.current = null;
       projectWritableRef.current = false;
       setActiveProjectId(null);
@@ -1963,6 +1963,7 @@ export function App() {
       editorRef.current = null;
       routedProjectRef.current = null;
       localCreatedProjectRef.current = null;
+      pendingSnapshotRef.current = null;
       // Drop the active id so the next open waits for IndexedDB before mounting a blank canvas.
       setActiveProjectId(null);
       setEditorReady(false);

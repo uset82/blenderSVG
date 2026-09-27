@@ -1351,23 +1351,23 @@ The web edition runs the Studio as a public static site at `https://app.kurva.ag
 - [x] W1 Web build target and the `web` host mode — futureplan.md §W1
   - Evidence (2026-09-25): `pnpm --filter @codex-avatar-studio/studio build:web` produced `dist-web` (home JS 367875 bytes gzip, editor JS 954312 bytes gzip, one WASM file). Chrome on `http://127.0.0.1:4178/` opened Home as host `web`, showed “Saved in this browser”, hid Blender, QuiverAI, and MCP behind “Available in the Kurva desktop app”, and sent no `/api/*` request. Studio unit tests passed (165). Per-task evidence is in `docs/plan/futureplan.md` §W1.
 - [x] W2 IndexedDB local library — §W2
-  - Evidence (2026-09-25): `pnpm --filter @codex-avatar-studio/studio test` passed (61 files, 173 tests) and `pnpm --filter @codex-avatar-studio/studio typecheck` passed. `build:web` stayed inside budget (home JS 374448 bytes gzip, editor JS 960896 bytes gzip, one WASM file). Chrome 153.0.8010.53 on `http://127.0.0.1:4183/` created Scratchpad in IndexedDB, kept it across reload, showed Settings → Storage, and sent no `/api/*` request. Drawing on that production build waits for the tldraw key (W0.3). Per-task evidence is in `docs/plan/futureplan.md` §W2.
+  - Evidence (2026-09-25/27): library CRUD, quota, backup, and lock tests passed; live drawing with the trial key is covered by `web-canvas-persist` / `web-export`. Per-task evidence is in `docs/plan/futureplan.md` §W2.
 - [x] W3 OpenRouter in the browser (OAuth PKCE) — §W3
   - Evidence (2026-09-25): PKCE, the browser key store, and `createWebHostTransport` are covered by `openRouterPkce.test.ts`, `webOpenRouter.test.ts`, and `webCspGates.test.ts`. W3.10 passed on local HTTPS with the Caddyfile headers in Chrome 153.0.8010.12 and Firefox 155.0. A live staging Connect journey stays blocked until W5. Per-task evidence is in `docs/plan/futureplan.md` §W3.
 - [x] W4 Browser versions of host-only flows — §W4
-  - Evidence (2026-09-25): `browserAvatarPackage.test.ts` imports a browser-built avatar ZIP with `AvatarPackageRegistry.importPackage`. Web import rejects remote asset URLs. Chrome 153.0.8010.12 and Firefox 155.0 compiled the built trace worker under the production CSP and cancelled an in-flight trace. W4.2 stays open for Safari. Per-task evidence is in `docs/plan/futureplan.md` §W4.
+  - Evidence (2026-09-25/27): `web-avatar-package` downloads a browser-built ZIP and imports it with `AvatarPackageRegistry.importPackage` + `activateAvatar`. Web import rejects remote asset URLs. Chromium, Firefox, and Playwright WebKit compiled the built trace worker under the production CSP; W4.2 stays open for real Safari. Per-task evidence is in `docs/plan/futureplan.md` §W4.
 - [ ] W5 Static hosting on Railway (blocked on W0.4 / Railway) — §W5
   - BLOCKED (2026-09-26): W5.1, W5.2, W5.3, and W5.7 are checked. Trial tldraw key is available locally (W0.3). W5.4–W5.6 and W5.8 still need a Railway project, DNS (W0.4), and `VITE_TLDRAW_LICENSE_KEY` as a Railway build variable / GitHub Actions secret.
 - [ ] W6 Installable offline PWA — §W6
-  - BLOCKED (2026-09-25): manifest, service worker, update gate, and install copy are in the repo and covered by `webShell.test.ts`. The staging airplane-mode and kill-switch rehearsal need a live host. See `docs/plan/futureplan.md` §W6.
+  - PARTIAL (2026-09-27): W6.1–W6.3 and W6.6 are checked. Local `web-offline` proves SW airplane mode plus licensed offline draw/JSON/PNG export under the trial key. W6.4 kill-switch and staging airplane still need a live host. See `docs/plan/futureplan.md` §W6.
 - [ ] W7 Security and privacy hardening — §W7
-  - BLOCKED (2026-09-25): W7.2 and W7.4 passed on local HTTPS (Chrome 153.0.8010.12 and Firefox 155.0; `pnpm audit --prod` and `pnpm validate:notices` exited 0). The phase stays open until the staging security pass. See `docs/plan/futureplan.md` §W7.
+  - PARTIAL (2026-09-25/27): W7.1–W7.8 are checked locally (headers, CSP journey, audit, notices). Staging security pass stays open with W5. See `docs/plan/futureplan.md` §W7.
 - [x] W8 Landing page integration — §W8
   - Evidence (2026-09-25): `apps/site/index.html` primary buttons open `https://app.kurva.agency` and stay script-free. In-app Privacy, Notices, GitHub, and desktop links are on web Settings. Per-task evidence is in `docs/plan/futureplan.md` §W8.
 - [ ] W9 Testing and QA — §W9
-  - PARTIAL (2026-09-27): W9.1, W9.5, and W9.8 are checked. Trial-key Playwright matrix passed Chromium+Firefox+WebKit for persist+export; Chromium covers lock/backup/offline/a11y/CSP-PKCE/avatar-ZIP; `web-visual-e2e` captured 18 local PNGs. W9.3 manual Safari/Android and W9.6/W9.7 staging items stay open. See `docs/plan/futureplan.md` §W9.
+  - PARTIAL (2026-09-27): W9.1, W9.5, and W9.8 are checked. Trial-key Playwright matrix passed Chromium+Firefox+WebKit for persist+export (export now includes Home JSON import reopen); Chromium covers lock/backup/offline (licensed draw+export)/a11y/CSP-PKCE/WebKit-trace/avatar-ZIP→registry; `web-visual-e2e` captured 18 local PNGs; `web-perf` recorded local 1000-shape pan/zoom ~60fps. W9.3 manual Safari/Android and W9.6/W9.7 staging Lighthouse items stay open. See `docs/plan/futureplan.md` §W9.
 - [ ] W10 CI/CD, launch and operations — §W10
-  - PARTIAL (2026-09-27): CI `web` job now also runs `web-avatar-package` after export. Canvas journeys need the trial key as a GitHub Actions secret for Actions; Railway promotion still needs DNS. See `docs/plan/futureplan.md` §W10.
+  - PARTIAL (2026-09-27): CI `web` job builds with the evaluation trial key from `apps/studio/.env.web-site` (or Actions secret override), runs a11y/offline/lock/backup/persist/export/avatar-package/staging-smoke. Firefox/WebKit matrix stays local via `web-browser-matrix.mjs`. Railway promotion still needs DNS. See `docs/plan/futureplan.md` §W10.
 
 ## 6. Release gates
 

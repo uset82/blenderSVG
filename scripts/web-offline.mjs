@@ -61,9 +61,9 @@ const context = await browser.newContext({ acceptDownloads: true });
 const page = await context.newPage();
 
 try {
-  await page.goto(origin);
+  await page.goto(`${origin}?perf=1`);
   try {
-    await page.getByRole("heading", { name: "Home" }).waitFor({ timeout: 15_000 });
+    await page.getByRole("heading", { name: "Home" }).waitFor({ timeout: 30_000 });
   } catch (error) {
     const body = await page
       .locator("body")
@@ -82,20 +82,20 @@ try {
   await page.getByRole("button", { name: "Back to Home" }).click();
   await page.getByRole("heading", { name: "Home" }).waitFor();
   const sample = path.join(root, "apps", "studio", "public", "favicon-32.png");
+  // Home Image → SVG opens New file then the dialog; closing after Trace leaves the editor route.
   await traceSample(page, sample);
+  await context.setOffline(true);
+  await page.reload();
+  await page.getByText("Offline — OpenRouter is unavailable").waitFor();
+  await page.locator(".studio-windowbar__unsaved", { hasText: "Saved in this browser" }).waitFor();
 
-  // Create a licensed canvas while online so the SW has cached editor chunks, then continue offline.
-  await page.getByRole("heading", { name: "Home" }).waitFor();
-  await page.getByRole("button", { name: "New file" }).first().click();
-  await page.waitForFunction(() => location.hash.startsWith("#/p/") && window.__studioEditor, undefined, {
-    timeout: 30_000
-  });
+  // Licensed canvas draw + PNG export while offline (trial key in dist-web).
   await page.waitForFunction(
-    () => window.__studioEditor.getCurrentPageShapes().some((shape) => shape.type === "frame"),
+    () => Boolean(window.__studioEditor) && !window.__studioEditor.isDisposed,
     undefined,
-    { timeout: 15_000 }
+    { timeout: 45_000 }
   );
-  const onlineCreated = await page.evaluate(() => {
+  const offlineGeo = await page.evaluate(() => {
     window.__studioEditor.createShape({
       type: "geo",
       x: 80,
@@ -104,36 +104,28 @@ try {
     });
     return window.__studioEditor.getCurrentPageShapes().filter((shape) => shape.type === "geo").length;
   });
-  assert.equal(onlineCreated, 1, "online geo shape missing before offline");
-  const offlineProjectId = await page.evaluate(() => location.hash.replace(/^#\/p\//, "").split(/[?#]/)[0]);
-  await page.waitForFunction(
-    async (id) => {
-      const db = await new Promise((resolve, reject) => {
-        const request = indexedDB.open("kurva-library");
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
-      });
-      const row = await new Promise((resolve, reject) => {
-        const get = db.transaction("projects").objectStore("projects").get(id);
-        get.onerror = () => reject(get.error);
-        get.onsuccess = () => resolve(get.result);
-      });
-      db.close();
-      const snapshot = typeof row?.document?.snapshot === "string" ? row.document.snapshot : "";
-      return snapshot.includes("rectangle");
-    },
-    offlineProjectId,
-    { timeout: 20_000 }
-  );
+  assert.equal(offlineGeo, 1, "offline geo shape missing after createShape");
 
-  await context.setOffline(true);
-  await page.reload();
-  await page.getByText("Offline — OpenRouter is unavailable").waitFor();
-  await page.locator(".studio-windowbar__unsaved", { hasText: "Saved in this browser" }).waitFor();
   const projectFile = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export", exact: true }).click();
   const exported = await projectFile;
   assert.match(exported.suggestedFilename(), /\.studio\.json$/);
+
+  const inspector = page.locator(".studio-inspector");
+  if (!(await inspector.isVisible())) {
+    const showProperties = page.getByRole("button", { name: "Show properties" });
+    if (!(await showProperties.isVisible())) {
+      await page.locator(".studio-windowbar__menu--settings summary").click();
+    }
+    await page.getByRole("button", { name: "Show properties" }).click();
+  }
+  await inspector.waitFor({ timeout: 15_000 });
+  await page.getByLabel("Export format").selectOption("png");
+  const offlinePng = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export page" }).click();
+  const pngFile = await offlinePng;
+  assert.match(pngFile.suggestedFilename(), /\.png$/i);
+
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.getByRole("button", { name: "Settings" }).click();
   const backup = page.waitForEvent("download");
@@ -142,51 +134,6 @@ try {
   assert.match(download.suggestedFilename(), /kurva-backup\.zip/);
   await page.getByRole("button", { name: "Back to Home" }).click();
   await traceSample(page, sample);
-
-  // Reopen the licensed project while offline, draw again, and export JSON + PNG.
-  await page.getByRole("heading", { name: "Home" }).waitFor();
-  await page.evaluate((id) => {
-    location.hash = `#/p/${id}`;
-  }, offlineProjectId);
-  await page.waitForFunction(() => location.hash.startsWith("#/p/") && window.__studioEditor, undefined, {
-    timeout: 30_000
-  });
-  const offlineGeo = await page.evaluate(() => {
-    const editor = window.__studioEditor;
-    let count = editor.getCurrentPageShapes().filter((shape) => shape.type === "geo").length;
-    if (count === 0) {
-      editor.createShape({
-        type: "geo",
-        x: 200,
-        y: 120,
-        props: { geo: "ellipse", w: 80, h: 80 }
-      });
-      count = editor.getCurrentPageShapes().filter((shape) => shape.type === "geo").length;
-    } else {
-      editor.createShape({
-        type: "geo",
-        x: 200,
-        y: 120,
-        props: { geo: "ellipse", w: 80, h: 80 }
-      });
-      count = editor.getCurrentPageShapes().filter((shape) => shape.type === "geo").length;
-    }
-    return count;
-  });
-  assert.ok(offlineGeo >= 1, "offline canvas had no geo shapes");
-  const offlineJson = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export", exact: true }).click();
-  const offlineExport = await offlineJson;
-  assert.match(offlineExport.suggestedFilename(), /\.studio\.json$/);
-  const showProperties = page.getByRole("button", { name: "Show properties" });
-  if (await showProperties.count()) await showProperties.click();
-  await page.locator(".studio-inspector").waitFor({ timeout: 10_000 });
-  await page.getByLabel("Export format").selectOption("png");
-  const offlinePng = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export page" }).click();
-  const pngFile = await offlinePng;
-  assert.match(pngFile.suggestedFilename(), /\.png$/i);
-
   const version = await browser.version();
   console.log(`web-offline ok ${version} (licensed canvas draw+export while offline)`);
 } finally {

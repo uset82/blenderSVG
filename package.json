@@ -57,6 +57,7 @@
     "test:web:avatar-package": "node scripts/web-avatar-package.mjs",
     "test:web:matrix": "node scripts/web-browser-matrix.mjs",
     "test:web:visual": "node scripts/web-visual-e2e.mjs",
+    "test:web:perf": "node scripts/web-perf.mjs",
     "validate:vsix": "node scripts/validate-vsix.mjs",
     "package:vsix:pre": "node scripts/package-vsix.mjs --pre-release"
   },
