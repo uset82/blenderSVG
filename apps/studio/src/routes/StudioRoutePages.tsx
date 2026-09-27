@@ -1,11 +1,12 @@
 import type { StudioHostKind } from "@codex-avatar-studio/avatar-core";
 import { useEffect, useState } from "react";
 import { CONNECTOR_SNIPPETS, connectorSnippetsForLaunch } from "../components/connectorSnippets.js";
+import { browserStorage, readRequestReview, storeRequestReview } from "../components/projectChatConsent.js";
 import type { StudioRoute } from "../router/studioRoute.js";
 import { appPath } from "../web/appBase.js";
 import { BrowserStoragePanel } from "../web/BrowserStoragePanel.js";
-import { beginWebOpenRouterConnect, disconnectWebOpenRouter } from "../web/openRouterConnect.js";
 import { DesktopOnlyNotice } from "../web/DesktopOnlyNotice.js";
+import { beginWebOpenRouterConnect, disconnectWebOpenRouter } from "../web/openRouterConnect.js";
 import { KURVA_DESKTOP_APP_URL, showDesktopOnlyNotice, studioCapabilities } from "../web/studioCapabilities.js";
 import { INSTALL_GUIDANCE, WEB_APP_VERSION } from "../web/webShell.js";
 
@@ -55,13 +56,7 @@ export function StudioRouteNotice({
     enabled: false,
     message: "QuiverAI stays off until you turn it on."
   });
-  const [alwaysPreview, setAlwaysPreview] = useState(() => {
-    try {
-      return window.localStorage.getItem("studio-always-preview") !== "no";
-    } catch {
-      return true;
-    }
-  });
+  const [reviewBeforeSend, setReviewBeforeSend] = useState(() => readRequestReview(browserStorage()));
   const [warnPaidModels, setWarnPaidModels] = useState(() => {
     try {
       return window.localStorage.getItem("studio-warn-paid") !== "no";
@@ -382,22 +377,18 @@ export function StudioRouteNotice({
               </label>
               <label className="studio-settings-card__row">
                 <span>
-                  <strong>Always show the full request preview</strong>
-                  <span>Review instructions, history and attachments before each send.</span>
+                  <strong>Review each request before it is sent</strong>
+                  <span>
+                    Shows the instructions, history, canvas details and attachments before each send. Off by default.
+                  </span>
                 </span>
                 <input
                   type="checkbox"
-                  checked={alwaysPreview}
-                  aria-label="Always show the full request preview"
+                  checked={reviewBeforeSend}
+                  aria-label="Review each request before it is sent"
                   onChange={(event) => {
-                    const next = event.target.checked;
-                    setAlwaysPreview(next);
-                    try {
-                      window.localStorage.setItem("studio-always-preview", next ? "yes" : "no");
-                    } catch {
-                      // The agent panel still receives the event for this page.
-                    }
-                    window.dispatchEvent(new Event("studio-always-preview"));
+                    setReviewBeforeSend(event.target.checked);
+                    storeRequestReview(browserStorage(), event.target.checked);
                   }}
                 />
               </label>

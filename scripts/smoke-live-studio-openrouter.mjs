@@ -275,7 +275,10 @@ try {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set;
       setter.call(input, ${JSON.stringify(draft)});
       input.dispatchEvent(new Event("input", { bubbles: true }));
-      document.querySelector('button[aria-label="Review & send"]')?.click();
+      // This smoke checks the full request, so it turns the opt-in review on first.
+      const review = document.querySelector('.studio-agent__context input[type="checkbox"]');
+      if (review && !review.checked) review.click();
+      setTimeout(() => document.querySelector('button[aria-label="Review & send"]')?.click(), 50);
     })()`
   );
   const contextRow = await evaluate(
@@ -297,14 +300,11 @@ try {
     cdp,
     `document.querySelector('[aria-labelledby="studio-consent-title"]')?.innerText`
   );
-  assert.match(consentDialog, /sends your draft, earlier messages/);
-  assert.match(consentDialog, /OpenRouter key stays on the host/);
+  assert.match(consentDialog, /sends your message, this chat's earlier messages/);
+  assert.match(consentDialog, /OpenRouter key stays on this computer/);
   await evaluate(cdp, `document.querySelector('[aria-labelledby="studio-consent-title"] button')?.click()`);
-  const consentState = await evaluate(
-    cdp,
-    `({ projectId: decodeURIComponent(location.hash.split("/").pop()), entries: Object.entries(sessionStorage).filter(([key]) => key.startsWith("studio-chat-consent-v2:")) })`
-  );
-  assert.deepEqual(consentState.entries, [[`studio-chat-consent-v2:${consentState.projectId}`, "yes"]]);
+  const consentState = await evaluate(cdp, `localStorage.getItem("kurva-openrouter-consent-v3")`);
+  assert.equal(consentState, "yes", "consent is remembered once for this browser");
   await waitUntil(
     async () =>
       await evaluate(cdp, `Boolean(document.querySelector('[aria-labelledby="studio-outbound-title"] button'))`),

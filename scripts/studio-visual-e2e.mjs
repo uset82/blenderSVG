@@ -217,14 +217,12 @@ async function startWorkingAgent() {
   await page.locator("#studio-composer-mode").waitFor();
   await page
     .locator("#studio-composer-mode [role='menuitemradio']")
-    .filter({ hasText: /^build/ })
+    .filter({ hasText: /^Review/ })
     .click();
   await page.locator("#studio-chat-composer").fill("Add a landing frame.");
-  await page.getByRole("button", { name: "Review & send" }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await page.locator("#studio-consent-title").waitFor();
-  await page.locator('[aria-labelledby="studio-consent-title"] button').first().click();
-  await page.locator("#studio-outbound-title").waitFor();
-  await page.getByRole("button", { name: "Send to OpenRouter" }).click();
+  await page.getByRole("button", { name: "Agree and send" }).click();
   await page.getByRole("button", { name: "Approve and run" }).click({ timeout: 15_000 });
   const proposal = page.getByRole("region", { name: "Pending canvas changes" });
   await proposal.waitFor({ timeout: 15_000 });
@@ -327,7 +325,7 @@ try {
               toolbar: rect(".studio-toolbar"),
               messages: rect(".studio-agent__messages"),
               modelTrigger: rect(".studio-model-picker-anchor > button"),
-              send: rect('.studio-agent__composer-actions [aria-label="Review & send"]'),
+              send: rect('.studio-agent__composer-actions [aria-label="Send"]'),
               emptyTitle: rect(".studio-agent__empty-title"),
               suggestions: [...document.querySelectorAll(".studio-agent__suggestions .studio-agent__chip")].map(
                 (item) => {

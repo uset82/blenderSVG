@@ -27,7 +27,16 @@ import { ChatMessageBody } from "./ChatMessageBody.js";
 import { describeSelection } from "./canvasContextMenu.js";
 import { canStartSend, lastExchange } from "./chatActions.js";
 import { type ComposerMenuAction, composerMenuItems } from "./composerMenu.js";
-import { COMPOSER_MODES, type ComposerMode, modeDescription, nextComposerMode } from "./composerModes.js";
+import {
+  COMPOSER_MODES,
+  type ComposerMode,
+  modeDescription,
+  modeLabel,
+  modeToolsLabel,
+  nextComposerMode,
+  readStoredComposerMode,
+  storeComposerMode
+} from "./composerModes.js";
 import { compactHistory } from "./contextBudget.js";
 import { buildDesignContext } from "./designContext.js";
 import { DESIGN_SKILLS, designSkill } from "./designSkills.js";
@@ -45,7 +54,14 @@ import { filterModelsByBadges, groupCatalogModels, modelBadges, type QuickModelF
 import { nextModelOptionIndex } from "./modelPickerNavigation.js";
 import { placeDesignBlocks } from "./placeDesignBlocks.js";
 import { paidModelCue, sendContextLines } from "./privacyContext.js";
-import { hasProjectChatConsent, recordProjectChatConsent } from "./projectChatConsent.js";
+import {
+  browserStorage,
+  hasChatConsent,
+  REQUEST_REVIEW_EVENT,
+  readRequestReview,
+  recordChatConsent,
+  storeRequestReview
+} from "./projectChatConsent.js";
 import { readProjectStyle, STYLE_PRESETS, withProjectStyle } from "./projectStyle.js";
 import { chatRunStatusLabel } from "./shellStatus.js";
 import { ToolCallCard } from "./ToolCallView.js";
@@ -296,7 +312,7 @@ export function AgentConversationPanel({
   const [conversationLoadMessage, setConversationLoadMessage] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [composerMode, setComposerMode] = useState<ComposerMode>("ask");
+  const [composerMode, setComposerMode] = useState<ComposerMode>(readStoredComposerMode);
   const [variantScale, setVariantScale] = useState(1);
   const [variantSessions, setVariantSessions] = useState<VariantSession[]>([]);
   useEffect(() => {
@@ -308,19 +324,10 @@ export function AgentConversationPanel({
     window.addEventListener("kurva-start-variants", onVariants);
     return () => window.removeEventListener("kurva-start-variants", onVariants);
   }, [editor]);
-  const [consented, setConsented] = useState(() => hasProjectChatConsent(projectId, window.sessionStorage));
+  const [consented, setConsented] = useState(() => hasChatConsent(browserStorage()));
   const [consentOpen, setConsentOpen] = useState(false);
-  useEffect(() => {
-    setConsented(hasProjectChatConsent(projectId, window.sessionStorage));
-    setConsentOpen(false);
-  }, [projectId]);
-  const [alwaysPreview, setAlwaysPreview] = useState(() => {
-    try {
-      return window.localStorage.getItem("studio-always-preview") !== "no";
-    } catch {
-      return true;
-    }
-  });
+  /** Off by default: requests send directly. On: the full request opens for review first. */
+  const [reviewBeforeSend, setReviewBeforeSend] = useState(() => readRequestReview(browserStorage()));
   const [warnPaidModels, setWarnPaidModels] = useState(() => {
     try {
       return window.localStorage.getItem("studio-warn-paid") !== "no";
@@ -329,13 +336,7 @@ export function AgentConversationPanel({
     }
   });
   useEffect(() => {
-    const syncPreview = () => {
-      try {
-        setAlwaysPreview(window.localStorage.getItem("studio-always-preview") !== "no");
-      } catch {
-        setAlwaysPreview(true);
-      }
-    };
+    const syncPreview = () => setReviewBeforeSend(readRequestReview(browserStorage()));
     const syncWarnPaid = () => {
       try {
         setWarnPaidModels(window.localStorage.getItem("studio-warn-paid") !== "no");
@@ -343,10 +344,10 @@ export function AgentConversationPanel({
         setWarnPaidModels(true);
       }
     };
-    window.addEventListener("studio-always-preview", syncPreview);
+    window.addEventListener(REQUEST_REVIEW_EVENT, syncPreview);
     window.addEventListener("studio-warn-paid", syncWarnPaid);
     return () => {
-      window.removeEventListener("studio-always-preview", syncPreview);
+      window.removeEventListener(REQUEST_REVIEW_EVENT, syncPreview);
       window.removeEventListener("studio-warn-paid", syncWarnPaid);
     };
   }, []);
@@ -358,6 +359,7 @@ export function AgentConversationPanel({
   const [attachedImage, setAttachedImage] = useState<File | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  useEffect(() => storeComposerMode(composerMode), [composerMode]);
   const [skillMenuOpen, setSkillMenuOpen] = useState(false);
   const [activeSkill, setActiveSkill] = useState<string | null>(null);
   /** The mode and tool support of each request, to place text-only designs when it completes. */
@@ -786,18 +788,20 @@ export function AgentConversationPanel({
       setAttachmentError("Studio could not prepare this image locally. Remove it and attach it again.");
       return;
     }
-    setOutboundPreview({
+    const preview: OutboundPreview = {
       model: selectedModel,
       ...outboundFor(selectedModel),
       history: bounded.history,
       message: draft.trim(),
       omittedMessages: bounded.omittedMessages,
       ...(attachment ? { attachment } : {})
-    });
+    };
+    if (reviewBeforeSend) setOutboundPreview(preview);
+    else sendPreview(preview);
   };
 
-  const sendAfterPreview = () => {
-    if (!outboundPreview || isChatBusy(chatRun)) return;
+  const sendPreview = (outboundPreview: OutboundPreview) => {
+    if (isChatBusy(chatRun)) return;
     const count = Math.min(4, Math.max(1, variantScale));
     if (count > 1 && editor) {
       const sessions = placeVariantFrames(adaptEditorForVariants(editor), count);
@@ -1020,7 +1024,7 @@ export function AgentConversationPanel({
       .slice(0, last.userIndex)
       .filter((message) => message.role === "user" || message.status === "complete")
       .map(({ role, content }) => ({ role, content }) as StudioChatHistoryMessage);
-    setOutboundPreview({
+    (reviewBeforeSend ? setOutboundPreview : sendPreview)({
       model: selectedModel,
       ...outboundFor(selectedModel),
       history: boundOutboundHistory(history, selectedModel.contextLength).history,
@@ -1101,7 +1105,11 @@ export function AgentConversationPanel({
             </div>
           )}
           <div className="studio-agent__subtitle">
-            OpenRouter · {connectionLabel} · <span>Tools off</span>
+            OpenRouter · {connectionLabel} ·{" "}
+            <span>
+              {modeLabel(composerMode)}:{" "}
+              {modeToolsLabel(composerMode, selectedModel?.supportedParameters.includes("tools") ?? false)}
+            </span>
           </div>
         </div>
         <div className="studio-agent__header-actions">
@@ -1236,17 +1244,13 @@ export function AgentConversationPanel({
           <label>
             <input
               type="checkbox"
-              checked={alwaysPreview}
+              checked={reviewBeforeSend}
               onChange={(event) => {
-                setAlwaysPreview(event.target.checked);
-                try {
-                  window.localStorage.setItem("studio-always-preview", event.target.checked ? "yes" : "no");
-                } catch {
-                  // The choice still applies for this page when storage is unavailable.
-                }
+                setReviewBeforeSend(event.target.checked);
+                storeRequestReview(browserStorage(), event.target.checked);
               }}
             />
-            Always show the full request preview
+            Review each request before it is sent
           </label>
         </details>
       </div>
@@ -1395,7 +1399,7 @@ export function AgentConversationPanel({
               title={modeDescription(composerMode)}
               onClick={() => setModeMenuOpen((open) => !open)}
             >
-              {composerMode}
+              {modeLabel(composerMode)}
             </button>
             {modeMenuOpen && (
               <div id="studio-composer-mode" className="studio-agent__plus studio-agent__mode-menu" role="menu">
@@ -1410,7 +1414,7 @@ export function AgentConversationPanel({
                       setModeMenuOpen(false);
                     }}
                   >
-                    <span>{mode}</span>
+                    <span>{modeLabel(mode)}</span>
                     <span>{modeDescription(mode)}</span>
                   </button>
                 ))}
@@ -1990,7 +1994,7 @@ export function AgentConversationPanel({
             </div>
           ) : null}
           <span className="studio-agent__composer-count">
-            {draft.length.toLocaleString()} / 12,000 · Enter to review
+            {draft.length.toLocaleString()} / 12,000 · Enter to {reviewBeforeSend ? "review" : "send"}
           </span>
           {isChatBusy(chatRun) && chatRun ? (
             <button
@@ -2008,7 +2012,7 @@ export function AgentConversationPanel({
             <button
               className="studio-agent__button studio-agent__button--primary studio-agent__button--icon"
               type="button"
-              aria-label="Review & send"
+              aria-label={reviewBeforeSend ? "Review & send" : "Send"}
               disabled={!canSend}
               onClick={() => void requestPreview()}
             >
@@ -2043,26 +2047,29 @@ export function AgentConversationPanel({
             aria-modal="true"
             aria-labelledby="studio-consent-title"
           >
-            <h2 id="studio-consent-title">Send this request to OpenRouter?</h2>
+            <h2 id="studio-consent-title">Before your first request</h2>
             <p>
-              This sends your draft, earlier messages in this chat, and an image only if one is attached. Plan mode can
-              offer read-only canvas details. Build asks before each proposed canvas change. Auto applies canvas-only
-              changes as one Undo step; read actions still ask before local canvas data is sent. Approved results,
-              including a frame screenshot when requested, return to the selected model.{" "}
+              Kurva sends your message, this chat's earlier messages, the design brief you chose, and a short list of
+              what is on the canvas (frame names, sizes and positions) to OpenRouter and the model you picked. In Design
+              and Review, the model also reads and writes designs: the HTML of frames it opens or creates goes to the
+              model, and its changes apply to the canvas right away. One Undo reverts a whole reply. A frame screenshot
+              is sent only after you approve it, and an image only if you attach one.{" "}
               {connectionHost === "web"
                 ? "Requests go directly from this browser to OpenRouter. Kurva has no server."
-                : "The OpenRouter key stays on the host."}
+                : "The OpenRouter key stays on this computer."}{" "}
+              You are asked once in this browser. To see each request before it goes, turn on “Review each request
+              before it is sent”.
             </p>
             <button
               type="button"
               onClick={() => {
                 setConsented(true);
                 setConsentOpen(false);
-                recordProjectChatConsent(projectId, window.sessionStorage);
+                recordChatConsent(browserStorage());
                 void requestPreview(true);
               }}
             >
-              Continue to review
+              Agree and send
             </button>
             <button type="button" onClick={() => setConsentOpen(false)}>
               Cancel
@@ -2073,12 +2080,12 @@ export function AgentConversationPanel({
       {outboundPreview && (
         <OutboundRequestDialog
           preview={outboundPreview}
-          showFull={alwaysPreview}
+          showFull
           warnPaidModels={warnPaidModels}
           direct={connectionHost === "web"}
           sendRef={previewSendRef}
           onCancel={() => setOutboundPreview(null)}
-          onSend={sendAfterPreview}
+          onSend={() => sendPreview(outboundPreview)}
         />
       )}
     </aside>

@@ -110,14 +110,12 @@ try {
   await page.locator(".studio-windowbar summary[aria-label='Settings']").click();
   await page.locator("button.studio-agent__model-trigger").click();
   await page.locator(`[role="option"][data-model-id="${modelId}"]`).click({ timeout: 15_000 });
-  await page.locator("button.studio-agent__chip", { hasText: "ask" }).click();
-  await page.getByRole("menuitemradio", { name: /^build/ }).click();
+  await page.locator("button.studio-agent__chip", { hasText: "Design" }).click();
+  await page.getByRole("menuitemradio", { name: /^Review/ }).click();
   await page.locator("#studio-chat-composer").fill("Add a landing frame.");
-  await page.getByRole("button", { name: "Review & send" }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await page.locator("#studio-consent-title").waitFor();
-  await page.locator('[aria-labelledby="studio-consent-title"] button').first().click();
-  await page.locator("#studio-outbound-title").waitFor();
-  await page.getByRole("button", { name: "Send to OpenRouter" }).click();
+  await page.getByRole("button", { name: "Agree and send" }).click();
   await page.getByRole("button", { name: "Approve and run" }).click({ timeout: 15_000 });
   const proposal = page.getByRole("region", { name: "Pending canvas changes" });
   await proposal.waitFor({ timeout: 15_000 });
