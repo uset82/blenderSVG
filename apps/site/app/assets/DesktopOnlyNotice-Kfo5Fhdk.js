@@ -1,1 +1,0 @@
-import{j as e}from"./radix-BQUQsFX7.js";import{a1 as s,W as o}from"./index-MkggYOGW.js";function a({feature:r}){return e.jsxs("p",{className:"studio-desktop-only",children:[r,": ",s,"."," ",e.jsx("a",{href:o,rel:"noreferrer",children:"Get the desktop app"})]})}export{a as D};
