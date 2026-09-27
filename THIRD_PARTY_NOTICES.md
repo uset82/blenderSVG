@@ -51,6 +51,22 @@ Exact versions were checked against the installed workspace manifests and lockfi
 
 The image-to-SVG path uses `imagetracerjs@1.2.6` (Unlicense), `jimp@0.14.0` (MIT), and the local `@visioncortex/vtracer@1.0.0-alpha.4` WASM build (MIT OR Apache-2.0; copyright 2024 TSANG, Hao Fung). See the [VTracer license](https://github.com/visioncortex/vtracer/blob/master/LICENSE). The GPL-2.0 Potrace dependency is absent from the workspace manifests and lockfile. `scripts/validate-vsix.mjs` rejects a packaged extension bundle containing the removed dependency name.
 
+## Ported source: ZCode
+
+The design agent's turn machine, tool scheduler, and tool-input validation are ported from [ZCode](https://github.com/zai-org/ZCode) at commit [`29628c9`](https://github.com/zai-org/ZCode/tree/29628c9acdb81b703bbd4080c207a0e7ce5e276e) (tag `v3.14.3`), under the Apache License 2.0. Copyright 2026 Z.AI Co., Ltd. The license text is kept at [`packages/studio-agent/src/zcode/LICENSE`](packages/studio-agent/src/zcode/LICENSE). Every ported file starts with a header naming ZCode, the commit, the upstream path, the license, and the changes made. ZCode's `NOTICE.md` describes ZCode's own product behavior and has no attribution text that applies to these files. [ADR 0002](docs/adr/0002-agent-harness.md) records the audit.
+
+| Kurva file | Upstream file | Changes |
+| --- | --- | --- |
+| `packages/studio-agent/src/zcode/toolInputValidationIssues.ts` | [`apps/zcode-cli/packages/core/src/tool/tool-input-validation-issues.ts`](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/apps/zcode-cli/packages/core/src/tool/tool-input-validation-issues.ts) | Comment translated; reformatted. |
+| `packages/studio-agent/src/zcode/jsonSchema.ts` | [`apps/zcode-cli/packages/core/src/tool/json-schema.ts`](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/apps/zcode-cli/packages/core/src/tool/json-schema.ts) | `JsonSchema` type defined locally; result type exported; comments translated. |
+| `packages/studio-agent/src/zcode/inputValidationModelContent.ts` | [`apps/zcode-cli/packages/core/src/tool/input-validation-model-content.ts`](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/apps/zcode-cli/packages/core/src/tool/input-validation-model-content.ts) | Formatter only; the Zod runtime-issue projection is not ported. |
+| `packages/studio-agent/src/zcode/toolInputNormalization.ts` | [`apps/zcode-cli/packages/adapters/src/model/tool-input-normalization.ts`](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/apps/zcode-cli/packages/adapters/src/model/tool-input-normalization.ts) | Minimal logger type; `openrouter` source added; comments translated. |
+| `packages/studio-agent/src/zcode/turnState.ts` | [`apps/zcode-cli/packages/core/src/agent/turn-state.ts`](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/apps/zcode-cli/packages/core/src/agent/turn-state.ts) | Local contracts; Streaming→Streaming and AwaitingPermission→AggregatingResults allowed; optional fields accept `undefined`. |
+| `packages/studio-agent/src/zcode/turnMachine.ts` | [`apps/zcode-cli/packages/core/src/agent/turn-machine.ts`](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/apps/zcode-cli/packages/core/src/agent/turn-machine.ts) | Local contracts; failed or declined calls go back to the model instead of ending the turn; an allowed call returns to `scheduled`. |
+| `packages/studio-agent/src/zcode/scheduler.ts` | [`apps/zcode-cli/packages/core/src/tool/scheduler.ts`](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/apps/zcode-cli/packages/core/src/tool/scheduler.ts) | Local contracts; Kurva passes its own read-only tool set; optional fields accept `undefined`. |
+
+`packages/studio-agent/src/zcode/contracts.ts` is written for Kurva. It replaces the few `@zcode/contracts` helpers these files import, because that package depends on Zod and the ZCode runtime.
+
 ## Project-local Blender skills
 
 These source-pinned development skills live under `.agents/skills` and are not included in the distributable VSIX:

@@ -1,13 +1,17 @@
-import {
-  STUDIO_CHAT_SYSTEM_PROMPT,
-  type StudioChatHistoryMessage,
-  type StudioModel
-} from "@codex-avatar-studio/avatar-core";
+import type { StudioChatHistoryMessage, StudioModel } from "@codex-avatar-studio/avatar-core";
+import { extractDesignBlocks, redactDesignBlocks } from "@codex-avatar-studio/studio-agent/designBlocks";
+import { buildSystemPrompt } from "@codex-avatar-studio/studio-agent/designPrompt";
 import { ArrowUp, Check, ChevronDown, Plus, RefreshCw, Search, Star, X } from "lucide-react";
 import type React from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "tldraw";
-import type { StudioChatRun, StudioImageAttachment, StudioModelCatalog, StudioToolCall } from "../bridge/studioHost.js";
+import type {
+  StudioChatExtras,
+  StudioChatRun,
+  StudioImageAttachment,
+  StudioModelCatalog,
+  StudioToolCall
+} from "../bridge/studioHost.js";
 import { assertChatImageAttachment } from "../projects/localAssets.js";
 import {
   type AgentConversation,
@@ -23,9 +27,20 @@ import { ChatMessageBody } from "./ChatMessageBody.js";
 import { describeSelection } from "./canvasContextMenu.js";
 import { canStartSend, lastExchange } from "./chatActions.js";
 import { type ComposerMenuAction, composerMenuItems } from "./composerMenu.js";
-import { COMPOSER_MODES, type ComposerMode, modeDescription, nextComposerMode } from "./composerModes.js";
+import {
+  COMPOSER_MODES,
+  type ComposerMode,
+  modeDescription,
+  modeLabel,
+  modeToolsLabel,
+  nextComposerMode,
+  readStoredComposerMode,
+  storeComposerMode
+} from "./composerModes.js";
 import { compactHistory } from "./contextBudget.js";
-import { DESIGN_SKILLS } from "./designSkills.js";
+import { pickDefaultDesignModel } from "./defaultDesignModel.js";
+import { buildDesignContext } from "./designContext.js";
+import { DESIGN_SKILLS, designSkill } from "./designSkills.js";
 import {
   filterStudioModels,
   isDuplicateRoute,
@@ -38,11 +53,21 @@ import {
 } from "./modelFilters.js";
 import { filterModelsByBadges, groupCatalogModels, modelBadges, type QuickModelFilter } from "./modelPicker.js";
 import { nextModelOptionIndex } from "./modelPickerNavigation.js";
+import { clearPendingAgentSend, savePendingAgentSend, takePendingAgentSend } from "./pendingAgentSend.js";
+import { placeDesignBlocks } from "./placeDesignBlocks.js";
 import { paidModelCue, sendContextLines } from "./privacyContext.js";
-import { hasProjectChatConsent, recordProjectChatConsent } from "./projectChatConsent.js";
+import {
+  browserStorage,
+  hasChatConsent,
+  REQUEST_REVIEW_EVENT,
+  readRequestReview,
+  recordChatConsent,
+  storeRequestReview
+} from "./projectChatConsent.js";
 import { readProjectStyle, STYLE_PRESETS, withProjectStyle } from "./projectStyle.js";
 import { chatRunStatusLabel } from "./shellStatus.js";
 import { ToolCallCard } from "./ToolCallView.js";
+import { writingLabel } from "./toolCallCard.js";
 import { effectiveComposerMode } from "./toolModeFallback.js";
 import {
   keepVariantFrame,
@@ -57,7 +82,8 @@ export type OpenRouterConnectionAction = "connect" | "replace" | "test" | "disco
 export interface AgentConversationPanelProps {
   className?: string;
   isOpen: boolean;
-  draftPrefill?: { id: string; text: string } | null;
+  /** Text for the composer. With `send`, it goes out in Design mode as soon as a model is ready. */
+  draftPrefill?: { id: string; text: string; send?: boolean; skill?: string } | null;
   draftImagePrefill?: { id: string; file: File } | null;
   onClose: () => void;
   connectionHost: "vscode" | "standalone" | "browser" | "web";
@@ -78,9 +104,12 @@ export interface AgentConversationPanelProps {
     history: StudioChatHistoryMessage[],
     userMessage: string,
     attachment?: StudioImageAttachment,
-    mode?: "ask" | "plan" | "build" | "auto"
+    mode?: "ask" | "plan" | "build" | "auto",
+    extras?: StudioChatExtras
   ) => string | null;
   onCancelChat: (requestId: string) => void;
+  /** Starts the OpenRouter connection (the web sign-in, or the host's key field). */
+  onConnectOpenRouter?: () => void;
   onClearChatRun: () => void;
   onApproveToolCall: (id: string) => void;
   onRejectToolCall: (id: string) => void;
@@ -186,6 +215,10 @@ interface OutboundPreview {
   message: string;
   omittedMessages: number;
   attachment?: { file: File; dataUrl: string };
+  /** The system prompt this request will carry, shown in the full preview. */
+  systemPrompt: string;
+  extras: StudioChatExtras;
+  toolSupport: boolean;
 }
 
 export function AgentConversationPanel({
@@ -205,6 +238,7 @@ export function AgentConversationPanel({
   editor = null,
   onRefreshModels,
   onSendChat,
+  onConnectOpenRouter,
   onCancelChat,
   onClearChatRun,
   onApproveToolCall,
@@ -282,10 +316,11 @@ export function AgentConversationPanel({
   ]);
   const [activeConversationId, setActiveConversationId] = useState(() => conversationList[0]?.id ?? "");
   const [conversationMenuOpen, setConversationMenuOpen] = useState(false);
+  const conversationPickerRef = useRef<HTMLDivElement>(null);
   const [conversationLoadMessage, setConversationLoadMessage] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [composerMode, setComposerMode] = useState<ComposerMode>("ask");
+  const [composerMode, setComposerMode] = useState<ComposerMode>(readStoredComposerMode);
   const [variantScale, setVariantScale] = useState(1);
   const [variantSessions, setVariantSessions] = useState<VariantSession[]>([]);
   useEffect(() => {
@@ -297,19 +332,10 @@ export function AgentConversationPanel({
     window.addEventListener("kurva-start-variants", onVariants);
     return () => window.removeEventListener("kurva-start-variants", onVariants);
   }, [editor]);
-  const [consented, setConsented] = useState(() => hasProjectChatConsent(projectId, window.sessionStorage));
+  const [consented, setConsented] = useState(() => hasChatConsent(browserStorage()));
   const [consentOpen, setConsentOpen] = useState(false);
-  useEffect(() => {
-    setConsented(hasProjectChatConsent(projectId, window.sessionStorage));
-    setConsentOpen(false);
-  }, [projectId]);
-  const [alwaysPreview, setAlwaysPreview] = useState(() => {
-    try {
-      return window.localStorage.getItem("studio-always-preview") !== "no";
-    } catch {
-      return true;
-    }
-  });
+  /** Off by default: requests send directly. On: the full request opens for review first. */
+  const [reviewBeforeSend, setReviewBeforeSend] = useState(() => readRequestReview(browserStorage()));
   const [warnPaidModels, setWarnPaidModels] = useState(() => {
     try {
       return window.localStorage.getItem("studio-warn-paid") !== "no";
@@ -318,13 +344,7 @@ export function AgentConversationPanel({
     }
   });
   useEffect(() => {
-    const syncPreview = () => {
-      try {
-        setAlwaysPreview(window.localStorage.getItem("studio-always-preview") !== "no");
-      } catch {
-        setAlwaysPreview(true);
-      }
-    };
+    const syncPreview = () => setReviewBeforeSend(readRequestReview(browserStorage()));
     const syncWarnPaid = () => {
       try {
         setWarnPaidModels(window.localStorage.getItem("studio-warn-paid") !== "no");
@@ -332,10 +352,10 @@ export function AgentConversationPanel({
         setWarnPaidModels(true);
       }
     };
-    window.addEventListener("studio-always-preview", syncPreview);
+    window.addEventListener(REQUEST_REVIEW_EVENT, syncPreview);
     window.addEventListener("studio-warn-paid", syncWarnPaid);
     return () => {
-      window.removeEventListener("studio-always-preview", syncPreview);
+      window.removeEventListener(REQUEST_REVIEW_EVENT, syncPreview);
       window.removeEventListener("studio-warn-paid", syncWarnPaid);
     };
   }, []);
@@ -347,7 +367,16 @@ export function AgentConversationPanel({
   const [attachedImage, setAttachedImage] = useState<File | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  useEffect(() => storeComposerMode(composerMode), [composerMode]);
   const [skillMenuOpen, setSkillMenuOpen] = useState(false);
+  const [activeSkill, setActiveSkill] = useState<string | null>(null);
+  /** The latest requestPreview, for effects declared before it. */
+  const requestPreviewRef = useRef<((skipConsent?: boolean) => Promise<void>) | null>(null);
+  /** Set when a message should send by itself (from Home, or after sign-in) once a model is ready. */
+  const pendingAutoSendRef = useRef<string | null>(null);
+  /** The mode and tool support of each request, to place text-only designs when it completes. */
+  const requestMetaRef = useRef(new Map<string, { mode: ComposerMode; toolSupport: boolean }>());
+  const placedRequestsRef = useRef(new Set<string>());
   const [variantMenuOpen, setVariantMenuOpen] = useState(false);
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
   const [, setFavoriteTick] = useState(0);
@@ -454,7 +483,23 @@ export function AgentConversationPanel({
     if (!draftPrefill || draftPrefill.id === lastDraftPrefillIdRef.current) return;
     lastDraftPrefillIdRef.current = draftPrefill.id;
     setDraft(draftPrefill.text);
+    if (draftPrefill.send) {
+      setActiveSkill(draftPrefill.skill ?? null);
+      setComposerMode("auto");
+      pendingAutoSendRef.current = draftPrefill.id;
+    }
   }, [draftPrefill]);
+
+  // A message that was waiting when the page left for the OpenRouter sign-in comes back here.
+  useEffect(() => {
+    if (!projectId) return;
+    const pending = takePendingAgentSend(projectId);
+    if (!pending) return;
+    setDraft(pending.text);
+    setActiveSkill(pending.skill ?? null);
+    setComposerMode("auto");
+    pendingAutoSendRef.current = `restored-${pending.savedAt}`;
+  }, [projectId]);
 
   useEffect(() => {
     if (!draftImagePrefill || draftImagePrefill.id === lastImagePrefillIdRef.current) return;
@@ -556,6 +601,13 @@ export function AgentConversationPanel({
     !!draft.trim() &&
     !isChatBusy(chatRun);
 
+  // A first-time user starts with the strongest design model in their catalog. A saved choice is kept.
+  useEffect(() => {
+    if (selectedModelId || modelCatalog.status !== "ready") return;
+    const pick = pickDefaultDesignModel(modelCatalog.models);
+    if (pick) setSelectedModelId(pick.id);
+  }, [modelCatalog, selectedModelId]);
+
   useEffect(() => {
     try {
       if (selectedModelId) window.localStorage.setItem("codex-avatar-studio-selected-model", selectedModelId);
@@ -564,6 +616,27 @@ export function AgentConversationPanel({
       // Keep model selection for this session when browser storage is unavailable.
     }
   }, [selectedModelId]);
+
+  // A model that answered a design request in text (no tools, or prose instead of tool calls) still
+  // gets its fenced html/svg placed on the canvas; the saved reply keeps a short note instead.
+  useEffect(() => {
+    if (chatRun?.status !== "complete" || !editor) return;
+    const { requestId, text } = chatRun;
+    const meta = requestMetaRef.current.get(requestId);
+    if (!meta || (meta.mode !== "auto" && meta.mode !== "build") || placedRequestsRef.current.has(requestId)) return;
+    placedRequestsRef.current.add(requestId);
+    const madeChanges = toolCalls.some(
+      (call) => call.requestId === requestId && !call.readOnly && call.status === "applied"
+    );
+    const blocks = extractDesignBlocks(text);
+    if (blocks.length === 0 || madeChanges) return;
+    void placeDesignBlocks(editor, blocks).then((notes) => {
+      const redacted = redactDesignBlocks(text, blocks, notes);
+      setMessages((current) =>
+        current.map((message) => (message.id === requestId ? { ...message, content: redacted } : message))
+      );
+    });
+  }, [chatRun, editor, toolCalls]);
 
   useEffect(() => {
     if (!chatRun) return;
@@ -618,6 +691,23 @@ export function AgentConversationPanel({
     if (!isOpen) setModelPickerOpen(false);
   }, [isOpen]);
 
+  // The conversation menu closes on a click outside it or on Escape, like the other menus.
+  useEffect(() => {
+    if (!conversationMenuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!conversationPickerRef.current?.contains(event.target as Node)) setConversationMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setConversationMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [conversationMenuOpen]);
+
   useEffect(() => {
     if (!modelPickerOpen) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
@@ -635,6 +725,26 @@ export function AgentConversationPanel({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [outboundPreview]);
+
+  // Sends a waiting message once a model is ready. While OpenRouter is not connected, the message is
+  // kept so it survives the sign-in redirect and sends when the user comes back.
+  useEffect(() => {
+    if (!isOpen || !pendingAutoSendRef.current) return;
+    if (!canChat) {
+      if (projectId && draft.trim())
+        savePendingAgentSend({ projectId, text: draft, ...(activeSkill ? { skill: activeSkill } : {}) });
+      return;
+    }
+    if (!canSend || !editor) return;
+    const pending = pendingAutoSendRef.current;
+    const timer = window.setTimeout(() => {
+      if (pendingAutoSendRef.current !== pending) return;
+      pendingAutoSendRef.current = null;
+      clearPendingAgentSend();
+      void requestPreviewRef.current?.();
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, canChat, canSend, editor, draft, activeSkill, projectId]);
 
   if (!isOpen) return null;
 
@@ -710,6 +820,23 @@ export function AgentConversationPanel({
     }
   };
 
+  /** The mode, skill, canvas snapshot and system prompt for a request to `model`. */
+  const outboundFor = (model: StudioModel) => {
+    const toolSupport = model.supportedParameters.includes("tools");
+    const mode = effectiveComposerMode(composerMode, toolSupport).mode;
+    const skill = activeSkill && mode !== "ask" ? activeSkill : undefined;
+    const designContext = editor
+      ? buildDesignContext(editor, { includeTarget: !toolSupport && (mode === "auto" || mode === "build") })
+      : undefined;
+    const extras: StudioChatExtras = { ...(skill ? { skill } : {}), ...(designContext ? { designContext } : {}) };
+    return {
+      mode,
+      toolSupport,
+      extras,
+      systemPrompt: buildSystemPrompt({ mode, toolSupport, skill, context: designContext })
+    };
+  };
+
   const requestPreview = async (skipConsent = false) => {
     if (
       !canSend ||
@@ -733,18 +860,24 @@ export function AgentConversationPanel({
       setAttachmentError("Studio could not prepare this image locally. Remove it and attach it again.");
       return;
     }
-    setOutboundPreview({
+    const preview: OutboundPreview = {
       model: selectedModel,
-      mode: effectiveComposerMode(composerMode, selectedModel.supportedParameters.includes("tools")).mode,
+      ...outboundFor(selectedModel),
       history: bounded.history,
       message: draft.trim(),
       omittedMessages: bounded.omittedMessages,
       ...(attachment ? { attachment } : {})
-    });
+    };
+    if (reviewBeforeSend) setOutboundPreview(preview);
+    else sendPreview(preview);
   };
 
-  const sendAfterPreview = () => {
-    if (!outboundPreview || isChatBusy(chatRun)) return;
+  requestPreviewRef.current = requestPreview;
+
+  const sendPreview = (outboundPreview: OutboundPreview) => {
+    if (isChatBusy(chatRun)) return;
+    pendingAutoSendRef.current = null;
+    clearPendingAgentSend();
     const count = Math.min(4, Math.max(1, variantScale));
     if (count > 1 && editor) {
       const sessions = placeVariantFrames(adaptEditorForVariants(editor), count);
@@ -756,7 +889,8 @@ export function AgentConversationPanel({
           outboundPreview.history,
           variantPrompt(outboundPreview.message, session.index, count),
           outboundPreview.attachment ? { dataUrl: outboundPreview.attachment.dataUrl } : undefined,
-          outboundPreview.mode
+          outboundPreview.mode,
+          outboundPreview.extras
         );
       });
     }
@@ -765,9 +899,11 @@ export function AgentConversationPanel({
       outboundPreview.history,
       count > 1 ? variantPrompt(outboundPreview.message, 0, count) : outboundPreview.message,
       outboundPreview.attachment ? { dataUrl: outboundPreview.attachment.dataUrl } : undefined,
-      outboundPreview.mode
+      outboundPreview.mode,
+      outboundPreview.extras
     );
     if (!requestId) return;
+    requestMetaRef.current.set(requestId, { mode: outboundPreview.mode, toolSupport: outboundPreview.toolSupport });
     setMessages((current) => [
       ...current,
       {
@@ -964,9 +1100,9 @@ export function AgentConversationPanel({
       .slice(0, last.userIndex)
       .filter((message) => message.role === "user" || message.status === "complete")
       .map(({ role, content }) => ({ role, content }) as StudioChatHistoryMessage);
-    setOutboundPreview({
+    (reviewBeforeSend ? setOutboundPreview : sendPreview)({
       model: selectedModel,
-      mode: effectiveComposerMode(composerMode, selectedModel.supportedParameters.includes("tools")).mode,
+      ...outboundFor(selectedModel),
       history: boundOutboundHistory(history, selectedModel.contextLength).history,
       message: last.user.content,
       omittedMessages: 0,
@@ -993,7 +1129,7 @@ export function AgentConversationPanel({
       }
     >
       <header className="studio-agent__header">
-        <div className="studio-agent__conversation-picker">
+        <div className="studio-agent__conversation-picker" ref={conversationPickerRef}>
           <button
             className="studio-agent__button"
             type="button"
@@ -1045,7 +1181,11 @@ export function AgentConversationPanel({
             </div>
           )}
           <div className="studio-agent__subtitle">
-            OpenRouter · {connectionLabel} · <span>Tools off</span>
+            OpenRouter · {connectionLabel} ·{" "}
+            <span>
+              {modeLabel(composerMode)}:{" "}
+              {modeToolsLabel(composerMode, selectedModel?.supportedParameters.includes("tools") ?? false)}
+            </span>
           </div>
         </div>
         <div className="studio-agent__header-actions">
@@ -1107,7 +1247,9 @@ export function AgentConversationPanel({
           )}
           {chatRunStatusLabel(chatRun?.status) && (
             <p className="studio-agent__usage" role="status">
-              {chatRunStatusLabel(chatRun?.status)}
+              {chatRun?.status === "streaming" && chatRun.writing
+                ? writingLabel(chatRun.writing)
+                : chatRunStatusLabel(chatRun?.status)}
               {chatRun?.status === "error" && chatRun.message ? ` ${chatRun.message}` : ""}
             </p>
           )}
@@ -1180,17 +1322,13 @@ export function AgentConversationPanel({
           <label>
             <input
               type="checkbox"
-              checked={alwaysPreview}
+              checked={reviewBeforeSend}
               onChange={(event) => {
-                setAlwaysPreview(event.target.checked);
-                try {
-                  window.localStorage.setItem("studio-always-preview", event.target.checked ? "yes" : "no");
-                } catch {
-                  // The choice still applies for this page when storage is unavailable.
-                }
+                setReviewBeforeSend(event.target.checked);
+                storeRequestReview(browserStorage(), event.target.checked);
               }}
             />
-            Always show the full request preview
+            Review each request before it is sent
           </label>
         </details>
       </div>
@@ -1274,9 +1412,10 @@ export function AgentConversationPanel({
                 <button
                   key={skill.id}
                   type="button"
-                  role="menuitem"
+                  role="menuitemcheckbox"
+                  aria-checked={activeSkill === skill.id}
                   onClick={() => {
-                    appendDraft(skill.prompt);
+                    setActiveSkill((current) => (current === skill.id ? null : skill.id));
                     setSkillMenuOpen(false);
                   }}
                 >
@@ -1317,6 +1456,17 @@ export function AgentConversationPanel({
               event.target.value = "";
             }}
           />
+          {activeSkill && (
+            <button
+              className="studio-agent__chip"
+              type="button"
+              title="The design brief sent with each message. Click to remove it."
+              aria-label={`Remove the ${designSkill(activeSkill)?.name ?? activeSkill} brief`}
+              onClick={() => setActiveSkill(null)}
+            >
+              {designSkill(activeSkill)?.name ?? activeSkill} <X size={12} aria-hidden="true" />
+            </button>
+          )}
           <div className="studio-agent__mode">
             <button
               className="studio-agent__chip"
@@ -1327,7 +1477,7 @@ export function AgentConversationPanel({
               title={modeDescription(composerMode)}
               onClick={() => setModeMenuOpen((open) => !open)}
             >
-              {composerMode}
+              {modeLabel(composerMode)}
             </button>
             {modeMenuOpen && (
               <div id="studio-composer-mode" className="studio-agent__plus studio-agent__mode-menu" role="menu">
@@ -1342,7 +1492,7 @@ export function AgentConversationPanel({
                       setModeMenuOpen(false);
                     }}
                   >
-                    <span>{mode}</span>
+                    <span>{modeLabel(mode)}</span>
                     <span>{modeDescription(mode)}</span>
                   </button>
                 ))}
@@ -1922,7 +2072,7 @@ export function AgentConversationPanel({
             </div>
           ) : null}
           <span className="studio-agent__composer-count">
-            {draft.length.toLocaleString()} / 12,000 · Enter to review
+            {draft.length.toLocaleString()} / 12,000 · Enter to {reviewBeforeSend ? "review" : "send"}
           </span>
           {isChatBusy(chatRun) && chatRun ? (
             <button
@@ -1940,7 +2090,7 @@ export function AgentConversationPanel({
             <button
               className="studio-agent__button studio-agent__button--primary studio-agent__button--icon"
               type="button"
-              aria-label="Review & send"
+              aria-label={reviewBeforeSend ? "Review & send" : "Send"}
               disabled={!canSend}
               onClick={() => void requestPreview()}
             >
@@ -1950,8 +2100,19 @@ export function AgentConversationPanel({
         </div>
         {!canChat && connectionHost === "web" ? (
           <div className="studio-agent__composer-help">
-            Saved in this browser. Connect OpenRouter from this browser. Requests go directly to OpenRouter. Kurva has
-            no server.
+            <span>
+              Connect OpenRouter to start designing. Requests go directly from this browser to OpenRouter; Kurva has no
+              server. Your message stays here and sends when you are back.
+            </span>
+            {onConnectOpenRouter ? (
+              <button
+                className="studio-agent__button studio-agent__button--primary"
+                type="button"
+                onClick={onConnectOpenRouter}
+              >
+                Connect OpenRouter
+              </button>
+            ) : null}
           </div>
         ) : !canChat && connectionHost === "browser" ? (
           <div className="studio-agent__composer-help">Use the VS Code editor tab to connect and chat.</div>
@@ -1975,26 +2136,29 @@ export function AgentConversationPanel({
             aria-modal="true"
             aria-labelledby="studio-consent-title"
           >
-            <h2 id="studio-consent-title">Send this request to OpenRouter?</h2>
+            <h2 id="studio-consent-title">Before your first request</h2>
             <p>
-              This sends your draft, earlier messages in this chat, and an image only if one is attached. Plan mode can
-              offer read-only canvas details. Build asks before each proposed canvas change. Auto applies canvas-only
-              changes as one Undo step; read actions still ask before local canvas data is sent. Approved results,
-              including a frame screenshot when requested, return to the selected model.{" "}
+              Kurva sends your message, this chat's earlier messages, the design brief you chose, and a short list of
+              what is on the canvas (frame names, sizes and positions) to OpenRouter and the model you picked. In Design
+              and Review, the model also reads and writes designs: the HTML of frames it opens or creates goes to the
+              model, and its changes apply to the canvas right away. One Undo reverts a whole reply. A frame screenshot
+              is sent only after you approve it, and an image only if you attach one.{" "}
               {connectionHost === "web"
                 ? "Requests go directly from this browser to OpenRouter. Kurva has no server."
-                : "The OpenRouter key stays on the host."}
+                : "The OpenRouter key stays on this computer."}{" "}
+              You are asked once in this browser. To see each request before it goes, turn on “Review each request
+              before it is sent”.
             </p>
             <button
               type="button"
               onClick={() => {
                 setConsented(true);
                 setConsentOpen(false);
-                recordProjectChatConsent(projectId, window.sessionStorage);
+                recordChatConsent(browserStorage());
                 void requestPreview(true);
               }}
             >
-              Continue to review
+              Agree and send
             </button>
             <button type="button" onClick={() => setConsentOpen(false)}>
               Cancel
@@ -2005,12 +2169,12 @@ export function AgentConversationPanel({
       {outboundPreview && (
         <OutboundRequestDialog
           preview={outboundPreview}
-          showFull={alwaysPreview}
+          showFull
           warnPaidModels={warnPaidModels}
           direct={connectionHost === "web"}
           sendRef={previewSendRef}
           onCancel={() => setOutboundPreview(null)}
-          onSend={sendAfterPreview}
+          onSend={() => sendPreview(outboundPreview)}
         />
       )}
     </aside>
@@ -2035,7 +2199,7 @@ function OutboundRequestDialog({
   onSend: () => void;
 }) {
   const outboundMessages = keyedOutboundMessages([
-    { kind: "system" as const, role: "assistant" as const, content: STUDIO_CHAT_SYSTEM_PROMPT },
+    { kind: "system" as const, role: "assistant" as const, content: preview.systemPrompt },
     ...preview.history.map((message) => ({ kind: "history" as const, ...message })),
     { kind: "draft" as const, role: "user" as const, content: preview.message }
   ]);

@@ -6,7 +6,6 @@ import {
   toolCallTimedOut,
   toolNameFromCanvasText
 } from "../src/agentGuards.js";
-import { createTurn, reduceTurn } from "../src/turnMachine.js";
 
 describe("agent guards", () => {
   it("keeps hidden instructions inside quoted canvas text", () => {
@@ -16,15 +15,13 @@ describe("agent guards", () => {
     expect(quotedCanvasText(hidden)).toContain("delete_shapes");
   });
 
-  it("rejects missing tool arguments, a denied approval, and a timeout", () => {
+  it("rejects missing tool arguments and a timeout", () => {
     expect(invalidToolArguments("create_frame", { name: "Landing" })).toBe("Missing width.");
     expect(invalidToolArguments("get_selection", {})).toBeNull();
-    let turn = reduceTurn(createTurn(), { type: "start" });
-    turn = reduceTurn(turn, { type: "tool-delta", index: 0, name: "create_frame" });
-    turn = reduceTurn(turn, { type: "stream-end" });
-    turn = reduceTurn(turn, { type: "start" });
-    turn = reduceTurn(turn, { type: "permission", granted: false });
-    expect(turn.error).toBe("The tool call was not approved.");
+    expect(parseCanvasToolArguments("create_frame", '{"name":"Home"}')).toEqual({
+      success: false,
+      error: expect.stringContaining("The required parameter `width` is missing")
+    });
     expect(toolCallTimedOut("screenshot_frame", 15_001)).toBe(true);
     expect(toolCallTimedOut("get_selection", 8_000)).toBe(false);
   });

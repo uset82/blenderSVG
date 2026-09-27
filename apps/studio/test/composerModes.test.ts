@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { nextComposerMode, toolNeedsApproval, toolsForMode } from "../src/components/composerModes.js";
+import {
+  COMPOSER_MODES,
+  DEFAULT_COMPOSER_MODE,
+  modeLabel,
+  modeToolsLabel,
+  nextComposerMode,
+  toolNeedsApproval,
+  toolsForMode
+} from "../src/components/composerModes.js";
 
 describe("composer modes", () => {
-  it("cycles ask, plan, build, and auto", () => {
-    expect(nextComposerMode("ask")).toBe("plan");
-    expect(nextComposerMode("plan")).toBe("build");
-    expect(nextComposerMode("build")).toBe("auto");
-    expect(nextComposerMode("auto")).toBe("ask");
+  it("cycles Design, Review, Plan and Chat, starting from Design", () => {
+    expect(DEFAULT_COMPOSER_MODE).toBe("auto");
+    expect(COMPOSER_MODES.map(modeLabel)).toEqual(["Design", "Review", "Plan", "Chat"]);
+    expect(nextComposerMode("auto")).toBe("build");
+    expect(nextComposerMode("build")).toBe("plan");
+    expect(nextComposerMode("plan")).toBe("ask");
+    expect(nextComposerMode("ask")).toBe("auto");
+    expect(modeToolsLabel("auto", true)).toBe("Edits the canvas");
+    expect(modeToolsLabel("auto", false)).toBe("Designs as code");
     expect(toolsForMode("ask")).toBe("none");
     expect(toolsForMode("plan")).toBe("read");
     expect(toolsForMode("build")).toBe("all");

@@ -283,12 +283,9 @@ async function runJourney(browserName, run, pageOrigin) {
     }
     await option.click();
     await page.locator("#studio-chat-composer").fill("Hello from the CSP check");
-    await page.getByRole("button", { name: "Review & send" }).click();
-    const send = page.getByRole("button", { name: "Send to OpenRouter" });
-    const consent = page.getByRole("button", { name: "Continue to review" });
-    await consent.or(send).waitFor();
-    if (await consent.count()) await consent.click();
-    await send.click();
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    // Consent is asked once per browser; the request then goes without a review dialog.
+    await page.getByRole("button", { name: "Agree and send" }).click();
     await page
       .getByRole("article", { name: /^Assistant/ })
       .getByText(mockReply, { exact: true })

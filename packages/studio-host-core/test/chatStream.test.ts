@@ -1,4 +1,4 @@
-import type { StudioToHostMessage } from "@codex-avatar-studio/avatar-core";
+import { createHostToStudioMessage, type StudioToHostMessage } from "@codex-avatar-studio/avatar-core";
 import { describe, expect, it, vi } from "vitest";
 import { OpenRouterChatController } from "../src/openRouterChat.js";
 import { OPENROUTER_SECRET_KEY, type SecretStore } from "../src/openRouterConnection.js";
@@ -47,7 +47,17 @@ function chat(requestId: string, modelId = "example/text"): ChatRequest {
 
 function controller(request: typeof fetch) {
   const messages: Emitted[] = [];
-  return { messages, chat: new OpenRouterChatController(secrets, (message) => messages.push(message), request) };
+  return {
+    messages,
+    chat: new OpenRouterChatController(
+      secrets,
+      (message) => {
+        createHostToStudioMessage(message);
+        messages.push(message);
+      },
+      request
+    )
+  };
 }
 
 describe("chat stream and errors", () => {
@@ -152,7 +162,7 @@ describe("chat stream and errors", () => {
     expect(gateway.turn("request-cancel-tool")?.state).toBe("error");
   });
 
-  it("auto-applies canvas writes but still requests approval before canvas reads", async () => {
+  it("applies canvas writes and reads in Design (auto) mode without approval", async () => {
     const write =
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-frame","function":{"name":"create_design_frame","arguments":"{\\"name\\":\\"Landing\\",\\"html\\":\\"<h1>Landing</h1>\\"}"}}]}}]}\n\ndata: [DONE]\n\n';
     const final = 'data: {"choices":[{"delta":{"content":"Frame created."}}]}\n\ndata: [DONE]\n\n';
@@ -179,8 +189,8 @@ describe("chat stream and errors", () => {
     const readRun = controller(readRequest);
     await readRun.chat.refreshModels();
     const readPending = readRun.chat.send({ ...chat("request-auto-read"), mode: "auto" });
-    await waitForType(readRun.messages, "studio:toolProposed");
-    expect(readRun.messages.find((message) => message.type === "studio:toolProposed")?.requiresApproval).toBe(true);
+    await waitForType(readRun.messages, "studio:toolExecute");
+    expect(readRun.messages.find((message) => message.type === "studio:toolProposed")?.requiresApproval).toBe(false);
     readRun.chat.cancel("request-auto-read");
     await readPending;
   });
@@ -225,7 +235,7 @@ describe("chat stream and errors", () => {
         .mockResolvedValueOnce(new Response(body, { status: 200 }));
       const { messages, chat: gateway } = controller(request);
       await gateway.refreshModels();
-      await gateway.send(chat(`request-${expected}`));
+      await gateway.send(chat(`request-${expected.replace(/\W+/g, "-")}`));
       expect(messages.at(-1)?.message ?? "").toMatch(new RegExp(expected, "i"));
     }
   });

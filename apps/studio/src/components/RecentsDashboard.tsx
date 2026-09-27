@@ -493,7 +493,7 @@ export function RecentsDashboard({
                 submitEnabled={Boolean(onStartDesign && prompt.trim() !== category.starterPrompt.trim())}
                 submitHelp={
                   onStartDesign
-                    ? "Open this prompt in the editor"
+                    ? "Open the editor and start designing this"
                     : "Prompt handoff is coming soon. Use New file to start a canvas."
                 }
                 modelControl={
@@ -511,7 +511,7 @@ export function RecentsDashboard({
                       New frame: {category.label} · {category.width} × {category.height}
                     </span>
                     <span>
-                      {onStartDesign ? "Opens in editor · review before sending" : "Use New file to start a canvas"}
+                      {onStartDesign ? "Opens in the editor and starts designing" : "Use New file to start a canvas"}
                     </span>
                   </>
                 }

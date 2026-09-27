@@ -1,5 +1,5 @@
-import React from "react";
 import { ArrowUp, Plus } from "lucide-react";
+import type React from "react";
 
 export const HOME_CATEGORY_PRESETS = [
   { id: "landing-page", label: "Landing page", width: 1440, height: 1024, starterPrompt: "Design a landing page for " },
@@ -13,6 +13,17 @@ export const HOME_CATEGORY_PRESETS = [
 ] as const;
 
 export type HomeCategory = (typeof HOME_CATEGORY_PRESETS)[number];
+
+/** The design brief each Home category sends with its prompt. */
+export const HOME_CATEGORY_SKILLS: Readonly<Record<string, string>> = {
+  "landing-page": "landing",
+  "mobile-app": "mobile",
+  "web-app": "web-app",
+  dashboard: "dashboard",
+  slides: "slides",
+  avatar: "avatar",
+  "icon-vector": "icon-set"
+};
 
 export interface StudioComposerProps {
   prompt: string;
@@ -112,9 +123,9 @@ export function StudioComposer({
               className="studio-composer__control"
               type="button"
               disabled
-              title="Home starts a Build frame. Change Ask, Plan, or Auto in the editor."
+              title="Home starts in Design mode: the agent designs on the canvas. Change the mode in the editor."
             >
-              Build
+              Design
             </button>
           )}
           {variantControl ?? (

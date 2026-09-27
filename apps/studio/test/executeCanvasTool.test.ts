@@ -45,7 +45,7 @@ describe("approved canvas tool execution", () => {
           script: "run this"
         })
       )
-    ).rejects.toThrow("Unexpected argument");
+    ).rejects.toThrow("An unexpected parameter `script` was provided");
     expect(createShape).not.toHaveBeenCalled();
   });
 

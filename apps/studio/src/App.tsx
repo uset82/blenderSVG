@@ -6,6 +6,7 @@ import { sanitizeSvg } from "@codex-avatar-studio/asset-pipeline/svg-safety";
 import { type StudioProjectsState, useStudioHost } from "./bridge/studioHost.js";
 import type { AgentConversation, StoredAgentConversation } from "./components/agentConversations.js";
 import { stopRunningReply } from "./components/agentSessions.js";
+import { beginAgentTurnChange } from "./components/agentTurnHistory.js";
 import { CanvasLicenseNotice } from "./components/CanvasLicenseNotice.js";
 import { decodeAssetDrag, placeCanvasAsset } from "./components/canvasAssets.js";
 import { applyProposal, type CanvasProposal, proposalFromTool } from "./components/canvasProposal.js";
@@ -23,6 +24,7 @@ import {
   readPanelSize,
   writePanelSize
 } from "./components/panelSizing.js";
+import { hasPendingAgentSend } from "./components/pendingAgentSend.js";
 import {
   cancelFrameThumbnail,
   cancelScheduledFrameThumbnails,
@@ -35,7 +37,7 @@ import { RecentsDashboard, SCRATCHPAD_PROJECT_ID, type SessionCanvas } from "./c
 import { readCanvasTimes, rememberCanvasTimes, stampCanvasTimes } from "./components/recentCanvas.js";
 import { StudioCanvasMenu } from "./components/StudioCanvasMenu.js";
 import { StudioCommandPalette } from "./components/StudioCommandPalette.js";
-import { HOME_CATEGORY_PRESETS } from "./components/StudioComposer.js";
+import { HOME_CATEGORY_PRESETS, HOME_CATEGORY_SKILLS } from "./components/StudioComposer.js";
 import {
   type GeometryProperty,
   type InspectedShape,
@@ -110,6 +112,7 @@ import { assertPortableAssetSources } from "./web/portableAssets.js";
 import {
   acquireProjectLock,
   listenForLockRelease,
+  type ProjectLock,
   publishLibraryChange,
   requestProjectLockRelease,
   subscribeLibraryChanges
@@ -436,7 +439,10 @@ export function App() {
   const projectIdRef = useRef<string | null>(null);
   const projectTitleRef = useRef("Untitled");
   const projectWritableRef = useRef(false);
-  const heldLockRef = useRef<{ release(): void } | null>(null);
+  const heldLockRef = useRef<ProjectLock | null>(null);
+  /** The project whose lock this tab holds, and the lock request still in flight, if any. */
+  const heldLockProjectRef = useRef<string | null>(null);
+  const lockClaimRef = useRef<{ projectId: string; saveAfter: boolean } | null>(null);
   const lockListenerRef = useRef<(() => void) | null>(null);
   const pendingSnapshotRef = useRef<unknown>(null);
   const initialBlankSnapshotRef = useRef<string | null>(null);
@@ -483,6 +489,13 @@ export function App() {
     return window.innerWidth >= 1100 || window.innerWidth <= 700;
   });
   const [isAgentPanelCollapsed, setAgentPanelCollapsed] = useState(false);
+  // A message that waited for the OpenRouter sign-in reopens the agent panel, so it can send.
+  useEffect(() => {
+    if (route.name === "project" && hasPendingAgentSend(route.projectId)) {
+      setAgentSidebarOpen(true);
+      setAgentPanelCollapsed(false);
+    }
+  }, [route]);
   const [selectedModelId, setSelectedModelId] = useState(readStoredSelectedModelId);
   const [canvasEpoch, setCanvasEpoch] = useState(0);
   const [isInspectorOpen, setInspectorOpen] = useState(false);
@@ -496,6 +509,7 @@ export function App() {
   const pagePropertiesRef = useRef(pageProperties);
   pagePropertiesRef.current = pageProperties;
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const agentTurnMarksRef = useRef(new Set<string>());
 
   useEffect(() => {
     if (!editorReady) return;
@@ -521,7 +535,9 @@ export function App() {
         setCanvasProposal(preview);
         continue;
       }
-      void executeCanvasTool(editor, execution.name, execution.arguments)
+      // Every change in one agent reply shares a single undo step.
+      if (!call?.readOnly) beginAgentTurnChange(editor, agentTurnMarksRef.current, execution.requestId);
+      void executeCanvasTool(editor, execution.name, execution.arguments, { turn: true })
         .then((result) => completeToolExecution(execution.requestId, execution.callId, { ok: true, ...result }))
         .catch((error: unknown) =>
           completeToolExecution(execution.requestId, execution.callId, {
@@ -658,7 +674,12 @@ export function App() {
   const [currentCanvasId, setCurrentCanvasId] = useState<string | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState(readProjectThumbnails);
   const [hostThumbnailVersions, setHostThumbnailVersions] = useState<Record<string, number>>({});
-  const [draftPrefill, setDraftPrefill] = useState<{ id: string; text: string } | null>(null);
+  const [draftPrefill, setDraftPrefill] = useState<{
+    id: string;
+    text: string;
+    send?: boolean;
+    skill?: string;
+  } | null>(null);
   const [draftImagePrefill, setDraftImagePrefill] = useState<{ id: string; file: File } | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const panelResizeRef = useRef<ActivePanelResize | null>(null);
@@ -815,30 +836,56 @@ export function App() {
 
   const claimProjectLock = React.useCallback(
     (projectId: string, saveAfter = false) => {
-      lockListenerRef.current?.();
-      lockListenerRef.current = null;
-      heldLockRef.current?.release();
-      heldLockRef.current = null;
       if (libraryKind !== "browser") {
+        lockListenerRef.current?.();
+        lockListenerRef.current = null;
+        heldLockRef.current?.release();
+        heldLockRef.current = null;
         projectWritableRef.current = true;
         setProjectReadOnly(null);
         return;
       }
+      // Never ask twice for this tab's own lock. A project can open twice in a row (for example after
+      // the OpenRouter sign-in reload), and a second ifAvailable request while the first holds the lock
+      // comes back read-only, which locked the project against the tab that owns it.
+      const pending = lockClaimRef.current;
+      if (pending?.projectId === projectId) {
+        pending.saveAfter ||= saveAfter;
+        return;
+      }
+      if (heldLockProjectRef.current === projectId && heldLockRef.current && !heldLockRef.current.readonly) {
+        projectWritableRef.current = true;
+        setProjectReadOnly(null);
+        if (saveAfter) scheduleProjectSaveRef.current();
+        return;
+      }
+      lockListenerRef.current?.();
+      lockListenerRef.current = null;
+      heldLockRef.current?.release();
+      heldLockRef.current = null;
+      heldLockProjectRef.current = null;
+      const claim = { projectId, saveAfter };
+      lockClaimRef.current = claim;
       projectWritableRef.current = false;
       void acquireProjectLock(projectId).then((lock) => {
+        if (lockClaimRef.current === claim) lockClaimRef.current = null;
         if (projectIdRef.current !== projectId) {
           lock.release();
           return;
         }
         heldLockRef.current = lock;
+        heldLockProjectRef.current = projectId;
         projectWritableRef.current = !lock.readonly;
         setProjectReadOnly(lock.readonly ? projectId : null);
         if (!lock.readonly) {
           lockListenerRef.current = listenForLockRelease(projectId, () => {
             lock.release();
-            if (heldLockRef.current === lock) heldLockRef.current = null;
+            if (heldLockRef.current === lock) {
+              heldLockRef.current = null;
+              heldLockProjectRef.current = null;
+            }
           });
-          if (saveAfter) scheduleProjectSaveRef.current();
+          if (claim.saveAfter) scheduleProjectSaveRef.current();
         }
       });
     },
@@ -1057,10 +1104,15 @@ export function App() {
     if (new URLSearchParams(window.location.search).get("perf") === "1") {
       const testWindow = window as Window & {
         __studioEditor?: Editor;
-        __kurvaRunCanvasTool?: (name: string, argumentsJson: string) => ReturnType<typeof executeCanvasTool>;
+        __kurvaRunCanvasTool?: (
+          name: string,
+          argumentsJson: string,
+          options?: { turn?: boolean }
+        ) => ReturnType<typeof executeCanvasTool>;
       };
       testWindow.__studioEditor = editor;
-      testWindow.__kurvaRunCanvasTool = (name, argumentsJson) => executeCanvasTool(editor, name, argumentsJson);
+      testWindow.__kurvaRunCanvasTool = (name, argumentsJson, options) =>
+        executeCanvasTool(editor, name, argumentsJson, options);
     }
     const pendingSnapshot = pendingSnapshotRef.current;
     if (pendingSnapshot && !isBlankCanvasSnapshot(pendingSnapshot)) {
@@ -1518,10 +1570,41 @@ export function App() {
     navigateRoute({ name: "project", projectId: String(page.id) });
   };
 
+  /** Connect, replace or disconnect OpenRouter, for the window bar and the agent panel. */
+  const handleOpenRouterConnection = (action: Parameters<typeof onConnectionAction>[0]) => {
+    if (webEdition && (action === "connect" || action === "replace")) {
+      persistProjectNow();
+      void beginWebOpenRouterConnect({
+        remember: rememberOpenRouter,
+        returnHash: window.location.hash || "#/",
+        origin: window.location.origin
+      });
+      return;
+    }
+    if (webEdition && action === "disconnect") {
+      void disconnectWebOpenRouter().then((links) => {
+        setOpenRouterRevoke(links);
+        onConnectionAction("disconnect");
+      });
+      return;
+    }
+    if (!isStandaloneHost) {
+      onConnectionAction(action);
+      return;
+    }
+    if (action === "connect" || action === "replace") {
+      document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus();
+      return;
+    }
+    onConnectionAction(action);
+  };
+
+  /** Home's send: open a new file, then the agent designs the prompt in Design mode right away. */
   const handleStartDesign = (categoryId: string, prompt: string) => {
     if (!prompt.trim()) return;
     handleNewCanvas(categoryId);
-    setDraftPrefill({ id: crypto.randomUUID(), text: prompt.trim() });
+    const skill = HOME_CATEGORY_SKILLS[categoryId];
+    setDraftPrefill({ id: crypto.randomUUID(), text: prompt.trim(), send: true, ...(skill ? { skill } : {}) });
     setAgentSidebarOpen(true);
   };
 
@@ -2389,6 +2472,7 @@ export function App() {
                 editor={editorReady ? editorRef.current : null}
                 onRefreshModels={requestModelCatalog}
                 onSendChat={sendChat}
+                onConnectOpenRouter={() => handleOpenRouterConnection("connect")}
                 onCancelChat={cancelChat}
                 onClearChatRun={clearChatRun}
                 onApproveToolCall={approveToolCall}
@@ -2504,33 +2588,7 @@ export function App() {
                 onRememberOpenRouter={setRememberOpenRouter}
                 openRouterRevoke={openRouterRevoke}
                 connected={hostState.connection.status === "connected" || hostKeyConfigured}
-                onConnectionAction={(action) => {
-                  if (webEdition && (action === "connect" || action === "replace")) {
-                    persistProjectNow();
-                    void beginWebOpenRouterConnect({
-                      remember: rememberOpenRouter,
-                      returnHash: window.location.hash || "#/",
-                      origin: window.location.origin
-                    });
-                    return;
-                  }
-                  if (webEdition && action === "disconnect") {
-                    void disconnectWebOpenRouter().then((links) => {
-                      setOpenRouterRevoke(links);
-                      onConnectionAction("disconnect");
-                    });
-                    return;
-                  }
-                  if (!isStandaloneHost) {
-                    onConnectionAction(action);
-                    return;
-                  }
-                  if (action === "connect" || action === "replace") {
-                    document.querySelector<HTMLInputElement>('input[name="openrouter-key"]')?.focus();
-                    return;
-                  }
-                  onConnectionAction(action);
-                }}
+                onConnectionAction={handleOpenRouterConnection}
                 {...(isStandaloneHost
                   ? {
                       onSaveHostKey: (key: string) => {

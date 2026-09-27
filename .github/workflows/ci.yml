@@ -104,6 +104,7 @@ jobs:
           node scripts/web-export.mjs
           node scripts/web-avatar-package.mjs
           node scripts/web-design-frame.mjs
+          node scripts/web-design-agent.mjs
           node scripts/smoke-web-staging.mjs
       - name: Design frames render in Firefox and WebKit
         run: |
