@@ -21,6 +21,7 @@ import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { StudioModelCatalog, StudioProjectMeta } from "../bridge/studioHost.js";
 import { Button, Dialog } from "../ui/index.js";
+import { KURVA_SITE_URL } from "../web/studioCapabilities.js";
 import { BrandMark } from "./BrandMark.js";
 import { HomeModelPicker } from "./HomeModelPicker.js";
 import { formatEditedLabel } from "./recentCanvas.js";
@@ -287,16 +288,20 @@ export function RecentsDashboard({
       )}
       <aside className={`recents__rail${drawerOpen ? " recents__rail--open" : ""}`} aria-label="Studio navigation">
         <div className="recents__brand">
-          <button
-            type="button"
+          {/* The brand opens the public site in a new tab. In the web edition the
+              studio is served from /app/ on the same domain, so a same-tab
+              navigation would replace the workspace the visitor is in. */}
+          <a
             className="recents__brand-home"
-            onClick={goToHome}
-            title="Kurva Home"
-            aria-label="Kurva Home"
+            href={KURVA_SITE_URL}
+            target="_blank"
+            rel="noreferrer"
+            title="Kurva — kurva.agency"
+            aria-label="Kurva — opens kurva.agency in a new tab"
           >
             <BrandMark className="recents__brand-mark" />
             <span className="recents__rail-text recents__wordmark">kurva</span>
-          </button>
+          </a>
           <details ref={brandDetailsRef} className="recents__brand-menu">
             <summary
               className="recents__brand-chevron"

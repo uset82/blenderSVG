@@ -1,5 +1,9 @@
 import type { StudioHostKind } from "@codex-avatar-studio/avatar-core";
 
+// The public landing page. The studio brand mark opens it in a new tab, so a
+// workspace in progress is never replaced by the marketing site.
+export const KURVA_SITE_URL = "https://kurva.agency/";
+
 // There is no installer yet. The landing page's "run from source" steps are the desktop install.
 export const KURVA_DESKTOP_APP_URL = "https://kurva.agency/#try";
 export const DESKTOP_ONLY_REASON = "Available in the Kurva desktop app";
