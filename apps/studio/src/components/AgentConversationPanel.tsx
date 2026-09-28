@@ -38,7 +38,7 @@ import {
   storeComposerMode
 } from "./composerModes.js";
 import { compactHistory } from "./contextBudget.js";
-import { pickDefaultDesignModel } from "./defaultDesignModel.js";
+import { isFreeModel, pickDefaultDesignModel, pickFreeDesignModel } from "./defaultDesignModel.js";
 import { buildDesignContext } from "./designContext.js";
 import { DESIGN_SKILLS, designSkill } from "./designSkills.js";
 import {
@@ -144,12 +144,18 @@ const ConversationMessage = memo(
   function ConversationMessage({
     message,
     onRetry,
-    onOpenModels
+    onOpenModels,
+    freeModelName,
+    onUseFreeModel
   }: {
     message: ChatMessage;
     onRetry: () => void;
     onOpenModels: () => void;
+    /** The best free design model, offered when the reply failed for lack of credits. */
+    freeModelName?: string | undefined;
+    onUseFreeModel?: (() => void) | undefined;
   }) {
+    const creditError = /credit|afford/i.test(message.errorMessage ?? "");
     return (
       <article
         className={`studio-agent__message${message.role === "user" ? " studio-agent__message--user" : ""}`}
@@ -183,7 +189,12 @@ const ConversationMessage = memo(
             >
               Open settings
             </button>
-            {message.errorMessage?.toLowerCase().includes("credit") && (
+            {creditError && freeModelName && onUseFreeModel && (
+              <button type="button" onClick={onUseFreeModel} title={`Switch to ${freeModelName}, then Retry`}>
+                Use a free model
+              </button>
+            )}
+            {creditError && (
               <a href="https://openrouter.ai/settings/credits" target="_blank" rel="noreferrer">
                 Add credits
               </a>
@@ -205,7 +216,7 @@ const ConversationMessage = memo(
       </article>
     );
   },
-  (previous, next) => previous.message === next.message
+  (previous, next) => previous.message === next.message && previous.freeModelName === next.freeModelName
 );
 
 interface OutboundPreview {
@@ -584,6 +595,12 @@ export function AgentConversationPanel({
     setModelPickerOpen(false);
     window.requestAnimationFrame(() => modelPickerTriggerRef.current?.focus());
   };
+  // "Use a free model": the strongest free tool-capable model, offered while a paid model is chosen.
+  const freeDesignModel = useMemo(() => pickFreeDesignModel(modelCatalog.models), [modelCatalog.models]);
+  const offeredFreeModel =
+    freeDesignModel && selectedModel && !isFreeModel(selectedModel) && freeDesignModel.id !== selectedModel.id
+      ? freeDesignModel
+      : undefined;
   const openModelPicker = () => setModelPickerOpen(true);
   const closeModelPicker = (restoreFocus = false) => {
     setModelPickerOpen(false);
@@ -1242,6 +1259,8 @@ export function AgentConversationPanel({
                 message={message}
                 onRetry={retryLastUserMessage}
                 onOpenModels={openModelPicker}
+                freeModelName={offeredFreeModel?.name}
+                onUseFreeModel={offeredFreeModel ? () => chooseModel(offeredFreeModel.id) : undefined}
               />
             ))
           )}
@@ -1591,7 +1610,10 @@ export function AgentConversationPanel({
               aria-controls="studio-model-picker-popover"
               onClick={() => setModelPickerOpen((open) => !open)}
             >
-              <span>{selectedModel?.name ?? "Choose model"}</span>
+              <span className="studio-agent__model-name">{selectedModel?.name ?? "Choose model"}</span>
+              {selectedModel ? (
+                <span className="studio-agent__model-price">{formatShortCatalogPrice(selectedModel)}</span>
+              ) : null}
               <ChevronDown size={13} aria-hidden="true" />
             </button>
             {modelPickerOpen && (
@@ -1629,6 +1651,18 @@ export function AgentConversationPanel({
                     <X size={15} aria-hidden="true" />
                   </button>
                 </header>
+
+                {offeredFreeModel ? (
+                  <button
+                    type="button"
+                    className="studio-model-picker-popover__free-pick"
+                    data-free-model-id={offeredFreeModel.id}
+                    onClick={() => chooseModel(offeredFreeModel.id)}
+                  >
+                    <span>Use a free model</span>
+                    <span>{offeredFreeModel.name} · designs with tools, costs nothing</span>
+                  </button>
+                ) : null}
 
                 <label className="studio-model-picker-popover__search">
                   <Search size={15} aria-hidden="true" />

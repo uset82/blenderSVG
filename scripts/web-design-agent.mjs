@@ -15,6 +15,7 @@ const fixture = readFileSync(path.join(ROOT, "scripts", "fixtures", "design", "c
 const PROMPT = "Design a landing page for a neighborhood ceramics studio";
 const DESIGN_MODEL = { id: "kurva/designer", name: "Kurva Designer" };
 const TEXT_MODEL = { id: "kurva/texter", name: "Kurva Texter" };
+const FREE_MODEL = { id: "kurva/free-designer", name: "Kurva Free Designer" };
 const CAT_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><title>Gatito</title><g id="body"><ellipse cx="256" cy="330" rx="130" ry="100" fill="#e0a370"/></g><g id="head"><circle cx="256" cy="200" r="90" fill="#e0a370"/><path d="M186 150 L200 80 L236 130 Z M326 150 L312 80 L276 130 Z" fill="#c9844f"/></g><g id="eyes"><circle cx="226" cy="200" r="12" fill="#1d1a17"/><circle cx="286" cy="200" r="12" fill="#1d1a17"/><circle cx="230" cy="196" r="4" fill="#fff"/><circle cx="290" cy="196" r="4" fill="#fff"/></g></svg>';
 
@@ -78,6 +79,15 @@ try {
   assert.match(system, /Design brief: Landing page/);
   assert.match(system, /, empty/);
   assert.doesNotMatch(system, /cannot change the canvas/);
+
+  // The model chip shows the price, and the picker offers the best free tool model in one click.
+  const modelTrigger = page.locator("button.studio-agent__model-trigger");
+  assert.match(await modelTrigger.innerText(), /\$3 \/ \$15/);
+  await modelTrigger.click();
+  const freePick = page.locator(".studio-model-picker-popover__free-pick");
+  assert.match(await freePick.innerText(), new RegExp(`Use a free model[\\s\\S]*${FREE_MODEL.name}`));
+  await page.keyboard.press("Escape");
+  await freePick.waitFor({ state: "detached" });
 
   // 4. Iterate: the model reads the frame, sends a patch that does not match, reads the error,
   //    fixes it and adds a mobile frame to the right, all in one reply.
@@ -356,6 +366,12 @@ function catalog() {
         ...TEXT_MODEL,
         pricing: { prompt: "0", completion: "0" },
         supported_parameters: ["max_tokens"]
+      },
+      {
+        ...base,
+        ...FREE_MODEL,
+        pricing: { prompt: "0", completion: "0" },
+        supported_parameters: ["tools", "tool_choice"]
       },
       {
         ...base,

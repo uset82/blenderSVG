@@ -32,7 +32,7 @@
 }
 .studio-tool-card__name {
   color: var(--studio-text-primary);
-  font-family: var(--studio-font-mono, ui-monospace, monospace);
+  font-family: var(--studio-font-mono);
   font-size: 12px;
   font-weight: 500;
   text-transform: none;
@@ -330,7 +330,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  font-family: var(--studio-font-mono, ui-monospace, monospace);
+  font-family: var(--studio-font-mono);
 }
 
 .studio-page-row {
@@ -702,6 +702,18 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
   white-space: nowrap;
 }
 
+.studio-agent__model-trigger .studio-agent__model-name {
+  min-width: 0;
+}
+
+/* The price stays whole; the model name gives way first. */
+.studio-agent__model-trigger .studio-agent__model-price {
+  flex: 0 0 auto;
+  color: var(--studio-text-secondary);
+  font-family: var(--studio-font-mono);
+  font-size: 10px;
+}
+
 .studio-model-picker-popover {
   position: absolute;
   z-index: 30;
@@ -774,6 +786,35 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
 .studio-model-picker-popover__favorite:hover {
   background: var(--studio-surface-active);
   color: var(--studio-text-primary);
+}
+
+.studio-model-picker-popover__free-pick {
+  display: grid;
+  gap: 2px;
+  margin: 10px 10px 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--studio-divider);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--studio-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-model-picker-popover__free-pick:hover,
+.studio-model-picker-popover__free-pick:focus-visible {
+  background: var(--studio-surface-active);
+}
+
+.studio-model-picker-popover__free-pick span:first-child {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.studio-model-picker-popover__free-pick span:last-child {
+  color: var(--studio-text-secondary);
+  font-size: 11px;
 }
 
 .studio-model-picker-popover__search {
@@ -1518,7 +1559,7 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
 
 #studio-composer-variants button span:first-child {
   width: 28px;
-  font-family: var(--studio-font-mono, ui-monospace, monospace);
+  font-family: var(--studio-font-mono);
 }
 
 #studio-composer-variants button span:last-child {
