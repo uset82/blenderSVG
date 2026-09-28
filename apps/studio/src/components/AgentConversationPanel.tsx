@@ -40,7 +40,9 @@ import {
 import { compactHistory } from "./contextBudget.js";
 import { isFreeModel, pickDefaultDesignModel, pickFreeDesignModel } from "./defaultDesignModel.js";
 import { buildDesignContext } from "./designContext.js";
+import { DesignVersionsMenu } from "./DesignVersionsMenu.js";
 import { DESIGN_SKILLS, designSkill } from "./designSkills.js";
+import { recordDesignVersion } from "./designVersions.js";
 import {
   filterStudioModels,
   isDuplicateRoute,
@@ -386,7 +388,7 @@ export function AgentConversationPanel({
   /** Set when a message should send by itself (from Home, or after sign-in) once a model is ready. */
   const pendingAutoSendRef = useRef<string | null>(null);
   /** The mode and tool support of each request, to place text-only designs when it completes. */
-  const requestMetaRef = useRef(new Map<string, { mode: ComposerMode; toolSupport: boolean }>());
+  const requestMetaRef = useRef(new Map<string, { mode: ComposerMode; toolSupport: boolean; prompt: string }>());
   const placedRequestsRef = useRef(new Set<string>());
   const [variantMenuOpen, setVariantMenuOpen] = useState(false);
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
@@ -634,10 +636,11 @@ export function AgentConversationPanel({
     }
   }, [selectedModelId]);
 
-  // A model that answered a design request in text (no tools, or prose instead of tool calls) still
-  // gets its fenced html/svg placed on the canvas; the saved reply keeps a short note instead.
+  // When a design reply ends, its design frames are recorded as a version (Versions menu). A model that
+  // answered in text (no tools, or prose instead of tool calls) still gets its fenced html/svg placed on
+  // the canvas first; the saved reply keeps a short note instead.
   useEffect(() => {
-    if (chatRun?.status !== "complete" || !editor) return;
+    if ((chatRun?.status !== "complete" && chatRun?.status !== "error") || !editor) return;
     const { requestId, text } = chatRun;
     const meta = requestMetaRef.current.get(requestId);
     if (!meta || (meta.mode !== "auto" && meta.mode !== "build") || placedRequestsRef.current.has(requestId)) return;
@@ -645,9 +648,13 @@ export function AgentConversationPanel({
     const madeChanges = toolCalls.some(
       (call) => call.requestId === requestId && !call.readOnly && call.status === "applied"
     );
-    const blocks = extractDesignBlocks(text);
-    if (blocks.length === 0 || madeChanges) return;
+    const blocks = chatRun.status === "complete" && !madeChanges ? extractDesignBlocks(text) : [];
+    if (blocks.length === 0) {
+      if (madeChanges) recordDesignVersion(editor, meta.prompt);
+      return;
+    }
     void placeDesignBlocks(editor, blocks).then((notes) => {
+      recordDesignVersion(editor, meta.prompt);
       const redacted = redactDesignBlocks(text, blocks, notes);
       setMessages((current) =>
         current.map((message) => (message.id === requestId ? { ...message, content: redacted } : message))
@@ -920,7 +927,11 @@ export function AgentConversationPanel({
       outboundPreview.extras
     );
     if (!requestId) return;
-    requestMetaRef.current.set(requestId, { mode: outboundPreview.mode, toolSupport: outboundPreview.toolSupport });
+    requestMetaRef.current.set(requestId, {
+      mode: outboundPreview.mode,
+      toolSupport: outboundPreview.toolSupport,
+      prompt: outboundPreview.message
+    });
     setMessages((current) => [
       ...current,
       {
@@ -1206,6 +1217,7 @@ export function AgentConversationPanel({
           </div>
         </div>
         <div className="studio-agent__header-actions">
+          {editor ? <DesignVersionsMenu editor={editor} /> : null}
           <button className="studio-agent__button" type="button" onClick={startNewConversation}>
             + New
           </button>

@@ -1,9 +1,9 @@
 // The design agent end to end in the web build, under the production CSP, with OpenRouter mocked:
 // Home prompt → editor → Connect (PKCE) → consent once → the agent designs a landing page into the
 // empty starter frame → "make the hero dark and add a mobile version" (a bad patch the model then
-// fixes, and a 390 frame to the right) → one Undo reverts that reply, Redo restores it → a model
-// without tools draws a cat from a fenced SVG block → Home shows the default design model and its
-// model picker opens as a usable list.
+// fixes, and a 390 frame to the right) → one Undo reverts that reply, Redo restores it → the versions
+// menu restores v1, and one Undo reverses that → a model without tools draws a cat from a fenced SVG
+// block → Home shows the default design model and its model picker opens as a usable list.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import os from "node:os";
@@ -114,6 +114,22 @@ try {
   await waitForFrame(page, "Clay & Kiln — Mobile", (state) => state.heroColumns === 1);
   await waitForFrame(page, "Clay & Kiln — Desktop", (state) => state.heroBackground === "rgb(29, 26, 23)");
 
+  // 5b. Each design reply saved a version. Restoring v1 brings back the first design (light hero, no
+  //     mobile frame) as one change, and one Undo reverses the restore.
+  await page.getByRole("button", { name: "Design versions" }).click();
+  const versions = page.locator("#studio-agent-versions [role='menuitem']");
+  assert.equal(await versions.count(), 2, "one version per design reply");
+  assert.match(await versions.nth(0).innerText(), /v2 · make the hero dark[\s\S]*On the canvas/);
+  assert.match(await versions.nth(1).innerText(), new RegExp(`v1 · ${PROMPT}`));
+  await versions.nth(1).click();
+  await page.locator("#studio-agent-versions").waitFor({ state: "detached" });
+  await page.locator('iframe[title="Clay & Kiln — Mobile"]').waitFor({ state: "detached" });
+  await waitForFrame(page, "Clay & Kiln — Desktop", (state) => state.heroBackground === "rgb(246, 241, 234)");
+  await page.locator(".tl-container").first().focus();
+  await page.keyboard.press("ControlOrMeta+z");
+  await waitForFrame(page, "Clay & Kiln — Mobile", (state) => state.heroColumns === 1);
+  await waitForFrame(page, "Clay & Kiln — Desktop", (state) => state.heroBackground === "rgb(29, 26, 23)");
+
   // 6. A model without tool support still designs: its fenced SVG lands on the canvas as a drawing.
   await page.locator("button.studio-agent__model-trigger").click();
   await page.locator(`[role="option"][data-model-id="${TEXT_MODEL.id}"]`).click();
@@ -178,6 +194,13 @@ try {
   await picker.locator(`[role="option"][data-model-id="${TEXT_MODEL.id}"]`).click();
   await picker.waitFor({ state: "detached" });
   assert.match(await homeTrigger.innerText(), new RegExp(TEXT_MODEL.name));
+
+  // 9. The versions were saved with the project: they are still there after the reload.
+  await page.goto(`${server.origin}/${projectHash}`);
+  await page.locator('iframe[title="Clay & Kiln — Desktop"]').waitFor({ state: "attached" });
+  await page.getByRole("button", { name: "Design versions" }).click();
+  assert.equal(await page.locator("#studio-agent-versions [role='menuitem']").count(), 2, "versions survive a reload");
+  await page.keyboard.press("Escape");
   assert.deepEqual(await page.evaluate(() => window.__kurvaCspViolations ?? []), [], "Home stays within the CSP");
   console.log(`web-design-agent ok ${await browser.version()}`);
 } catch (error) {
