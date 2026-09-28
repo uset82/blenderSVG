@@ -1246,7 +1246,11 @@ The owner's goal: type "Design a landing page for a neighborhood ceramics studio
     - **Feedback while it works.** The status line shows "Writing the design… 12.4k characters" while a long call streams, and tool cards summarize long HTML by size.
     - **Menu.** The chat menu closes on an outside click or Escape.
     - **Fixed on the way:** returning from the sign-in locked the project against its own tab ("open in another tab").
-    - **Still open:** per-turn version history with Restore, and a "Use a free model" action (the picker exists as `pickFreeDesignModel`).
+    - **Versions (2026-09-28).** Each design reply records the page's design frames as a version, labelled with the prompt (and "Before the agent" for frames that were there first). The history button in the panel header lists them, newest first, with the one on the canvas marked. Restore is one undoable change. Versions are stored in the page meta, so they are saved and exported with the project; identical HTML is stored once, and at most 30 versions or 2M characters of HTML are kept (`designVersions.ts`, `DesignVersionsMenu.tsx`, `apps/studio/test/designVersions.test.ts`).
+    - **Price and free model (2026-09-28).** The model chip shows the catalog price. While a paid model is chosen, the picker offers "Use a free model" (the strongest free tool-capable model), and a reply that failed for lack of credits offers the same switch.
+    - **Home picker (2026-09-28, uset82/blenderSVG#14).** Home's model picker had collapsed to a 2px box on kurva.agency, so no model could be chosen. It is fixed, and Home now shows the default design model once the catalog loads.
+    - **Fixed on the way (2026-09-28):** leaving a project within the 650ms save delay lost the last changes. With the agent's quick edits this lost every change after the first reply. Leaving the project, hiding the page and pagehide now save waiting changes first.
+    - **Still open:** real-model evidence (25.7).
 - [ ] 25.6 `scripts/web-design-agent.mjs` runs the whole journey in CI with a mocked OpenRouter (multi-round SSE, a failed patch corrected by the model, a mobile frame, one-Undo, restore, export, reload, no-tools fallback, zero CSP violations).
   - Evidence so far (2026-09-27):
     - **What it runs.** `scripts/web-design-agent.mjs` is in the CI `web` job and `pnpm test:web:design`. It runs the web build under the Caddyfile CSP with OpenRouter mocked:
@@ -1258,7 +1262,12 @@ The owner's goal: type "Design a landing page for a neighborhood ceramics studio
       - A model without tools draws a cat from a fenced SVG block.
     - **Assertions.** Zero CSP violations, only the page and openrouter.ai contacted, and every tool call answered. Chromium passed 6 of 6 runs.
     - **Bugs it found.** Every frame-creating Design turn failed on the web (a 601-character tool description over the protocol's 500-character summary cap). The waiting message never sent after sign-in (panel closed). The project locked against its own tab after sign-in.
-    - **Not covered yet:** version restore and export in this journey (export is covered by `web-design-frame.mjs`).
+    - **Added (2026-09-28):**
+      - two versions after two replies; Restore v1 brings back the light hero without the mobile frame, and one Undo reverses it;
+      - after going Home and reopening, the frames and both versions are still there (this failed before the save fix);
+      - the chip price and the free-model offer;
+      - Home shows the default model, and its picker opens below the button at full height and takes a normal click.
+    - **Not covered yet:** export in this journey (export is covered by `web-design-frame.mjs`).
 - [ ] 25.7 Live acceptance with real models: `pnpm live:design` on the owner's machine and the same journey on https://kurva.agency/app/, for at least one paid and one free tool-capable model: turn 1 produces a frame at least 1200 wide with at least 3 sections and real styles within 6 minutes and at most 2 tool errors; turn 2 changes the hero and adds a 390 ± 10 frame to the right; one Undo reverts the turn; the export has no scripts; a model without tools produces a frame through the fallback.
 
 **Done when:** the owner's journey above works on https://kurva.agency/app/ with a real model, recorded with model ids, cost and date.
