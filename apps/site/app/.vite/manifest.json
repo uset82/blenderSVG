@@ -345,8 +345,8 @@
     "src": "../../node_modules/.pnpm/tldraw@5.4.2_@floating-ui+dom@1.8.0_@types+react-dom@19.2.3_@types+react@19.2.17__@type_8b74a63bfc355fe6f01a9c9b66495e05/node_modules/tldraw/dist-esm/lib/utils/svg/sanitizeSvg.mjs",
     "isDynamicEntry": true
   },
-  "_DesktopOnlyNotice-Cm9qn07f.js": {
-    "file": "assets/DesktopOnlyNotice-Cm9qn07f.js",
+  "_DesktopOnlyNotice-goCIPJ8l.js": {
+    "file": "assets/DesktopOnlyNotice-goCIPJ8l.js",
     "name": "DesktopOnlyNotice",
     "imports": [
       "_radix-BQUQsFX7.js",
@@ -357,8 +357,8 @@
     "file": "assets/designPrompt-2hR2Q26A.js",
     "name": "designPrompt"
   },
-  "_index-DwPxMUrc.js": {
-    "file": "assets/index-DwPxMUrc.js",
+  "_index-DNAk-Tt7.js": {
+    "file": "assets/index-DNAk-Tt7.js",
     "name": "index",
     "imports": [
       "_radix-BQUQsFX7.js",
@@ -385,7 +385,7 @@
     "name": "radix"
   },
   "index.html": {
-    "file": "assets/index-BDqYQqfE.js",
+    "file": "assets/index-Bau3aCMF.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -403,7 +403,7 @@
       "src/editor/setGeoTool.ts"
     ],
     "css": [
-      "assets/index-BB99tbgT.css"
+      "assets/index-6Iz6TF6t.css"
     ],
     "assets": [
       "assets/hanken-grotesk-latin-400-normal-BG6hkEXj.woff2",
@@ -429,7 +429,7 @@
     "src": "src/assets/brand-mark.svg"
   },
   "src/components/StudioLeftPanel.tsx": {
-    "file": "assets/StudioLeftPanel-q84vNKAp.js",
+    "file": "assets/StudioLeftPanel-CFhiWYIA.js",
     "name": "StudioLeftPanel",
     "src": "src/components/StudioLeftPanel.tsx",
     "isDynamicEntry": true,
@@ -439,39 +439,39 @@
       "_designPrompt-2hR2Q26A.js",
       "_markdown-BrHkn-La.js",
       "_projectChatConsent-CPVx4-oR.js",
-      "_index-DwPxMUrc.js"
+      "_index-DNAk-Tt7.js"
     ]
   },
   "src/components/StudioToolbar.tsx": {
-    "file": "assets/StudioToolbar-CXFUlzUx.js",
+    "file": "assets/StudioToolbar-CiTouIOf.js",
     "name": "StudioToolbar",
     "src": "src/components/StudioToolbar.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
-      "_index-DwPxMUrc.js",
+      "_index-DNAk-Tt7.js",
       "index.html"
     ]
   },
   "src/components/VectorAssetDialog.tsx": {
-    "file": "assets/VectorAssetDialog-BCfuEoRY.js",
+    "file": "assets/VectorAssetDialog-Dxy9_QbV.js",
     "name": "VectorAssetDialog",
     "src": "src/components/VectorAssetDialog.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
       "index.html",
-      "_DesktopOnlyNotice-Cm9qn07f.js"
+      "_DesktopOnlyNotice-goCIPJ8l.js"
     ]
   },
   "src/editor/StudioCanvas.tsx": {
-    "file": "assets/StudioCanvas-bsjgPTYq.js",
+    "file": "assets/StudioCanvas-NkO1GTTB.js",
     "name": "StudioCanvas",
     "src": "src/editor/StudioCanvas.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_radix-BQUQsFX7.js",
-      "_index-DwPxMUrc.js",
+      "_index-DNAk-Tt7.js",
       "index.html"
     ],
     "dynamicImports": [
@@ -554,12 +554,12 @@
     ]
   },
   "src/editor/setGeoTool.ts": {
-    "file": "assets/setGeoTool-BQG2PS94.js",
+    "file": "assets/setGeoTool-DH8mVH5R.js",
     "name": "setGeoTool",
     "src": "src/editor/setGeoTool.ts",
     "isDynamicEntry": true,
     "imports": [
-      "_index-DwPxMUrc.js",
+      "_index-DNAk-Tt7.js",
       "_radix-BQUQsFX7.js",
       "index.html"
     ]
@@ -571,7 +571,7 @@
     "isDynamicEntry": true
   },
   "src/routes/StudioRoutePages.tsx": {
-    "file": "assets/StudioRoutePages-CbT0j9qE.js",
+    "file": "assets/StudioRoutePages-DqWY1ylg.js",
     "name": "StudioRoutePages",
     "src": "src/routes/StudioRoutePages.tsx",
     "isDynamicEntry": true,
@@ -579,11 +579,11 @@
       "_radix-BQUQsFX7.js",
       "_projectChatConsent-CPVx4-oR.js",
       "index.html",
-      "_DesktopOnlyNotice-Cm9qn07f.js"
+      "_DesktopOnlyNotice-goCIPJ8l.js"
     ]
   },
   "src/web/browserAvatarPackage.ts": {
-    "file": "assets/browserAvatarPackage-C8vTS7yc.js",
+    "file": "assets/browserAvatarPackage-BCGgHYAk.js",
     "name": "browserAvatarPackage",
     "src": "src/web/browserAvatarPackage.ts",
     "isDynamicEntry": true,
@@ -593,7 +593,7 @@
     ]
   },
   "src/web/webHostTransport.ts": {
-    "file": "assets/webHostTransport-C3ONHfp6.js",
+    "file": "assets/webHostTransport-DHBfr_kS.js",
     "name": "webHostTransport",
     "src": "src/web/webHostTransport.ts",
     "isDynamicEntry": true,
