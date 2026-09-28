@@ -264,7 +264,8 @@ async function runJourney(browserName, run, pageOrigin) {
     await page.locator(".recents__header").getByRole("button", { name: "New file" }).click();
     await page.waitForURL(/#\/p\//);
     await page.getByText("OpenRouter connected").waitFor();
-    await page.getByRole("button", { name: "Choose model" }).click();
+    // The trigger shows the chosen model once the default pick lands, so find it by its class.
+    await page.locator("button.studio-agent__model-trigger").click();
     const option = page.getByRole("option", { name: modelName });
     const catalogFailed = page
       .getByRole("dialog", { name: "Choose an OpenRouter model" })

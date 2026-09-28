@@ -2,7 +2,8 @@
 // Home prompt → editor → Connect (PKCE) → consent once → the agent designs a landing page into the
 // empty starter frame → "make the hero dark and add a mobile version" (a bad patch the model then
 // fixes, and a 390 frame to the right) → one Undo reverts that reply, Redo restores it → a model
-// without tools draws a cat from a fenced SVG block.
+// without tools draws a cat from a fenced SVG block → Home shows the default design model and its
+// model picker opens as a usable list.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import os from "node:os";
@@ -133,6 +134,41 @@ try {
     "only the page and OpenRouter are contacted"
   );
   assert.equal(chatBodies.length, 7);
+
+  // 8. Home, signed in with nothing chosen yet: it shows the best design model, and its picker opens as
+  //    a full list below the button that a normal click can use (it once collapsed to a 2px box).
+  await page.evaluate(() => localStorage.removeItem("codex-avatar-studio-selected-model"));
+  await page.goto(`${server.origin}/#/`);
+  await page.getByRole("heading", { name: "Home" }).waitFor();
+  const homeTrigger = page.locator(".studio-composer__model-wrap button.studio-composer__model-button");
+  await page.waitForFunction(
+    (name) => document.querySelector(".studio-composer__model-wrap button")?.textContent?.includes(name),
+    DESIGN_MODEL.name
+  );
+  await homeTrigger.click();
+  const picker = page.locator("#studio-home-model-picker");
+  await picker.waitFor();
+  const layout = await picker.evaluate((popover) => {
+    const box = popover.getBoundingClientRect();
+    const trigger = popover.parentElement.querySelector("button").getBoundingClientRect();
+    const options = [...popover.querySelectorAll('[role="option"]')];
+    const last = options.at(-1).getBoundingClientRect();
+    const hit = document.elementFromPoint(last.left + last.width / 2, last.top + last.height / 2);
+    return {
+      height: box.height,
+      belowTrigger: box.top >= trigger.bottom,
+      optionsInside: options.every((option) => option.getBoundingClientRect().bottom <= box.bottom + 1),
+      lastOptionOnTop: Boolean(hit && options.at(-1).contains(hit))
+    };
+  });
+  assert.ok(layout.height >= 200, `the Home picker is a full panel, not ${layout.height}px`);
+  assert.ok(layout.belowTrigger, "the Home picker opens below its button");
+  assert.ok(layout.optionsInside, "every model row sits inside the picker");
+  assert.ok(layout.lastOptionOnTop, "nothing on Home covers the model rows");
+  await picker.locator(`[role="option"][data-model-id="${TEXT_MODEL.id}"]`).click();
+  await picker.waitFor({ state: "detached" });
+  assert.match(await homeTrigger.innerText(), new RegExp(TEXT_MODEL.name));
+  assert.deepEqual(await page.evaluate(() => window.__kurvaCspViolations ?? []), [], "Home stays within the CSP");
   console.log(`web-design-agent ok ${await browser.version()}`);
 } catch (error) {
   const page = browser.contexts()[0]?.pages()[0];

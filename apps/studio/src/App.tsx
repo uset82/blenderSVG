@@ -12,6 +12,7 @@ import { decodeAssetDrag, placeCanvasAsset } from "./components/canvasAssets.js"
 import { applyProposal, type CanvasProposal, proposalFromTool } from "./components/canvasProposal.js";
 import type { PaletteCommand } from "./components/commandPalette.js";
 import { capCanvasSummary } from "./components/contextBudget.js";
+import { pickDefaultDesignModel } from "./components/defaultDesignModel.js";
 import { executeCanvasTool } from "./components/executeCanvasTool.js";
 import { summarizeShapeSelection } from "./components/inspectorSelection.js";
 import { ProposalBar } from "./components/ProposalBar.js";
@@ -1618,6 +1619,14 @@ export function App() {
       // The selection still applies for this session when storage is unavailable.
     }
   }, []);
+
+  // A first-time user sees the strongest design model on Home as soon as the catalog loads, so Home
+  // shows what a send will use. A saved choice is kept, even one the catalog no longer lists.
+  useEffect(() => {
+    if (selectedModelId || modelCatalog.status !== "ready") return;
+    const pick = pickDefaultDesignModel(modelCatalog.models);
+    if (pick) handleSelectModel(pick.id);
+  }, [modelCatalog, selectedModelId, handleSelectModel]);
 
   const openLocalAsset = async (file: File | undefined, mode: "trace" | "screenshot" | "import") => {
     if (!file) return;

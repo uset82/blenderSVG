@@ -775,8 +775,10 @@
   white-space: nowrap;
 }
 
-/* Anchored below the composer button, right-aligned so it stays inside the card. */
-.studio-home-model-picker {
+/* Anchored below the composer button, right-aligned so it stays inside the card. Two classes so it
+   out-ranks the generic .studio-model-picker-popover rule in agent.css, which loads later and anchors
+   above its button; with both top and bottom set the popover collapsed to a 2px box. */
+.studio-model-picker-popover.studio-home-model-picker {
   position: absolute;
   top: calc(100% + 8px);
   bottom: auto;
