@@ -1,9 +1,9 @@
 // The design agent end to end in the web build, under the production CSP, with OpenRouter mocked:
 // Home prompt → editor → Connect (PKCE) → consent once → the agent designs a landing page into the
 // empty starter frame → "make the hero dark and add a mobile version" (a bad patch the model then
-// fixes, and a 390 frame to the right) → one Undo reverts that reply, Redo restores it → a model
-// without tools draws a cat from a fenced SVG block → Home shows the default design model and its
-// model picker opens as a usable list.
+// fixes, and a 390 frame to the right) → one Undo reverts that reply, Redo restores it → the versions
+// menu restores v1, and one Undo reverses that → a model without tools draws a cat from a fenced SVG
+// block → Home shows the default design model and its model picker opens as a usable list.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import os from "node:os";
@@ -15,6 +15,7 @@ const fixture = readFileSync(path.join(ROOT, "scripts", "fixtures", "design", "c
 const PROMPT = "Design a landing page for a neighborhood ceramics studio";
 const DESIGN_MODEL = { id: "kurva/designer", name: "Kurva Designer" };
 const TEXT_MODEL = { id: "kurva/texter", name: "Kurva Texter" };
+const FREE_MODEL = { id: "kurva/free-designer", name: "Kurva Free Designer" };
 const CAT_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><title>Gatito</title><g id="body"><ellipse cx="256" cy="330" rx="130" ry="100" fill="#e0a370"/></g><g id="head"><circle cx="256" cy="200" r="90" fill="#e0a370"/><path d="M186 150 L200 80 L236 130 Z M326 150 L312 80 L276 130 Z" fill="#c9844f"/></g><g id="eyes"><circle cx="226" cy="200" r="12" fill="#1d1a17"/><circle cx="286" cy="200" r="12" fill="#1d1a17"/><circle cx="230" cy="196" r="4" fill="#fff"/><circle cx="290" cy="196" r="4" fill="#fff"/></g></svg>';
 
@@ -79,6 +80,15 @@ try {
   assert.match(system, /, empty/);
   assert.doesNotMatch(system, /cannot change the canvas/);
 
+  // The model chip shows the price, and the picker offers the best free tool model in one click.
+  const modelTrigger = page.locator("button.studio-agent__model-trigger");
+  assert.match(await modelTrigger.innerText(), /\$3 \/ \$15/);
+  await modelTrigger.click();
+  const freePick = page.locator(".studio-model-picker-popover__free-pick");
+  assert.match(await freePick.innerText(), new RegExp(`Use a free model[\\s\\S]*${FREE_MODEL.name}`));
+  await page.keyboard.press("Escape");
+  await freePick.waitFor({ state: "detached" });
+
   // 4. Iterate: the model reads the frame, sends a patch that does not match, reads the error,
   //    fixes it and adds a mobile frame to the right, all in one reply.
   await page.locator("#studio-chat-composer").fill("make the hero dark and add a mobile version");
@@ -101,6 +111,22 @@ try {
   await page.locator('iframe[title="Clay & Kiln — Mobile"]').waitFor({ state: "detached" });
   await waitForFrame(page, "Clay & Kiln — Desktop", (state) => state.heroBackground === "rgb(246, 241, 234)");
   await page.keyboard.press("ControlOrMeta+Shift+z");
+  await waitForFrame(page, "Clay & Kiln — Mobile", (state) => state.heroColumns === 1);
+  await waitForFrame(page, "Clay & Kiln — Desktop", (state) => state.heroBackground === "rgb(29, 26, 23)");
+
+  // 5b. Each design reply saved a version. Restoring v1 brings back the first design (light hero, no
+  //     mobile frame) as one change, and one Undo reverses the restore.
+  await page.getByRole("button", { name: "Design versions" }).click();
+  const versions = page.locator("#studio-agent-versions [role='menuitem']");
+  assert.equal(await versions.count(), 2, "one version per design reply");
+  assert.match(await versions.nth(0).innerText(), /v2 · make the hero dark[\s\S]*On the canvas/);
+  assert.match(await versions.nth(1).innerText(), new RegExp(`v1 · ${PROMPT}`));
+  await versions.nth(1).click();
+  await page.locator("#studio-agent-versions").waitFor({ state: "detached" });
+  await page.locator('iframe[title="Clay & Kiln — Mobile"]').waitFor({ state: "detached" });
+  await waitForFrame(page, "Clay & Kiln — Desktop", (state) => state.heroBackground === "rgb(246, 241, 234)");
+  await page.locator(".tl-container").first().focus();
+  await page.keyboard.press("ControlOrMeta+z");
   await waitForFrame(page, "Clay & Kiln — Mobile", (state) => state.heroColumns === 1);
   await waitForFrame(page, "Clay & Kiln — Desktop", (state) => state.heroBackground === "rgb(29, 26, 23)");
 
@@ -168,6 +194,13 @@ try {
   await picker.locator(`[role="option"][data-model-id="${TEXT_MODEL.id}"]`).click();
   await picker.waitFor({ state: "detached" });
   assert.match(await homeTrigger.innerText(), new RegExp(TEXT_MODEL.name));
+
+  // 9. The versions were saved with the project: they are still there after the reload.
+  await page.goto(`${server.origin}/${projectHash}`);
+  await page.locator('iframe[title="Clay & Kiln — Desktop"]').waitFor({ state: "attached" });
+  await page.getByRole("button", { name: "Design versions" }).click();
+  assert.equal(await page.locator("#studio-agent-versions [role='menuitem']").count(), 2, "versions survive a reload");
+  await page.keyboard.press("Escape");
   assert.deepEqual(await page.evaluate(() => window.__kurvaCspViolations ?? []), [], "Home stays within the CSP");
   console.log(`web-design-agent ok ${await browser.version()}`);
 } catch (error) {
@@ -356,6 +389,12 @@ function catalog() {
         ...TEXT_MODEL,
         pricing: { prompt: "0", completion: "0" },
         supported_parameters: ["max_tokens"]
+      },
+      {
+        ...base,
+        ...FREE_MODEL,
+        pricing: { prompt: "0", completion: "0" },
+        supported_parameters: ["tools", "tool_choice"]
       },
       {
         ...base,

@@ -1,5 +1,6 @@
 import type { DesignBlock } from "@codex-avatar-studio/studio-agent/designBlocks";
 import type { Editor } from "tldraw";
+import { recordDesignBaseline } from "./designVersions.js";
 import { executeCanvasTool } from "./executeCanvasTool.js";
 
 /**
@@ -11,6 +12,7 @@ export async function placeDesignBlocks(editor: Editor, blocks: DesignBlock[]): 
   const notes: string[] = [];
   let emptyFrameUsed = false;
   // Everything placed from one reply is one undo step, like a tool-using reply.
+  recordDesignBaseline(editor);
   editor.markHistoryStoppingPoint("agent-text-designs");
   const turn = { turn: true };
   for (const block of blocks) {

@@ -13,6 +13,7 @@ import { applyProposal, type CanvasProposal, proposalFromTool } from "./componen
 import type { PaletteCommand } from "./components/commandPalette.js";
 import { capCanvasSummary } from "./components/contextBudget.js";
 import { pickDefaultDesignModel } from "./components/defaultDesignModel.js";
+import { recordDesignBaseline } from "./components/designVersions.js";
 import { executeCanvasTool } from "./components/executeCanvasTool.js";
 import { summarizeShapeSelection } from "./components/inspectorSelection.js";
 import { ProposalBar } from "./components/ProposalBar.js";
@@ -536,8 +537,12 @@ export function App() {
         setCanvasProposal(preview);
         continue;
       }
-      // Every change in one agent reply shares a single undo step.
-      if (!call?.readOnly) beginAgentTurnChange(editor, agentTurnMarksRef.current, execution.requestId);
+      // Every change in one agent reply shares a single undo step. Before a reply's first change,
+      // design frames made without the agent are kept as a version, so they can be restored.
+      if (!call?.readOnly) {
+        if (!agentTurnMarksRef.current.has(execution.requestId)) recordDesignBaseline(editor);
+        beginAgentTurnChange(editor, agentTurnMarksRef.current, execution.requestId);
+      }
       void executeCanvasTool(editor, execution.name, execution.arguments, { turn: true })
         .then((result) => completeToolExecution(execution.requestId, execution.callId, { ok: true, ...result }))
         .catch((error: unknown) =>
@@ -834,6 +839,27 @@ export function App() {
   React.useEffect(() => {
     scheduleProjectSaveRef.current = scheduleProjectSave;
   }, [scheduleProjectSave]);
+
+  // A save waits for a pause in editing. Anything that ends the editing session (leaving the project,
+  // hiding or closing the page) saves the waiting changes first, or the last edits would be lost.
+  const flushPendingSaveRef = useRef<() => void>(() => undefined);
+  React.useEffect(() => {
+    flushPendingSaveRef.current = () => {
+      if (saveTimerRef.current !== undefined) persistProjectNow();
+    };
+  }, [persistProjectNow]);
+  React.useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flushPendingSaveRef.current();
+    };
+    const onPageHide = () => flushPendingSaveRef.current();
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, []);
 
   const claimProjectLock = React.useCallback(
     (projectId: string, saveAfter = false) => {
@@ -2079,6 +2105,7 @@ export function App() {
 
   useEffect(() => {
     if (route.name !== "project") {
+      flushPendingSaveRef.current();
       mountingRef.current = false;
       mountedEditorRef.current = null;
       editorRef.current = null;

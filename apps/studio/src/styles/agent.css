@@ -32,7 +32,7 @@
 }
 .studio-tool-card__name {
   color: var(--studio-text-primary);
-  font-family: var(--studio-font-mono, ui-monospace, monospace);
+  font-family: var(--studio-font-mono);
   font-size: 12px;
   font-weight: 500;
   text-transform: none;
@@ -330,7 +330,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  font-family: var(--studio-font-mono, ui-monospace, monospace);
+  font-family: var(--studio-font-mono);
 }
 
 .studio-page-row {
@@ -475,6 +475,68 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
 }
 
 .studio-agent__conversations button span:last-child {
+  color: var(--studio-text-muted);
+  font-size: 11px;
+}
+
+/* Design versions: anchored under its button at the right edge of the header. */
+.studio-agent__versions {
+  position: relative;
+}
+
+.studio-agent__versions-menu {
+  position: absolute;
+  z-index: 5;
+  top: 36px;
+  right: 0;
+  display: grid;
+  width: min(300px, 80vw);
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--studio-divider);
+  border-radius: 12px;
+  background: var(--studio-surface-1);
+  box-shadow: var(--studio-shadow-dialog);
+}
+
+.studio-agent__versions-note {
+  margin: 4px 8px 6px;
+  color: var(--studio-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.studio-agent__versions-menu button {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--studio-text-primary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-agent__versions-menu button:hover:not(:disabled),
+.studio-agent__versions-menu button:focus-visible {
+  background: var(--studio-surface-active);
+}
+
+.studio-agent__versions-menu button:disabled {
+  cursor: default;
+}
+
+.studio-agent__versions-menu button span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-agent__versions-menu button span:last-child {
   color: var(--studio-text-muted);
   font-size: 11px;
 }
@@ -702,6 +764,18 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
   white-space: nowrap;
 }
 
+.studio-agent__model-trigger .studio-agent__model-name {
+  min-width: 0;
+}
+
+/* The price stays whole; the model name gives way first. */
+.studio-agent__model-trigger .studio-agent__model-price {
+  flex: 0 0 auto;
+  color: var(--studio-text-secondary);
+  font-family: var(--studio-font-mono);
+  font-size: 10px;
+}
+
 .studio-model-picker-popover {
   position: absolute;
   z-index: 30;
@@ -774,6 +848,35 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
 .studio-model-picker-popover__favorite:hover {
   background: var(--studio-surface-active);
   color: var(--studio-text-primary);
+}
+
+.studio-model-picker-popover__free-pick {
+  display: grid;
+  gap: 2px;
+  margin: 10px 10px 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--studio-divider);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--studio-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-model-picker-popover__free-pick:hover,
+.studio-model-picker-popover__free-pick:focus-visible {
+  background: var(--studio-surface-active);
+}
+
+.studio-model-picker-popover__free-pick span:first-child {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.studio-model-picker-popover__free-pick span:last-child {
+  color: var(--studio-text-secondary);
+  font-size: 11px;
 }
 
 .studio-model-picker-popover__search {
@@ -1518,7 +1621,7 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
 
 #studio-composer-variants button span:first-child {
   width: 28px;
-  font-family: var(--studio-font-mono, ui-monospace, monospace);
+  font-family: var(--studio-font-mono);
 }
 
 #studio-composer-variants button span:last-child {

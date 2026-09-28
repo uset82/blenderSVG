@@ -38,9 +38,11 @@ import {
   storeComposerMode
 } from "./composerModes.js";
 import { compactHistory } from "./contextBudget.js";
-import { pickDefaultDesignModel } from "./defaultDesignModel.js";
+import { isFreeModel, pickDefaultDesignModel, pickFreeDesignModel } from "./defaultDesignModel.js";
 import { buildDesignContext } from "./designContext.js";
+import { DesignVersionsMenu } from "./DesignVersionsMenu.js";
 import { DESIGN_SKILLS, designSkill } from "./designSkills.js";
+import { recordDesignVersion } from "./designVersions.js";
 import {
   filterStudioModels,
   isDuplicateRoute,
@@ -144,12 +146,18 @@ const ConversationMessage = memo(
   function ConversationMessage({
     message,
     onRetry,
-    onOpenModels
+    onOpenModels,
+    freeModelName,
+    onUseFreeModel
   }: {
     message: ChatMessage;
     onRetry: () => void;
     onOpenModels: () => void;
+    /** The best free design model, offered when the reply failed for lack of credits. */
+    freeModelName?: string | undefined;
+    onUseFreeModel?: (() => void) | undefined;
   }) {
+    const creditError = /credit|afford/i.test(message.errorMessage ?? "");
     return (
       <article
         className={`studio-agent__message${message.role === "user" ? " studio-agent__message--user" : ""}`}
@@ -183,7 +191,12 @@ const ConversationMessage = memo(
             >
               Open settings
             </button>
-            {message.errorMessage?.toLowerCase().includes("credit") && (
+            {creditError && freeModelName && onUseFreeModel && (
+              <button type="button" onClick={onUseFreeModel} title={`Switch to ${freeModelName}, then Retry`}>
+                Use a free model
+              </button>
+            )}
+            {creditError && (
               <a href="https://openrouter.ai/settings/credits" target="_blank" rel="noreferrer">
                 Add credits
               </a>
@@ -205,7 +218,7 @@ const ConversationMessage = memo(
       </article>
     );
   },
-  (previous, next) => previous.message === next.message
+  (previous, next) => previous.message === next.message && previous.freeModelName === next.freeModelName
 );
 
 interface OutboundPreview {
@@ -375,7 +388,7 @@ export function AgentConversationPanel({
   /** Set when a message should send by itself (from Home, or after sign-in) once a model is ready. */
   const pendingAutoSendRef = useRef<string | null>(null);
   /** The mode and tool support of each request, to place text-only designs when it completes. */
-  const requestMetaRef = useRef(new Map<string, { mode: ComposerMode; toolSupport: boolean }>());
+  const requestMetaRef = useRef(new Map<string, { mode: ComposerMode; toolSupport: boolean; prompt: string }>());
   const placedRequestsRef = useRef(new Set<string>());
   const [variantMenuOpen, setVariantMenuOpen] = useState(false);
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
@@ -584,6 +597,12 @@ export function AgentConversationPanel({
     setModelPickerOpen(false);
     window.requestAnimationFrame(() => modelPickerTriggerRef.current?.focus());
   };
+  // "Use a free model": the strongest free tool-capable model, offered while a paid model is chosen.
+  const freeDesignModel = useMemo(() => pickFreeDesignModel(modelCatalog.models), [modelCatalog.models]);
+  const offeredFreeModel =
+    freeDesignModel && selectedModel && !isFreeModel(selectedModel) && freeDesignModel.id !== selectedModel.id
+      ? freeDesignModel
+      : undefined;
   const openModelPicker = () => setModelPickerOpen(true);
   const closeModelPicker = (restoreFocus = false) => {
     setModelPickerOpen(false);
@@ -617,10 +636,11 @@ export function AgentConversationPanel({
     }
   }, [selectedModelId]);
 
-  // A model that answered a design request in text (no tools, or prose instead of tool calls) still
-  // gets its fenced html/svg placed on the canvas; the saved reply keeps a short note instead.
+  // When a design reply ends, its design frames are recorded as a version (Versions menu). A model that
+  // answered in text (no tools, or prose instead of tool calls) still gets its fenced html/svg placed on
+  // the canvas first; the saved reply keeps a short note instead.
   useEffect(() => {
-    if (chatRun?.status !== "complete" || !editor) return;
+    if ((chatRun?.status !== "complete" && chatRun?.status !== "error") || !editor) return;
     const { requestId, text } = chatRun;
     const meta = requestMetaRef.current.get(requestId);
     if (!meta || (meta.mode !== "auto" && meta.mode !== "build") || placedRequestsRef.current.has(requestId)) return;
@@ -628,9 +648,13 @@ export function AgentConversationPanel({
     const madeChanges = toolCalls.some(
       (call) => call.requestId === requestId && !call.readOnly && call.status === "applied"
     );
-    const blocks = extractDesignBlocks(text);
-    if (blocks.length === 0 || madeChanges) return;
+    const blocks = chatRun.status === "complete" && !madeChanges ? extractDesignBlocks(text) : [];
+    if (blocks.length === 0) {
+      if (madeChanges) recordDesignVersion(editor, meta.prompt);
+      return;
+    }
     void placeDesignBlocks(editor, blocks).then((notes) => {
+      recordDesignVersion(editor, meta.prompt);
       const redacted = redactDesignBlocks(text, blocks, notes);
       setMessages((current) =>
         current.map((message) => (message.id === requestId ? { ...message, content: redacted } : message))
@@ -903,7 +927,11 @@ export function AgentConversationPanel({
       outboundPreview.extras
     );
     if (!requestId) return;
-    requestMetaRef.current.set(requestId, { mode: outboundPreview.mode, toolSupport: outboundPreview.toolSupport });
+    requestMetaRef.current.set(requestId, {
+      mode: outboundPreview.mode,
+      toolSupport: outboundPreview.toolSupport,
+      prompt: outboundPreview.message
+    });
     setMessages((current) => [
       ...current,
       {
@@ -1189,6 +1217,7 @@ export function AgentConversationPanel({
           </div>
         </div>
         <div className="studio-agent__header-actions">
+          {editor ? <DesignVersionsMenu editor={editor} /> : null}
           <button className="studio-agent__button" type="button" onClick={startNewConversation}>
             + New
           </button>
@@ -1242,6 +1271,8 @@ export function AgentConversationPanel({
                 message={message}
                 onRetry={retryLastUserMessage}
                 onOpenModels={openModelPicker}
+                freeModelName={offeredFreeModel?.name}
+                onUseFreeModel={offeredFreeModel ? () => chooseModel(offeredFreeModel.id) : undefined}
               />
             ))
           )}
@@ -1591,7 +1622,10 @@ export function AgentConversationPanel({
               aria-controls="studio-model-picker-popover"
               onClick={() => setModelPickerOpen((open) => !open)}
             >
-              <span>{selectedModel?.name ?? "Choose model"}</span>
+              <span className="studio-agent__model-name">{selectedModel?.name ?? "Choose model"}</span>
+              {selectedModel ? (
+                <span className="studio-agent__model-price">{formatShortCatalogPrice(selectedModel)}</span>
+              ) : null}
               <ChevronDown size={13} aria-hidden="true" />
             </button>
             {modelPickerOpen && (
@@ -1629,6 +1663,18 @@ export function AgentConversationPanel({
                     <X size={15} aria-hidden="true" />
                   </button>
                 </header>
+
+                {offeredFreeModel ? (
+                  <button
+                    type="button"
+                    className="studio-model-picker-popover__free-pick"
+                    data-free-model-id={offeredFreeModel.id}
+                    onClick={() => chooseModel(offeredFreeModel.id)}
+                  >
+                    <span>Use a free model</span>
+                    <span>{offeredFreeModel.name} · designs with tools, costs nothing</span>
+                  </button>
+                ) : null}
 
                 <label className="studio-model-picker-popover__search">
                   <Search size={15} aria-hidden="true" />
