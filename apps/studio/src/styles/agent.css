@@ -912,6 +912,27 @@ html[data-hover="none"] .studio-layer-row > button:not(.studio-layer-row__label)
   font-size: 13px;
 }
 
+/* The field shows focus on its border (:focus-within above); a second ring on the input doubled it. */
+.studio-model-picker-popover__search input:focus-visible {
+  outline: none;
+}
+
+/* "More filters" reads like the quick filters above it, not like body text. */
+.studio-model-picker-popover__filters {
+  margin: 8px 10px 0;
+}
+
+.studio-model-picker-popover__filters > summary {
+  width: fit-content;
+  color: var(--studio-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.studio-model-picker-popover__filters > summary:hover {
+  color: var(--studio-text-primary);
+}
+
 .studio-model-picker-popover__quick-filters {
   display: flex;
   flex-wrap: wrap;
